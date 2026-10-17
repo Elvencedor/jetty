@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Jetty's Hair Admin (Pink) — Settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&amp;family=Figtree:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#FFF7FA}
+a{color:#A3134F}a:hover{color:#7E0E3D}
+</style>
+</helmet>
+<div style="min-height: 1350px; background: #FFF7FA; color: #2B0D1C; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; line-height: 1.45; display: flex; flex-direction: column">
+
+  <header style="background: #FFFFFF; border-bottom: 1px solid #F3D6E2; padding: 12px clamp(16px, 3vw, 36px); display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px">
+    <span style="display: flex; align-items: center; gap: 8px"><span style="width: 34px; height: 34px; border-radius: 11px; background: #D61F69; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">J</span><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">jetty admin</span></span>
+    <nav aria-label="Admin" style="flex: 1 1 520px; display: flex; flex-wrap: wrap; gap: 4px">
+      <sc-for list="{{nav}}" as="n" hint-placeholder-count="9">
+        <a href="{{n.href}}" style="height: 38px; padding: 0 14px; border-radius: 19px; display: flex; align-items: center; text-decoration: none; font-weight: 600; background: {{n.bg}}; color: {{n.fg}}">{{n.label}}</a>
+      </sc-for>
+    </nav>
+    <span aria-label="Signed in as Jetty" style="width: 40px; height: 40px; border-radius: 20px; background: #F2B6CB; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #7E0E3D">JT</span>
+  </header>
+
+  <main style="padding: 24px clamp(16px, 3vw, 36px) 40px; display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; box-sizing: border-box; width: 100%">
+    <aside aria-label="Settings sections" style="flex: 1 1 240px; max-width: 100%; display: flex; flex-direction: column; gap: 6px">
+      <h1 style="margin: 0 0 8px; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 32px; letter-spacing: -1px">Settings</h1>
+      <sc-for list="{{menu}}" as="m" hint-placeholder-count="6">
+        <button onClick="{{m.pick}}" aria-current="{{m.cur}}" style="min-height: 56px; padding: 8px 14px; border-radius: 18px; border: 0; background: {{m.bg}}; color: {{m.fg}}; font: inherit; text-align: left; display: flex; align-items: center; gap: 12px">
+          <span style="width: 34px; height: 34px; border-radius: 12px; background: {{m.iconBg}}; display: flex; align-items: center; justify-content: center; flex: none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{m.iconFg}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{m.icon}}"></path></svg></span>
+          <span style="display: flex; flex-direction: column; line-height: 1.25"><span style="font-weight: 700">{{m.label}}</span><span style="font-size: 12px; opacity: 0.8">{{m.note}}</span></span>
+        </button>
+      </sc-for>
+    </aside>
+
+    <section style="flex: 999 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 14px">
+
+      <!-- Store details -->
+      <sc-if value="{{p0}}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 20px; border-radius: 24px; background: #FFFFFF; border: 1px solid #F3D6E2; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 14px">
+          <h2 style="grid-column: 1 / -1; margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 22px">Store details</h2>
+          <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Store name<input value="Jetty's Hair" style="height: 46px; padding: 0 14px; border-radius: 14px; border: 1.5px solid #EAC9D6; font: inherit; font-weight: 400"></label>
+          <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Support email<input value="hello@[yourdomain].com" style="height: 46px; padding: 0 14px; border-radius: 14px; border: 1.5px solid #EAC9D6; font: inherit; font-weight: 400"></label>
+          <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">WhatsApp business number<input value="[YOUR NUMBER]" style="height: 46px; padding: 0 14px; border-radius: 14px; border: 1.5px solid #EAC9D6; font: inherit; font-weight: 400"></label>
+          <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Support hours<input value="Mon–Sat, 9am–7pm" style="height: 46px; padding: 0 14px; border-radius: 14px; border: 1.5px solid #EAC9D6; font: inherit; font-weight: 400"></label>
+          <label style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Showroom / pickup address<input value="[Showroom address], Lekki, Lagos" style="height: 46px; padding: 0 14px; border-radius: 14px; border: 1.5px solid #EAC9D6; font: inherit; font-weight: 400"></label>
+          <span style="grid-column: 1 / -1; font-size: 13px; color: #74525F">Logo, colours and fonts live in <a href="PinkAdminStorefront.dc.html">Storefront › Theme &amp; logo</a>.</span>
+        </div>
+      </sc-if>
+
+      <!-- Delivery -->
+      <sc-if value="{{p1}}" hint-placeholder-val="{{ true }}">
+        <div style="padding: 20px; border-radius: 24px; background: #FFFFFF; border: 1px solid #F3D6E2; display: flex; flex-direction: column; gap: 14px">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px"><h2 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 22px">Delivery zones</h2><button style="height: 40px; padding: 0 16px; border-radius: 20px; border: 1.5px dashed #F2A1C2; background: transparent; font: inherit; font-weight: 700; color: #A3134F">+ Add zone</button></div>
+          <span style="color: #74525F">Customers only see options that apply to their address. Prices here are what checkout charges.</span>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px">
+            <sc-for list="{{zones}}" as="z" hint-placeholder-count="4">
+              <div style="padding: 16px; border-radius: 20px; border: 2px solid {{z.border}}; background: {{z.bg}}; display: flex; flex-direction: column; gap: 10px">
+                <div style="display: flex; justify-content: space-between; align-items: center"><span style="font-weight: 800; font-size: 16px">{{z.name}}</span><button onClick="{{z.toggle}}" role="switch" aria-checked="{{z.on}}" aria-label="Deliver to {{z.name}}" style="width: 44px; height: 26px; border-radius: 13px; border: 0; padding: 3px; background: {{z.swBg}}; display: inline-flex; justify-content: {{z.swJust}}"><span style="width: 20px; height: 20px; border-radius: 10px; background: #FFFFFF"></span></button></div>
+                <span style="font-size: 12px; color: #74525F">{{z.areas}}</span>
+                <sc-for list="{{z.options}}" as="o" hint-placeholder-count="2">
+                  <div style="display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 12px; background: #FFFFFF; border: 1px solid #F3D6E2; font-size: 13px"><span style="display: flex; flex-direction: column; line-height: 1.3"><span style="font-weight: 700">{{o.name}}</span><span style="font-size: 12px; color: #74525F">{{o.note}}</span></span><span style="font-weight: 800">{{o.price}}</span></div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px; padding-top: 6px; border-top: 1px solid #FBE3EC">
+            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Same-day order cutoff<select style="height: 46px; padding: 0 12px; border-radius: 14px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"><option>2:00 pm</option><option>12:00 pm</option><option>4:00 pm</option></select></label>
+            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Free delivery over (₦)<input value="250,000" style="height: 46px; padding: 0 14px; border-radius: 14px; border: 1.5px solid #EAC9D6; font: inherit; font-weight: 400"></label>
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 14px; background: #FFF0F6"><span style="display: flex; flex-direction: column; line-height: 1.3"><span style="font-weight: 700">Pay on delivery</span><span style="font-size: 12px; color: #74525F">Lagos only, orders under ₦300,000</span></span><button onClick="{{togglePod}}" role="switch" aria-checked="{{pod}}" aria-label="Pay on delivery" style="flex: none; width: 44px; height: 26px; border-radius: 13px; border: 0; padding: 3px; background: {{podBg}}; display: inline-flex; justify-content: {{podJust}}"><span style="width: 20px; height: 20px; border-radius: 10px; background: #FFFFFF"></span></button></div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- Payments -->
+      <sc-if value="{{p2}}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 20px; border-radius: 24px; background: #FFFFFF; border: 1px solid #F3D6E2; display: flex; flex-direction: column; gap: 12px">
+          <h2 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 22px">Payments</h2>
+          <div style="padding: 14px; border-radius: 18px; background: #FFF0F6; display: flex; align-items: center; gap: 12px; flex-wrap: wrap"><span style="width: 44px; height: 44px; border-radius: 14px; background: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #A3134F">PG</span><span style="flex: 1 1 200px; display: flex; flex-direction: column; line-height: 1.3"><span style="font-weight: 700">[Payment gateway]</span><span style="font-size: 12px; color: #74525F">Connected · live mode · payouts to GTBank ··2210 daily</span></span><button style="height: 40px; padding: 0 14px; border-radius: 20px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 600">Manage</button></div>
+          <sc-for list="{{methods}}" as="m" hint-placeholder-count="4">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 56px; border-bottom: 1px solid #FBE3EC"><span style="display: flex; flex-direction: column; line-height: 1.3"><span style="font-weight: 700">{{m.label}}</span><span style="font-size: 12px; color: #74525F">{{m.note}}</span></span><button onClick="{{m.toggle}}" role="switch" aria-checked="{{m.on}}" aria-label="{{m.label}}" style="flex: none; width: 44px; height: 26px; border-radius: 13px; border: 0; padding: 3px; background: {{m.swBg}}; display: inline-flex; justify-content: {{m.swJust}}"><span style="width: 20px; height: 20px; border-radius: 10px; background: #FFFFFF"></span></button></div>
+          </sc-for>
+          <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; max-width: 320px">Cancel unpaid transfer orders after<select style="height: 46px; padding: 0 12px; border-radius: 14px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"><option>2 hours</option><option>6 hours</option><option>24 hours</option></select></label>
+        </div>
+      </sc-if>
+
+      <!-- Notifications -->
+      <sc-if value="{{p3}}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start">
+          <div style="flex: 999 1 380px; min-width: 0; padding: 20px; border-radius: 24px; background: #FFFFFF; border: 1px solid #F3D6E2; display: flex; flex-direction: column; gap: 8px">
+            <h2 style="margin: 0 0 6px; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 22px">Customer messages</h2>
+            <div style="display: grid; grid-template-columns: minmax(0, 1fr) 80px 80px; gap: 8px; font-size: 12px; color: #74525F; font-weight: 700"><span>Message</span><span style="text-align: center">WhatsApp</span><span style="text-align: center">Email</span></div>
+            <sc-for list="{{templates}}" as="t" hint-placeholder-count="6">
+              <div style="display: grid; grid-template-columns: minmax(0, 1fr) 80px 80px; gap: 8px; align-items: center; min-height: 48px; border-top: 1px solid #FBE3EC">
+                <button onClick="{{t.pick}}" style="border: 0; background: transparent; font: inherit; text-align: left; padding: 6px 0; color: #2B0D1C; display: flex; flex-direction: column; line-height: 1.3"><span style="font-weight: {{t.weight}}; color: {{t.color}}">{{t.label}}</span><span style="font-size: 12px; color: #74525F">{{t.when}}</span></button>
+                <span style="display: flex; justify-content: center"><input type="checkbox" checked="{{t.wa}}" aria-label="WhatsApp for {{t.label}}" style="width: 20px; height: 20px; accent-color: #D61F69"></span>
+                <span style="display: flex; justify-content: center"><input type="checkbox" checked="{{t.em}}" aria-label="Email for {{t.label}}" style="width: 20px; height: 20px; accent-color: #D61F69"></span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="flex: 1 1 280px; min-width: 0; padding: 18px; border-radius: 24px; background: #E9F5EE; display: flex; flex-direction: column; gap: 10px">
+            <span style="font-size: 12px; font-weight: 800; letter-spacing: 0.6px; color: #0E6B4C">WHATSAPP PREVIEW</span>
+            <div style="align-self: flex-start; max-width: 92%; padding: 12px 14px; border-radius: 4px 18px 18px 18px; background: #FFFFFF; font-size: 13px; white-space: pre-line; box-shadow: 0 1px 2px rgba(0,0,0,0.08)">{{preview}}</div>
+            <span style="font-size: 12px; color: #4A2536">Words in {curly braces} fill in automatically. <a href="#">Edit wording</a></span>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- Policies -->
+      <sc-if value="{{p4}}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 20px; border-radius: 24px; background: #FFFFFF; border: 1px solid #F3D6E2; display: flex; flex-direction: column; gap: 14px">
+          <h2 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 22px">Returns &amp; policies</h2>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px">
+            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Return window<select style="height: 46px; padding: 0 12px; border-radius: 14px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"><option>7 days after delivery</option><option>14 days</option><option>No returns</option></select></label>
+            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Refund as<select style="height: 46px; padding: 0 12px; border-radius: 14px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"><option>Original payment or store credit (customer picks)</option><option>Store credit only</option></select></label>
+          </div>
+          <span style="font-weight: 700">Conditions customers must confirm</span>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px"><span style="padding: 6px 12px; border-radius: 14px; background: #FFF0F6; font-weight: 600">Unworn</span><span style="padding: 6px 12px; border-radius: 14px; background: #FFF0F6; font-weight: 600">Lace uncut</span><span style="padding: 6px 12px; border-radius: 14px; background: #FFF0F6; font-weight: 600">Original packaging</span><button style="height: 32px; padding: 0 12px; border-radius: 16px; border: 1.5px dashed #F2A1C2; background: transparent; font: inherit; font-weight: 700; color: #A3134F">+ Add</button></div>
+          <span style="font-weight: 700">Policy pages</span>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 8px"><sc-for list="{{pages}}" as="p" hint-placeholder-count="5"><a href="#" style="padding: 12px 14px; border-radius: 16px; background: #FFF7FA; border: 1px solid #F3D6E2; color: #2B0D1C; text-decoration: none; display: flex; flex-direction: column"><span style="font-weight: 700">{{p.t}}</span><span style="font-size: 12px; color: #74525F">{{p.n}}</span></a></sc-for></div>
+        </div>
+      </sc-if>
+
+      <!-- Taxes -->
+      <sc-if value="{{p5}}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 20px; border-radius: 24px; background: #FFFFFF; border: 1px solid #F3D6E2; display: flex; flex-direction: column; gap: 12px; max-width: 640px">
+          <h2 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 22px">Tax &amp; currency</h2>
+          <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Prices shown to customers<select style="height: 46px; padding: 0 12px; border-radius: 14px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"><option>Include VAT</option><option>Exclude VAT (added at checkout)</option></select></label>
+          <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">VAT rate (%)<input value="[confirm with your accountant]" style="height: 46px; padding: 0 14px; border-radius: 14px; border: 1.5px solid #EAC9D6; font: inherit; font-weight: 400"></label>
+          <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Store currency<select style="height: 46px; padding: 0 12px; border-radius: 14px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"><option>Nigerian Naira (₦)</option></select></label>
+        </div>
+      </sc-if>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px"><button style="height: 44px; padding: 0 18px; border-radius: 22px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 600">Discard</button><button style="height: 44px; padding: 0 22px; border-radius: 22px; border: 0; background: #D61F69; color: #FFFFFF; font: inherit; font-weight: 700">Save changes</button></div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1350}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { page: 1, zones: { 0: true, 1: true, 2: true, 3: true }, pod: true, methods: { 0: true, 1: true, 2: true, 3: false }, tpl: 2 }; }
+  renderVals() {
+    const st = this.state;
+    const menu = [
+      { label: 'Store details', note: 'Name, contact, address', icon: 'M4 10l8-6 8 6v10H4z M10 20v-6h4v6' },
+      { label: 'Delivery & pickup', note: 'Zones, prices, cutoffs', icon: 'M3 7h11v9H3z M14 10h4l3 3v3h-7' },
+      { label: 'Payments', note: 'Methods and payouts', icon: 'M3 6h18v12H3z M3 10h18' },
+      { label: 'Notifications', note: 'WhatsApp and email', icon: 'M21 12a8 8 0 0 1-12 7l-5 1 1-4.5A8 8 0 1 1 21 12z' },
+      { label: 'Returns & policies', note: 'Windows and pages', icon: 'M4 9h12a4 4 0 0 1 0 8H8 M4 9l4-4 M4 9l4 4' },
+      { label: 'Tax & currency', note: 'VAT, Naira', icon: 'M12 3v18 M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6' }
+    ];
+    const zones = [
+      { name: 'Lagos Island', areas: 'Lekki, VI, Ikoyi, Ajah', options: [{ name: 'Same day', note: 'Order by 2pm', price: '₦3,500' }, { name: 'Pickup', note: 'Lekki showroom', price: 'Free' }] },
+      { name: 'Lagos Mainland', areas: 'Ikeja, Yaba, Surulere, Gbagada', options: [{ name: 'Same day', note: 'Order by 2pm', price: '₦4,500' }, { name: 'Next day', note: '9am–6pm', price: '₦3,000' }] },
+      { name: 'Abuja (FCT)', areas: 'All areas', options: [{ name: 'Standard', note: '2–3 working days', price: '₦6,000' }] },
+      { name: 'Other states', areas: 'Nationwide via courier', options: [{ name: 'Standard', note: '2–4 working days', price: '₦7,500' }] }
+    ];
+    const tpls = [
+      { label: 'Order confirmed', when: 'Right after payment', wa: true, em: true, text: 'Hi {first name}! Your order {order number} is confirmed.\nWe will let you know when it is on the way.' },
+      { label: 'Transfer details', when: 'When bank transfer is chosen', wa: true, em: true, text: 'Hi {first name}, please send {total} to {account number} ({bank}). Your order confirms automatically.' },
+      { label: 'Out for delivery', when: 'When a rider picks it up', wa: true, em: false, text: 'Hi {first name}! Your Jetty order is on the way with {rider name} ({rider phone}).\nArriving {eta}. Track it: {tracking link}' },
+      { label: 'Delivered', when: 'When marked delivered', wa: true, em: true, text: 'Delivered! We hope you love it. Install guide: {guide link}' },
+      { label: 'Review request', when: '7 days after delivery', wa: true, em: true, text: 'How is your {product}? Leave a review and a photo: {review link}' },
+      { label: 'Abandoned bag', when: '3 hours after leaving', wa: false, em: true, text: 'You left something in your bag. It is saved for you: {bag link}' }
+    ];
+    const sw = (on) => ({ swBg: on ? '#D61F69' : '#EAC9D6', swJust: on ? 'flex-end' : 'flex-start' });
+    return {
+      nav: [['Overview', 'PinkAdminDashboard.dc.html'], ['Orders', 'PinkAdminOrders.dc.html'], ['Products', 'PinkAdminProducts.dc.html'], ['Customers', 'PinkAdminCustomers.dc.html'], ['Promotions', 'PinkAdminPromotions.dc.html'], ['Storefront', 'PinkAdminStorefront.dc.html'], ['Reviews', 'PinkAdminReviews.dc.html'], ['Team', 'PinkAdminTeam.dc.html'], ['Settings', 'PinkAdminSettings.dc.html']].map((n) => { const on = n[0] === 'Settings'; return { label: n[0], href: n[1], bg: on ? '#2B0D1C' : 'transparent', fg: on ? '#FFFFFF' : '#4A2536' }; }),
+      menu: menu.map((m, i) => { const on = i === st.page; return { label: m.label, note: m.note, icon: m.icon, cur: on ? 'page' : 'false', bg: on ? '#2B0D1C' : 'transparent', fg: on ? '#FFFFFF' : '#2B0D1C', iconBg: on ? '#D61F69' : '#FFF0F6', iconFg: on ? '#FFFFFF' : '#D61F69', pick: () => this.setState({ page: i }) }; }),
+      p0: st.page === 0, p1: st.page === 1, p2: st.page === 2, p3: st.page === 3, p4: st.page === 4, p5: st.page === 5,
+      zones: zones.map((z, i) => { const on = !!st.zones[i]; return Object.assign({ name: z.name, areas: z.areas, options: z.options, on: on, border: on ? '#F3D6E2' : '#F1EEF0', bg: on ? '#FFF7FA' : '#FAFAFA', toggle: () => { const x = Object.assign({}, st.zones); x[i] = !x[i]; this.setState({ zones: x }); } }, sw(on)); }),
+      pod: st.pod, togglePod: () => this.setState({ pod: !st.pod }), podBg: st.pod ? '#D61F69' : '#EAC9D6', podJust: st.pod ? 'flex-end' : 'flex-start',
+      methods: [
+        { label: 'Card (Visa, Mastercard, Verve)', note: 'Through your payment gateway' },
+        { label: 'Bank transfer', note: 'One-time account number, auto-confirmed' },
+        { label: 'USSD', note: 'Dial a code from any Nigerian bank' },
+        { label: 'Instalments', note: 'Needs a pay-later partner' }
+      ].map((m, i) => { const on = !!st.methods[i]; return Object.assign({ label: m.label, note: m.note, on: on, toggle: () => { const x = Object.assign({}, st.methods); x[i] = !x[i]; this.setState({ methods: x }); } }, sw(on)); }),
+      templates: tpls.map((t, i) => ({ label: t.label, when: t.when, wa: t.wa, em: t.em, weight: i === st.tpl ? '800' : '600', color: i === st.tpl ? '#D61F69' : '#2B0D1C', pick: () => this.setState({ tpl: i }) })),
+      preview: tpls[st.tpl].text,
+      pages: [{ t: 'Returns & exchanges', n: 'Updated Sep 2' }, { t: 'Delivery information', n: 'Auto-filled from zones' }, { t: 'Terms of sale', n: 'Updated Aug 14' }, { t: 'Privacy (NDPR)', n: 'Updated Aug 14' }, { t: 'FAQs', n: '12 questions' }]
+    };
+  }
+}
+</script>
+</body>
+</html>

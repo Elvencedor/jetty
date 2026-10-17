@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Jetty's Hair Admin (Pink) — Products</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&amp;family=Figtree:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#FFF7FA}
+a{color:#A3134F}a:hover{color:#7E0E3D}
+@keyframes jhSlide{from{transform:translateX(100%)}to{transform:none}}
+@keyframes jhFade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion: reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div style="min-height: 1350px; background: #FFF7FA; color: #2B0D1C; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; line-height: 1.45; display: flex; flex-direction: column">
+
+  <header style="background: #FFFFFF; border-bottom: 1px solid #F3D6E2; padding: 12px clamp(16px, 3vw, 36px); display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px">
+    <span style="display: flex; align-items: center; gap: 8px"><span style="width: 34px; height: 34px; border-radius: 11px; background: #D61F69; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">J</span><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">jetty admin</span></span>
+    <nav aria-label="Admin" style="flex: 1 1 520px; display: flex; flex-wrap: wrap; gap: 4px">
+      <sc-for list="{{nav}}" as="n" hint-placeholder-count="7">
+        <a href="{{n.href}}" style="height: 38px; padding: 0 14px; border-radius: 19px; display: flex; align-items: center; text-decoration: none; font-weight: 600; background: {{n.bg}}; color: {{n.fg}}">{{n.label}}</a>
+      </sc-for>
+    </nav>
+    <span aria-label="Signed in as Jetty" style="width: 40px; height: 40px; border-radius: 20px; background: #F2B6CB; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #7E0E3D">JT</span>
+  </header>
+
+  <main style="padding: 24px clamp(16px, 3vw, 36px) 40px; display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; box-sizing: border-box; width: 100%">
+    <!-- Catalog -->
+    <section style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px">
+        <div style="display: flex; flex-direction: column"><h1 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 36px; letter-spacing: -1px">Products</h1><span style="color: #74525F">64 products · 412 variants · 3 low on stock</span></div>
+        <div style="display: flex; gap: 8px"><button style="height: 42px; padding: 0 16px; border-radius: 21px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 600">Import CSV</button><button style="height: 42px; padding: 0 18px; border-radius: 21px; border: 0; background: #D61F69; color: #FFFFFF; font: inherit; font-weight: 700">+ New product</button></div>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center">
+        <div role="group" aria-label="Status" style="display: flex; padding: 4px; border-radius: 22px; background: #FFFFFF; border: 1px solid #F3D6E2">
+          <sc-for list="{{statuses}}" as="s" hint-placeholder-count="4"><button onClick="{{s.pick}}" aria-pressed="{{s.on}}" style="height: 34px; padding: 0 14px; border-radius: 17px; border: 0; font: inherit; font-weight: 600; background: {{s.bg}}; color: {{s.fg}}">{{s.label}}</button></sc-for>
+        </div>
+        <label style="flex: 1 1 220px; height: 42px; padding: 0 14px; border-radius: 21px; background: #FFFFFF; border: 1px solid #F3D6E2; display: flex; align-items: center; gap: 8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A3134F" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search products</span><input placeholder="Search name, SKU, tag" style="flex: 1; min-width: 0; border: 0; background: transparent; font: inherit; outline: none"></label>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: 12px">
+        <sc-for list="{{cards}}" as="c" hint-placeholder-count="8">
+          <div style="padding: 8px; border-radius: 22px; background: #FFFFFF; border: 2px solid {{c.border}}; display: flex; flex-direction: column; gap: 8px">
+            <div style="position: relative; aspect-ratio: 1 / 0.9; border-radius: 16px; background: {{c.tone}}">
+              <span style="position: absolute; top: 8px; left: 8px; padding: 2px 8px; border-radius: 9px; font-size: 11px; font-weight: 700; background: {{c.sBg}}; color: {{c.sFg}}">{{c.status}}</span>
+              <button onClick="{{c.toggleFeat}}" aria-pressed="{{c.feat}}" aria-label="Feature {{c.name}} on homepage" style="position: absolute; top: 2px; right: 2px; width: 44px; height: 44px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center"><span style="width: 32px; height: 32px; border-radius: 16px; background: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="{{c.star}}" stroke="#D61F69" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3z"></path></svg></span></button>
+            </div>
+            <button onClick="{{c.pick}}" style="padding: 0 4px; border: 0; background: transparent; font: inherit; text-align: left; display: flex; flex-direction: column; gap: 4px; color: #2B0D1C">
+              <span style="font-weight: 700; line-height: 1.3">{{c.name}}</span>
+              <span style="font-size: 12px; color: #74525F">{{c.variants}} variants · {{c.price}}</span>
+              <span style="display: flex; align-items: center; gap: 8px; width: 100%; font-size: 12px"><span style="flex: 1; height: 6px; border-radius: 3px; background: #FBE3EC"><span style="display: block; height: 6px; border-radius: 3px; width: {{c.stockPct}}; background: {{c.stockBar}}"></span></span><span style="font-weight: 700; color: {{c.stockFg}}">{{c.stock}} left</span></span>
+            </button>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- Drawer editor -->
+    <sc-if value="{{drawerOpen}}" hint-placeholder-val="{{ true }}">
+      <div style="position: fixed; inset: 0; z-index: 50; display: flex; justify-content: flex-end">
+      <button onClick="{{closeDrawer}}" aria-label="Close edit product" tabindex="-1" style="position: absolute; inset: 0; border: 0; padding: 0; background: rgba(43,13,28,0.45); animation: jhFade .2s ease-out"></button>
+      <aside role="dialog" aria-modal="true" aria-label="Edit product" style="position: relative; width: min(480px, 100%); height: 100%; overflow-y: auto; background: #FFFFFF; box-shadow: -16px 0 48px rgba(43,13,28,0.20); display: flex; flex-direction: column; animation: jhSlide .28s cubic-bezier(.2,.8,.2,1)">
+        <div style="position: sticky; top: 0; z-index: 2; background: #FFFFFF; padding: 8px 8px 8px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #FBE3EC"><span style="font-size: 13px; font-weight: 700; color: #74525F">Edit product</span><button onClick="{{closeDrawer}}" aria-label="Close" style="width: 44px; height: 44px; border-radius: 22px; border: 0; background: #FFF0F6; display: flex; align-items: center; justify-content: center; color: #2B0D1C"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+      <div style="padding: 16px; display: flex; gap: 12px; align-items: center; border-bottom: 1px solid #FBE3EC">
+        <span style="width: 56px; height: 56px; border-radius: 16px; background: {{sel.tone}}; flex: none"></span>
+        <span style="flex: 1; display: flex; flex-direction: column; line-height: 1.3"><span style="font-size: 12px; color: #74525F">{{sel.cat}}</span><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">{{sel.name}}</span></span>
+        <button style="height: 40px; padding: 0 16px; border-radius: 20px; border: 0; background: #2B0D1C; color: #FFFFFF; font: inherit; font-weight: 700">Save</button>
+      </div>
+      <div role="tablist" style="margin: 12px 16px 0; padding: 4px; border-radius: 22px; background: #FFF0F6; display: flex; gap: 4px">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="4"><button role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="flex: 1; height: 36px; border-radius: 18px; border: 0; font: inherit; font-weight: 700; font-size: 13px; background: {{t.bg}}; color: {{t.fg}}">{{t.label}}</button></sc-for>
+      </div>
+
+      <sc-if value="{{tVariants}}" hint-placeholder-val="{{ true }}">
+        <div style="padding: 16px; display: flex; flex-direction: column; gap: 16px">
+
+          <!-- OPTIONS -->
+          <div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 17px">Options</span><span style="font-size: 12px; color: #74525F">Tap a value to edit it</span></div>
+          <sc-for list="{{opts}}" as="o" hint-placeholder-count="5">
+            <div style="padding: 12px; border-radius: 18px; border: 1.5px solid {{o.border}}; background: #FFFFFF; display: flex; flex-direction: column; gap: 10px">
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
+                <span style="display: flex; flex-direction: column; line-height: 1.25"><span style="font-weight: 800">{{o.name}}</span><span style="font-size: 12px; color: #74525F">{{o.count}} values · {{o.hint}}</span></span>
+                <button onClick="{{o.add}}" style="flex: none; height: 36px; padding: 0 12px; border-radius: 18px; border: 1.5px dashed #F2A1C2; background: #FFF7FA; font: inherit; font-size: 13px; font-weight: 700; color: #A3134F">+ Add {{o.single}}</button>
+              </div>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px">
+                <sc-for list="{{o.values}}" as="v" hint-placeholder-count="4">
+                  <button onClick="{{v.edit}}" aria-pressed="{{v.on}}" aria-label="Edit {{v.label}}" style="min-height: 36px; padding: 0 12px; border-radius: 18px; border: 1.5px solid {{v.border}}; background: {{v.bg}}; font: inherit; font-size: 13px; font-weight: 600; color: #2B0D1C; display: flex; align-items: center; gap: 6px; opacity: {{v.op}}">
+                    <sc-if value="{{v.hasHex}}" hint-placeholder-val="{{ false }}"><span style="width: 14px; height: 14px; border-radius: 7px; background: {{v.hex}}; border: 1px solid rgba(0,0,0,0.15)"></span></sc-if>
+                    {{v.label}}<sc-if value="{{v.hasDelta}}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; font-weight: 700; color: {{v.deltaFg}}">{{v.delta}}</span></sc-if><sc-if value="{{v.hidden}}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; color: #74525F">· hidden</span></sc-if>
+                  </button>
+                </sc-for>
+              </div>
+
+              <!-- Inline editor -->
+              <sc-if value="{{o.editing}}" hint-placeholder-val="{{ false }}">
+                <div style="padding: 14px; border-radius: 16px; background: #FFF0F6; display: flex; flex-direction: column; gap: 10px">
+                  <span style="font-weight: 800">{{ed.title}}</span>
+                  <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Name customers see<input value="{{ed.label}}" onInput="{{ed.setLabel}}" placeholder="{{ed.placeholder}}" style="height: 44px; padding: 0 14px; border-radius: 14px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"></label>
+                  <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Price difference (₦)
+                    <span style="display: flex; align-items: center; height: 44px; border-radius: 14px; border: 1.5px solid #EAC9D6; background: #FFFFFF; overflow: hidden"><span style="padding: 0 10px 0 14px; color: #74525F; font-weight: 700">±</span><input value="{{ed.add}}" onInput="{{ed.setAdd}}" inputmode="numeric" style="flex: 1; min-width: 0; height: 100%; border: 0; font: inherit; font-weight: 400; outline: none"></span>
+                    <span style="font-weight: 400; font-size: 12px; color: #74525F">{{ed.addHelp}}</span>
+                  </label>
+                  <sc-if value="{{ed.isColour}}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 13px; font-weight: 600">Swatch colour</span>
+                      <div style="display: flex; gap: 8px; flex-wrap: wrap"><sc-for list="{{ed.swatches}}" as="w" hint-placeholder-count="6"><button onClick="{{w.pick}}" aria-label="Swatch {{w.hex}}" aria-pressed="{{w.on}}" style="width: 36px; height: 36px; border-radius: 18px; border: 3px solid {{w.ring}}; background: {{w.hex}}; box-shadow: inset 0 0 0 2px #FFFFFF"></button></sc-for></div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ed.isExisting}}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 40px"><span style="display: flex; flex-direction: column; line-height: 1.3"><span style="font-weight: 600">Show in store</span><span style="font-size: 12px; color: #74525F">Turn off to stop selling it without deleting anything</span></span><button onClick="{{ed.toggleVis}}" role="switch" aria-checked="{{ed.visible}}" aria-label="Show in store" style="flex: none; width: 44px; height: 26px; border-radius: 13px; border: 0; padding: 3px; background: {{ed.swBg}}; display: inline-flex; justify-content: {{ed.swJust}}"><span style="width: 20px; height: 20px; border-radius: 10px; background: #FFFFFF"></span></button></div>
+                  </sc-if>
+                  <div style="padding: 10px 12px; border-radius: 12px; background: #FFFFFF; font-size: 13px; color: #4A2536; display: flex; gap: 8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D61F69" stroke-width="2" stroke-linecap="round" style="flex: none; margin-top: 2px"><circle cx="12" cy="12" r="9"></circle><path d="M12 8h.01M11 12h1v5h1"></path></svg><span>{{ed.impact}}</span></div>
+                  <sc-if value="{{ed.confirming}}" hint-placeholder-val="{{ false }}">
+                    <div role="alert" style="padding: 12px; border-radius: 12px; background: #FCE4E2; color: #7A1A14; font-size: 13px; display: flex; flex-direction: column; gap: 8px">
+                      <strong>Delete “{{ed.label}}”?</strong>
+                      <span>{{ed.deleteImpact}}</span>
+                      <div style="display: flex; gap: 8px; flex-wrap: wrap"><button onClick="{{ed.doDelete}}" style="height: 38px; padding: 0 14px; border-radius: 19px; border: 0; background: #B3261E; color: #FFFFFF; font: inherit; font-weight: 700">Yes, delete</button><button onClick="{{ed.hideInstead}}" style="height: 38px; padding: 0 14px; border-radius: 19px; border: 1.5px solid #E8B4AF; background: #FFFFFF; font: inherit; font-weight: 600">Hide it instead</button><button onClick="{{ed.cancelDelete}}" style="height: 38px; padding: 0 12px; border-radius: 19px; border: 0; background: transparent; font: inherit; font-weight: 600; text-decoration: underline">Keep it</button></div>
+                    </div>
+                  </sc-if>
+                  <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center">
+                    <button onClick="{{ed.save}}" disabled="{{ed.invalid}}" style="height: 42px; padding: 0 18px; border-radius: 21px; border: 0; background: {{ed.saveBg}}; color: #FFFFFF; font: inherit; font-weight: 700">{{ed.saveLabel}}</button>
+                    <button onClick="{{ed.cancel}}" style="height: 42px; padding: 0 14px; border-radius: 21px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 600">Cancel</button>
+                    <span style="flex: 1"></span>
+                    <sc-if value="{{ed.isExisting}}" hint-placeholder-val="{{ false }}"><button onClick="{{ed.askDelete}}" style="height: 42px; padding: 0 12px; border-radius: 21px; border: 0; background: transparent; font: inherit; font-weight: 700; color: #B3261E">Delete</button></sc-if>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <button style="min-height: 44px; border-radius: 16px; border: 1.5px dashed #F2A1C2; background: transparent; font: inherit; font-weight: 700; color: #A3134F">+ Add another option (e.g. Parting, Hair origin)</button>
+
+          <!-- VARIANTS -->
+          <div style="padding-top: 6px; border-top: 1px solid #FBE3EC; display: flex; justify-content: space-between; align-items: baseline; gap: 8px"><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 17px">Variants</span><span style="font-size: 12px; color: #74525F">{{totalVariants}} combinations · {{totalStock}} units</span></div>
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px">
+            <sc-for list="{{vFilters}}" as="f" hint-placeholder-count="3">
+              <label style="display: flex; flex-direction: column; gap: 2px; font-size: 11px; font-weight: 700; color: #74525F">{{f.name}}
+                <select onChange="{{f.change}}" style="height: 38px; padding: 0 8px; border-radius: 12px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-size: 13px; font-weight: 600; color: #2B0D1C">
+                  <sc-for list="{{f.choices}}" as="c" hint-placeholder-count="3"><option value="{{c.value}}" selected="{{c.on}}">{{c.label}}</option></sc-for>
+                </select>
+              </label>
+            </sc-for>
+          </div>
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; min-height: 36px"><input type="checkbox" checked="{{lowOnly}}" onChange="{{toggleLow}}" style="width: 18px; height: 18px; accent-color: #D61F69">Only show low or out of stock</label>
+
+          <sc-if value="{{hasChecked}}" hint-placeholder-val="{{ false }}">
+            <div style="position: sticky; top: 64px; z-index: 1; padding: 8px 8px 8px 14px; border-radius: 16px; background: #2B0D1C; color: #FFFFFF; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px">
+              <strong style="flex: 1">{{checkedCount}} selected</strong>
+              <button style="height: 34px; padding: 0 10px; border-radius: 17px; border: 0; background: #D61F69; color: #FFFFFF; font: inherit; font-weight: 700">Set price</button>
+              <button style="height: 34px; padding: 0 10px; border-radius: 17px; border: 0; background: #4A2536; color: #FFFFFF; font: inherit; font-weight: 700">Add stock</button>
+              <button onClick="{{clearChecked}}" aria-label="Clear selection" style="width: 34px; height: 34px; border-radius: 17px; border: 0; background: transparent; color: #FFFFFF; font-size: 16px">×</button>
+            </div>
+          </sc-if>
+
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <sc-for list="{{groups}}" as="g" hint-placeholder-count="4">
+              <div style="border-radius: 16px; border: 1.5px solid #F3D6E2; overflow: hidden">
+                <button onClick="{{g.toggle}}" aria-expanded="{{g.open}}" style="width: 100%; min-height: 48px; padding: 0 12px; border: 0; background: {{g.bg}}; font: inherit; display: flex; align-items: center; gap: 10px; text-align: left; color: #2B0D1C">
+                  <span style="font-weight: 800; width: 40px">{{g.label}}</span>
+                  <span style="flex: 1; font-size: 12px; color: #74525F">{{g.count}} variants · {{g.stock}} in stock</span>
+                  <sc-if value="{{g.hasLow}}" hint-placeholder-val="{{ false }}"><span style="padding: 1px 8px; border-radius: 9px; background: #FCE4E2; color: #B3261E; font-size: 11px; font-weight: 700">{{g.low}} low</span></sc-if>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="{{g.chev}}"></path></svg>
+                </button>
+                <sc-if value="{{g.open}}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; flex-direction: column">
+                    <sc-for list="{{g.rows}}" as="r" hint-placeholder-count="4">
+                      <div style="border-top: 1px solid #FBE3EC">
+                        <div style="display: flex; align-items: center; gap: 8px; padding: 4px 10px">
+                          <input type="checkbox" checked="{{r.checked}}" onChange="{{r.check}}" aria-label="Select {{r.name}}" style="width: 18px; height: 18px; accent-color: #D61F69; flex: none">
+                          <button onClick="{{r.toggle}}" aria-expanded="{{r.open}}" style="flex: 1; min-width: 0; min-height: 44px; border: 0; background: transparent; font: inherit; display: flex; align-items: center; gap: 8px; text-align: left; color: #2B0D1C; padding: 0">
+                            <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25"><span style="font-weight: 600; font-size: 13px">{{r.name}}</span><span style="font-size: 11px; color: #74525F">SKU {{r.sku}}</span></span>
+                            <span style="font-weight: 700; font-size: 13px">{{r.price}}</span>
+                            <span style="min-width: 48px; text-align: center; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 700; background: {{r.sBg}}; color: {{r.sFg}}">{{r.stock}}</span>
+                          </button>
+                        </div>
+                        <sc-if value="{{r.open}}" hint-placeholder-val="{{ false }}">
+                          <div style="margin: 0 10px 10px; padding: 12px; border-radius: 14px; background: #FFF7FA; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+                            <div style="grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; font-size: 13px"><span>Price from options: <strong>{{r.price}}</strong></span><label style="display: flex; align-items: center; gap: 6px; font-weight: 600"><input type="checkbox" style="width: 16px; height: 16px; accent-color: #D61F69">Custom price</label></div>
+                            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600">In stock
+                              <span style="display: flex; align-items: center; height: 40px; border-radius: 12px; border: 1.5px solid #EAC9D6; background: #FFFFFF"><button onClick="{{r.dec}}" aria-label="One less" style="width: 40px; height: 100%; border: 0; background: transparent; font-size: 18px">−</button><span style="flex: 1; text-align: center; font-weight: 700; font-size: 14px">{{r.stockN}}</span><button onClick="{{r.inc}}" aria-label="One more" style="width: 40px; height: 100%; border: 0; background: transparent; font-size: 18px">+</button></span>
+                            </label>
+                            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600">Warn me below<input value="3" style="height: 40px; padding: 0 12px; border-radius: 12px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"></label>
+                            <label style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600">SKU<input value="{{r.sku}}" style="height: 40px; padding: 0 12px; border-radius: 12px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"></label>
+                            <div style="grid-column: 1 / -1; display: flex; gap: 8px"><button onClick="{{r.toggle}}" style="height: 38px; padding: 0 16px; border-radius: 19px; border: 0; background: #2B0D1C; color: #FFFFFF; font: inherit; font-weight: 700">Done</button><span style="align-self: center; font-size: 12px; color: #74525F">When it hits 0, customers see “Notify me”.</span></div>
+                          </div>
+                        </sc-if>
+                      </div>
+                    </sc-for>
+                    <sc-if value="{{g.more}}" hint-placeholder-val="{{ false }}"><div style="padding: 10px 12px; border-top: 1px solid #FBE3EC; font-size: 12px; color: #74525F">+ {{g.moreN}} more in this length. Use the filters above to narrow down.</div></sc-if>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{tBasics}}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px">
+          <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Title<input value="{{sel.name}}" style="height: 46px; padding: 0 14px; border-radius: 14px; border: 1.5px solid #EAC9D6; font: inherit; font-weight: 400"></label>
+          <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Description<textarea rows="4" style="padding: 10px 14px; border-radius: 14px; border: 1.5px solid #EAC9D6; font: inherit; font-weight: 400; resize: vertical">100% human hair, HD Swiss lace, pre-plucked hairline. Glueless-ready with adjustable band.</textarea></label>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Category<select style="height: 46px; padding: 0 12px; border-radius: 14px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"><option>{{sel.cat}}</option></select></label>
+            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Status<select style="height: 46px; padding: 0 12px; border-radius: 14px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"><option>Active</option><option>Draft</option></select></label>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{tMedia}}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+          <sc-for list="{{media}}" as="m" hint-placeholder-count="6"><span style="aspect-ratio: 1; border-radius: 14px; background: {{m.tone}}; display: flex; align-items: flex-end; padding: 6px; font-size: 11px; font-weight: 600; color: #7E0E3D">{{m.label}}</span></sc-for>
+          <button style="aspect-ratio: 1; border-radius: 14px; border: 1.5px dashed #F2A1C2; background: #FFF7FA; font: inherit; font-weight: 600; color: #A3134F">+ Upload</button>
+          <span style="grid-column: 1 / -1; font-size: 12px; color: #74525F">Drag to reorder. Upload 24+ frames to turn on the 360° viewer.</span>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{tMerch}}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px; font-size: 14px">
+          <label style="display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 0 14px; border-radius: 16px; background: #FFF0F6; font-weight: 600">Feature on homepage<input type="checkbox" checked="{{sel.feat}}" style="width: 20px; height: 20px; accent-color: #D61F69"></label>
+          <label style="display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 0 14px; border-radius: 16px; background: #FFF0F6; font-weight: 600">Eligible for coupons<input type="checkbox" checked style="width: 20px; height: 20px; accent-color: #D61F69"></label>
+          <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Badge<select style="height: 46px; padding: 0 12px; border-radius: 14px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"><option>Auto (sale / BOGO / new)</option><option>Featured</option><option>Best seller</option></select></label>
+          <span style="font-weight: 700">Install bundle items</span>
+          <span style="display: flex; flex-wrap: wrap; gap: 6px"><span style="padding: 4px 10px; border-radius: 12px; background: #2B0D1C; color: #FFFFFF; font-size: 12px">Silk Sleep Bonnet ×</span><span style="padding: 4px 10px; border-radius: 12px; background: #2B0D1C; color: #FFFFFF; font-size: 12px">Lace Tint Spray ×</span><button style="height: 26px; padding: 0 10px; border-radius: 13px; border: 1.5px dashed #F2A1C2; background: transparent; font: inherit; font-size: 12px; color: #A3134F">+ Add</button></span>
+        </div>
+      </sc-if>
+    </aside>
+      </div>
+      </sc-if>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1350}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = {
+      drawer: true, sel: 0, status: 0, tab: 1, feat: { 0: true, 3: true, 4: true },
+      opts: [
+        { name: 'Length', single: 'length', hint: 'sets the base price', values: [['12"', 0], ['14"', 10000], ['16"', 20000], ['18"', 30000], ['20"', 40000], ['22"', 53000], ['24"', 67000], ['26"', 83000], ['28"', 100000], ['30"', 120000]].map((v) => ({ label: v[0], add: v[1], visible: true })) },
+        { name: 'Lace', single: 'lace', hint: 'price difference per lace', values: [['4×4 closure', -20000], ['5×5 closure', -10000], ['13×4 HD', 0], ['13×6 HD', 25000]].map((v) => ({ label: v[0], add: v[1], visible: true })) },
+        { name: 'Density', single: 'density', hint: 'fuller costs more', values: [['150%', 0], ['180%', 18000], ['250%', 45000]].map((v) => ({ label: v[0], add: v[1], visible: true })) },
+        { name: 'Colour', single: 'colour', hint: 'shown as swatches', values: [['Natural 1B', 0, '#1E1612'], ['Brown #4', 0, '#5A3A28'], ['Burgundy 99J', 10000, '#6B1F2A']].map((v) => ({ label: v[0], add: v[1], hex: v[2], visible: true })) },
+        { name: 'Cap size', single: 'cap size', hint: 'same price', values: [['S', 0], ['M', 0], ['L', 0]].map((v) => ({ label: v[0], add: v[1], visible: true })) }
+      ],
+      edit: { o: 1, i: -1 }, draft: { label: 'Full lace 360', add: '45000', hex: '#1E1612', visible: true }, confirm: false,
+      filt: { 1: 'All', 2: 'All', 3: 'All' }, gOpen: '20"', rowOpen: '', checked: {}, adj: {}, low: false
+    }; }
+  renderVals() {
+    const st = this.state;
+    const fmt = (n) => '₦' + String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const navDefs = [['Overview', 'PinkAdminDashboard.dc.html'], ['Orders', 'PinkAdminOrders.dc.html'], ['Products', 'PinkAdminProducts.dc.html'], ['Customers', 'PinkAdminCustomers.dc.html'], ['Promotions', 'PinkAdminPromotions.dc.html'], ['Storefront', 'PinkAdminStorefront.dc.html'], ['Reviews', 'PinkAdminReviews.dc.html'], ['Team', 'PinkAdminTeam.dc.html'], ['Settings', 'PinkAdminSettings.dc.html']];
+    const data = [
+      { name: 'Bone Straight HD Frontal', cat: 'Frontal wigs', variants: 60, price: '₦145k–₦335k', stock: 38, max: 60, status: 'Active', tone: '#F7C9DA' },
+      { name: 'Body Wave HD Frontal', cat: 'Frontal wigs', variants: 48, price: '₦140k–₦310k', stock: 22, max: 60, status: 'Active', tone: '#F2B6CB' },
+      { name: 'Kinky Curly Glueless', cat: 'Glueless', variants: 24, price: '₦128k–₦240k', stock: 6, max: 40, status: 'Active', tone: '#EFA9C2' },
+      { name: 'Honey Blonde Body Wave', cat: 'Colored', variants: 18, price: '₦212k–₦290k', stock: 14, max: 30, status: 'Active', tone: '#FBD9E6' },
+      { name: 'Pixie Curl Bob 10"', cat: 'Bobs', variants: 6, price: '₦78.5k', stock: 41, max: 50, status: 'Active', tone: '#F9CFDF' },
+      { name: 'Burgundy 99J Body Wave', cat: 'Colored', variants: 12, price: '₦176k–₦230k', stock: 0, max: 30, status: 'Out of stock', tone: '#F2B6CB' },
+      { name: 'Water Wave Glueless', cat: 'Glueless', variants: 20, price: '₦150k–₦220k', stock: 17, max: 30, status: 'Draft', tone: '#F7C9DA' },
+      { name: 'Silk Sleep Bonnet', cat: 'Hair care', variants: 3, price: '₦12k', stock: 120, max: 150, status: 'Active', tone: '#FFE0EC' }
+    ];
+    const sCol = { 'Active': ['#E3F4EC', '#0E6B4C'], 'Draft': ['#F1EEF0', '#4A2536'], 'Out of stock': ['#FCE4E2', '#B3261E'] };
+    const filters = ['All', 'Active', 'Draft', 'Out of stock'];
+    const shown = data.map((d, i) => ({ d: d, i: i })).filter((x) => st.status === 0 || x.d.status === filters[st.status]);
+    const s = data[st.sel];
+    const BASE = 145000;
+    const money = (n) => (n < 0 ? '−' : '+') + '₦' + String(Math.abs(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const opts = st.opts;
+    const num = (x) => Number(String(x).replace(/[^0-9-]/g, '')) || 0;
+    const counts = opts.map((o) => o.values.length);
+    const total = counts.reduce((a, b) => a * b, 1);
+    const stockOf = (k) => { const base = (k[0] * 7 + k[1] * 3 + k[2] * 5 + k[3] * 11 + k[4] * 2) % 9; const v = base === 0 || base === 4 ? 0 : (base > 6 ? 1 : base - 1); return Math.max(0, v + (st.adj[k.join('-')] || 0)); };
+    const allKeys = []; (function walk(pre) { if (pre.length === opts.length) { allKeys.push(pre); return; } for (let i = 0; i < opts[pre.length].values.length; i++) walk(pre.concat([i])); })([]);
+    const unitsFor = (oi, vi) => allKeys.filter((k) => k[oi] === vi).reduce((a, k) => a + stockOf(k), 0);
+    const totalStock = allKeys.reduce((a, k) => a + stockOf(k), 0);
+    const ed = st.edit; const editing = ed && ed.o >= 0;
+    const setDraft = (patch) => this.setState({ draft: Object.assign({}, st.draft, patch) });
+    const startEdit = (oi, vi) => { const v = opts[oi].values[vi]; this.setState({ edit: { o: oi, i: vi }, confirm: false, draft: { label: v.label, add: String(v.add), hex: v.hex || '#1E1612', visible: v.visible } }); };
+    const startAdd = (oi) => this.setState({ edit: { o: oi, i: -1 }, confirm: false, draft: { label: '', add: '0', hex: '#1E1612', visible: true } });
+    const close = () => this.setState({ edit: null, confirm: false });
+    const writeOpts = (fn) => { const o2 = opts.map((o) => Object.assign({}, o, { values: o.values.slice() })); fn(o2); this.setState({ opts: o2, edit: null, confirm: false }); };
+    const swatchHexes = ['#1E1612', '#3B2A20', '#5A3A28', '#8A5A3B', '#C08A4A', '#6B1F2A', '#D61F69', '#9AA0A6'];
+    const short = { '4×4 closure': '44', '5×5 closure': '55', '13×4 HD': '134', '13×6 HD': '136' };
+    const nameOf = (k) => k.slice(1).map((v, oi) => opts[oi + 1].values[v].label).join(' · ');
+    const priceOf = (k) => BASE + k.reduce((a, v, oi) => a + opts[oi].values[v].add, 0);
+    const skuOf = (k) => 'BS-' + opts[0].values[k[0]].label.replace(/[^0-9]/g, '') + '-' + (short[opts[1].values[k[1]].label] || 'X' + k[1]) + '-' + opts[2].values[k[2]].label.replace(/[^0-9]/g, '') + '-' + k[3] + opts[4].values[k[4]].label.slice(0, 1);
+    const passes = (k) => [1, 2, 3].every((oi) => st.filt[oi] === 'All' || opts[oi].values[k[oi]].label === st.filt[oi]) && (!st.low || stockOf(k) <= 1);
+    const tabNames = ['Basics', 'Variants', 'Media', 'Merchandising'];
+    return {
+      drawerOpen: st.drawer, closeDrawer: () => this.setState({ drawer: false }),
+      nav: navDefs.map((n) => { const on = n[0] === 'Products'; return { label: n[0], href: n[1], bg: on ? '#2B0D1C' : 'transparent', fg: on ? '#FFFFFF' : '#4A2536' }; }),
+      statuses: filters.map((l, i) => ({ label: l, on: i === st.status, bg: i === st.status ? '#D61F69' : 'transparent', fg: i === st.status ? '#FFFFFF' : '#2B0D1C', pick: () => this.setState({ status: i }) })),
+      cards: shown.map((x) => { const d = x.d, i = x.i, f = !!st.feat[i]; const low = d.stock < 10; return {
+        name: d.name, variants: d.variants, price: d.price, tone: d.tone, status: d.status, sBg: sCol[d.status][0], sFg: sCol[d.status][1],
+        stock: d.stock, stockPct: Math.round(d.stock / d.max * 100) + '%', stockBar: low ? '#B3261E' : '#D61F69', stockFg: low ? '#B3261E' : '#2B0D1C',
+        border: i === st.sel ? '#D61F69' : 'transparent', feat: f, star: f ? '#D61F69' : 'none',
+        pick: () => this.setState({ sel: i , drawer: true }),
+        toggleFeat: () => { const y = Object.assign({}, st.feat); y[i] = !y[i]; this.setState({ feat: y }); } }; }),
+      sel: { name: s.name, cat: s.cat, tone: s.tone, feat: !!st.feat[st.sel] },
+      tabs: tabNames.map((l, i) => ({ label: l, on: i === st.tab, bg: i === st.tab ? '#FFFFFF' : 'transparent', fg: i === st.tab ? '#2B0D1C' : '#74525F', pick: () => this.setState({ tab: i }) })),
+      tBasics: st.tab === 0, tVariants: st.tab === 1, tMedia: st.tab === 2, tMerch: st.tab === 3,
+      opts: opts.map((o, oi) => {
+        const isEd = editing && ed.o === oi;
+        return { name: o.name, single: o.single, hint: o.hint, count: o.values.length, editing: isEd, border: isEd ? '#D61F69' : '#F3D6E2',
+          add: () => startAdd(oi),
+          values: o.values.map((v, vi) => { const on = isEd && ed.i === vi; return { label: v.label, on: on, hasHex: !!v.hex, hex: v.hex || '', hasDelta: v.add !== 0, delta: oi === 0 ? '₦' + Math.round((BASE + v.add) / 1000) + 'k' : money(v.add).replace(/,000$/, 'k'), deltaFg: v.add < 0 ? '#0E6B4C' : '#A3134F', hidden: !v.visible, op: v.visible ? '1' : '0.55', border: on ? '#D61F69' : '#EAC9D6', bg: on ? '#FFF0F6' : '#FFFFFF', edit: () => startEdit(oi, vi) }; }) };
+      }),
+      ed: (() => {
+        if (!editing) return { title: '', label: '', placeholder: '', add: '', addHelp: '', impact: '', deleteImpact: '', swatches: [] };
+        const o = opts[ed.o]; const isNew = ed.i < 0; const perValue = total / o.values.length;
+        const units = isNew ? 0 : unitsFor(ed.o, ed.i); const d = st.draft;
+        const examples = { 0: 'e.g. 32"', 1: 'e.g. Full lace 360', 2: 'e.g. 300%', 3: 'e.g. Honey blonde 27', 4: 'e.g. XL' };
+        return {
+          title: isNew ? 'New ' + o.single : 'Edit ' + o.single + ': ' + o.values[ed.i].label,
+          label: d.label, placeholder: examples[ed.o], add: d.add, isColour: ed.o === 3, isExisting: !isNew, visible: d.visible,
+          addHelp: ed.o === 0 ? 'Added to the ₦145,000 base. This length would cost ' + fmt(BASE + num(d.add)) + ' before other options.' : 'Added to every variant with this ' + o.single + '. Use a minus for cheaper, e.g. -10000.',
+          swatches: swatchHexes.map((h) => ({ hex: h, on: h === d.hex, ring: h === d.hex ? '#D61F69' : '#F3D6E2', pick: () => setDraft({ hex: h }) })),
+          swBg: d.visible ? '#D61F69' : '#EAC9D6', swJust: d.visible ? 'flex-end' : 'flex-start', toggleVis: () => setDraft({ visible: !d.visible }),
+          impact: isNew ? 'Creates ' + perValue + ' new variants, one for every mix of the other options. They start at 0 stock, so customers won’t see them until you add stock below.' : 'Used by ' + perValue + ' variants with ' + units + ' units in stock. Renaming updates the store straight away; past orders keep the old name.',
+          deleteImpact: 'This removes ' + perValue + ' variants and ' + units + ' units of stock. Past orders keep their details. Shoppers with it in their bag will be asked to choose again.',
+          confirming: st.confirm, askDelete: () => this.setState({ confirm: true }), cancelDelete: () => this.setState({ confirm: false }),
+          doDelete: () => writeOpts((o2) => { o2[ed.o].values.splice(ed.i, 1); }),
+          hideInstead: () => writeOpts((o2) => { o2[ed.o].values[ed.i] = Object.assign({}, o2[ed.o].values[ed.i], { visible: false }); }),
+          invalid: !String(d.label).trim(), saveBg: String(d.label).trim() ? '#D61F69' : '#E7A9C2',
+          saveLabel: isNew ? 'Add ' + o.single : 'Save changes',
+          setLabel: (e) => setDraft({ label: e.target.value }), setAdd: (e) => setDraft({ add: e.target.value }),
+          save: () => { if (!String(d.label).trim()) return; writeOpts((o2) => { const v = { label: String(d.label).trim(), add: num(d.add), visible: d.visible }; if (ed.o === 3) v.hex = d.hex; if (isNew) o2[ed.o].values.push(v); else o2[ed.o].values[ed.i] = v; }); },
+          cancel: close
+        };
+      })(),
+      totalVariants: total.toLocaleString('en-NG'), totalStock: totalStock,
+      vFilters: [1, 2, 3].map((oi) => ({ name: opts[oi].name, choices: [{ value: 'All', label: 'All', on: st.filt[oi] === 'All' }].concat(opts[oi].values.map((v) => ({ value: v.label, label: v.label, on: st.filt[oi] === v.label }))), change: (e) => { const f = Object.assign({}, st.filt); f[oi] = e.target.value; this.setState({ filt: f }); } })),
+      lowOnly: st.low, toggleLow: () => this.setState({ low: !st.low }),
+      hasChecked: Object.keys(st.checked).some((k) => st.checked[k]), checkedCount: Object.keys(st.checked).filter((k) => st.checked[k]).length, clearChecked: () => this.setState({ checked: {} }),
+      groups: opts[0].values.map((lv, li) => {
+        const keys = allKeys.filter((k) => k[0] === li);
+        const shown = keys.filter(passes);
+        const open = st.gOpen === lv.label;
+        const lowN = keys.filter((k) => stockOf(k) <= 1).length;
+        const LIMIT = 6;
+        return { label: lv.label, count: keys.length, stock: keys.reduce((a, k) => a + stockOf(k), 0), hasLow: lowN > 0, low: lowN, open: open, bg: open ? '#FFF0F6' : '#FFFFFF', chev: open ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6',
+          toggle: () => this.setState({ gOpen: open ? '' : lv.label }),
+          more: shown.length > LIMIT, moreN: shown.length - LIMIT,
+          rows: shown.slice(0, LIMIT).map((k) => { const id = k.join('-'); const n = stockOf(k); const isOpen = st.rowOpen === id; return {
+            name: nameOf(k), sku: skuOf(k), price: fmt(priceOf(k)), stock: n === 0 ? 'Sold out' : n, stockN: n,
+            sBg: n === 0 ? '#FCE4E2' : (n <= 1 ? '#FFF4D6' : '#E3F4EC'), sFg: n === 0 ? '#B3261E' : (n <= 1 ? '#7A5200' : '#0E6B4C'),
+            open: isOpen, toggle: () => this.setState({ rowOpen: isOpen ? '' : id }),
+            checked: !!st.checked[id], check: () => { const c = Object.assign({}, st.checked); c[id] = !c[id]; this.setState({ checked: c }); },
+            inc: () => { const a = Object.assign({}, st.adj); a[id] = (a[id] || 0) + 1; this.setState({ adj: a }); },
+            dec: () => { if (n <= 0) return; const a = Object.assign({}, st.adj); a[id] = (a[id] || 0) - 1; this.setState({ adj: a }); } }; }) };
+      }),
+      media: [{ label: 'Cover', tone: s.tone }, { label: 'Side', tone: '#F2B6CB' }, { label: 'Back', tone: '#FBD9E6' }, { label: 'Lace', tone: '#F9CFDF' }, { label: 'Worn', tone: '#EFA9C2' }, { label: '360 · 36 fr', tone: '#FFE0EC' }]
+    };
+  }
+}
+</script>
+</body>
+</html>

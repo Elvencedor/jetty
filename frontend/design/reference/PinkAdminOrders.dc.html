@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Jetty's Hair Admin (Pink) — Orders</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&amp;family=Figtree:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#FFF7FA}
+a{color:#A3134F}a:hover{color:#7E0E3D}
+@keyframes jhSlide{from{transform:translateX(100%)}to{transform:none}}
+@keyframes jhFade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion: reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div style="min-height: 1350px; background: #FFF7FA; color: #2B0D1C; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; line-height: 1.45; display: flex; flex-direction: column">
+
+  <header style="background: #FFFFFF; border-bottom: 1px solid #F3D6E2; padding: 12px clamp(16px, 3vw, 36px); display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px">
+    <span style="display: flex; align-items: center; gap: 8px"><span style="width: 34px; height: 34px; border-radius: 11px; background: #D61F69; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">J</span><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">jetty admin</span></span>
+    <nav aria-label="Admin" style="flex: 1 1 520px; display: flex; flex-wrap: wrap; gap: 4px">
+      <sc-for list="{{nav}}" as="n" hint-placeholder-count="9">
+        <a href="{{n.href}}" style="height: 38px; padding: 0 14px; border-radius: 19px; display: flex; align-items: center; text-decoration: none; font-weight: 600; background: {{n.bg}}; color: {{n.fg}}">{{n.label}}</a>
+      </sc-for>
+    </nav>
+    <span aria-label="Signed in as Jetty" style="width: 40px; height: 40px; border-radius: 20px; background: #F2B6CB; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #7E0E3D">JT</span>
+  </header>
+
+  <main style="padding: 24px clamp(16px, 3vw, 36px) 40px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box; width: 100%">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px">
+      <div style="display: flex; flex-direction: column"><h1 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 36px; letter-spacing: -1px">Orders</h1><span style="color: #74525F">17 need action today · sample data</span></div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap"><button style="height: 42px; padding: 0 16px; border-radius: 21px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 600">Export</button><button style="height: 42px; padding: 0 18px; border-radius: 21px; border: 0; background: #2B0D1C; color: #FFFFFF; font: inherit; font-weight: 700">+ Manual order</button></div>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 8px">
+      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="6">
+        <button onClick="{{t.pick}}" aria-pressed="{{t.on}}" style="height: 40px; padding: 0 14px; border-radius: 20px; border: 1.5px solid {{t.border}}; background: {{t.bg}}; color: {{t.fg}}; font: inherit; font-weight: 700; display: flex; align-items: center; gap: 8px">{{t.label}}<span style="padding: 0 7px; border-radius: 10px; background: {{t.cBg}}; color: {{t.cFg}}; font-size: 12px">{{t.n}}</span></button>
+      </sc-for>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+      <!-- List -->
+      <section aria-label="Order list" style="flex: 999 1 520px; min-width: 0; border-radius: 24px; background: #FFFFFF; border: 1px solid #F3D6E2; overflow: hidden">
+        <div style="padding: 12px; display: flex; gap: 8px; flex-wrap: wrap; border-bottom: 1px solid #FBE3EC">
+          <label style="flex: 1 1 240px; height: 42px; padding: 0 14px; border-radius: 21px; background: #FFF7FA; display: flex; align-items: center; gap: 8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A3134F" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search orders</span><input placeholder="Order #, name or phone" style="flex: 1; min-width: 0; border: 0; background: transparent; font: inherit; outline: none"></label>
+          <select aria-label="Date" style="height: 42px; padding: 0 12px; border-radius: 21px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit"><option>Last 7 days</option><option>Today</option><option>Last 30 days</option></select>
+          <select aria-label="Payment" style="height: 42px; padding: 0 12px; border-radius: 21px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit"><option>Any payment</option><option>Card</option><option>Transfer</option><option>USSD</option><option>Pay on delivery</option></select>
+        </div>
+        <div style="overflow-x: auto">
+          <table style="width: 100%; border-collapse: collapse; min-width: 640px">
+            <thead><tr style="text-align: left; color: #74525F; font-size: 12px"><th style="padding: 10px 16px; font-weight: 600">Order</th><th style="padding: 10px 6px; font-weight: 600">Customer</th><th style="padding: 10px 6px; font-weight: 600">Items</th><th style="padding: 10px 6px; font-weight: 600">Status</th><th style="padding: 10px 6px; font-weight: 600">Delivery</th><th style="padding: 10px 16px 10px 6px; font-weight: 600; text-align: right">Total</th></tr></thead>
+            <tbody>
+              <sc-for list="{{rows}}" as="r" hint-placeholder-count="8">
+                <tr style="border-top: 1px solid #FBE3EC; background: {{r.bg}}">
+                  <td style="padding: 6px 16px"><button onClick="{{r.pick}}" style="min-height: 44px; border: 0; background: transparent; font: inherit; text-align: left; display: flex; flex-direction: column; justify-content: center; color: #2B0D1C; padding: 0"><span style="font-weight: 800">{{r.id}}</span><span style="font-size: 12px; color: #74525F">{{r.when}}</span></button></td>
+                  <td style="padding: 6px">{{r.who}}</td>
+                  <td style="padding: 6px"><span style="display: flex; gap: 3px"><sc-for list="{{r.thumbs}}" as="t" hint-placeholder-count="2"><span style="width: 24px; height: 28px; border-radius: 6px; background: {{t}}"></span></sc-for></span></td>
+                  <td style="padding: 6px"><span style="padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700; background: {{r.sBg}}; color: {{r.sFg}}">{{r.status}}</span></td>
+                  <td style="padding: 6px; font-size: 13px; color: #4A2536">{{r.ship}}</td>
+                  <td style="padding: 6px 16px 6px 6px; text-align: right; font-weight: 700">{{r.total}}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Detail -->
+      <sc-if value="{{drawerOpen}}" hint-placeholder-val="{{ true }}">
+      <div style="position: fixed; inset: 0; z-index: 50; display: flex; justify-content: flex-end">
+      <button onClick="{{closeDrawer}}" aria-label="Close order details" tabindex="-1" style="position: absolute; inset: 0; border: 0; padding: 0; background: rgba(43,13,28,0.45); animation: jhFade .2s ease-out"></button>
+      <aside role="dialog" aria-modal="true" aria-label="Order detail" style="position: relative; width: min(480px, 100%); height: 100%; overflow-y: auto; background: #FFFFFF; box-shadow: -16px 0 48px rgba(43,13,28,0.20); display: flex; flex-direction: column; animation: jhSlide .28s cubic-bezier(.2,.8,.2,1)">
+        <div style="position: sticky; top: 0; z-index: 2; background: #FFFFFF; padding: 8px 8px 8px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #FBE3EC"><span style="font-size: 13px; font-weight: 700; color: #74525F">Order details</span><button onClick="{{closeDrawer}}" aria-label="Close" style="width: 44px; height: 44px; border-radius: 22px; border: 0; background: #FFF0F6; display: flex; align-items: center; justify-content: center; color: #2B0D1C"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+        <div style="padding: 18px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid #FBE3EC">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px"><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 24px">{{o.id}}</span><span style="padding: 4px 12px; border-radius: 12px; font-size: 13px; font-weight: 700; background: {{o.sBg}}; color: {{o.sFg}}">{{o.status}}</span></div>
+          <span style="font-size: 13px; color: #74525F">{{o.when}} · {{o.pay}}</span>
+          <!-- Stepper -->
+          <ol style="margin: 4px 0 0; padding: 0; list-style: none; display: flex; gap: 4px">
+            <sc-for list="{{o.steps}}" as="s" hint-placeholder-count="5"><li style="flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 700; color: {{s.fg}}"><span style="height: 6px; border-radius: 3px; background: {{s.bar}}"></span>{{s.label}}</li></sc-for>
+          </ol>
+          <sc-if value="{{o.hasNext}}" hint-placeholder-val="{{ true }}">
+            <button onClick="{{advance}}" style="margin-top: 4px; height: 50px; border-radius: 25px; border: 0; background: #D61F69; color: #FFFFFF; font: inherit; font-weight: 700; font-size: 15px">{{o.next}}</button>
+            <span style="font-size: 12px; color: #74525F; text-align: center">The customer gets a WhatsApp and email update automatically.</span>
+          </sc-if>
+        </div>
+
+        <div style="padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid #FBE3EC">
+          <span style="font-weight: 800">Items</span>
+          <sc-for list="{{o.items}}" as="i" hint-placeholder-count="3">
+            <div style="display: flex; gap: 10px; align-items: center"><span style="width: 40px; height: 48px; border-radius: 10px; background: {{i.tone}}; flex: none"></span><span style="flex: 1; display: flex; flex-direction: column; line-height: 1.3"><span style="font-weight: 600">{{i.name}}</span><span style="font-size: 12px; color: #74525F">{{i.v}} · SKU {{i.sku}}</span></span><span style="font-weight: 700">{{i.p}}</span></div>
+          </sc-for>
+          <div style="padding-top: 8px; border-top: 1px dashed #F3D6E2; display: flex; flex-direction: column; gap: 4px; font-size: 13px">
+            <sc-for list="{{o.totals}}" as="t" hint-placeholder-count="4"><div style="display: flex; justify-content: space-between; color: {{t.fg}}; font-weight: {{t.w}}"><span>{{t.label}}</span><span>{{t.v}}</span></div></sc-for>
+          </div>
+        </div>
+
+        <div style="padding: 16px 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: 12px; border-bottom: 1px solid #FBE3EC">
+          <div style="padding: 12px; border-radius: 16px; background: #FFF7FA; display: flex; flex-direction: column; gap: 4px; font-size: 13px">
+            <span style="font-size: 11px; font-weight: 800; color: #A3134F; letter-spacing: 0.6px">CUSTOMER</span>
+            <a href="PinkAdminCustomers.dc.html" style="font-weight: 700; color: #2B0D1C">{{o.who}}</a>
+            <span>{{o.phone}}</span><span style="color: #74525F">{{o.orders}}</span>
+            <a href="#" style="margin-top: 4px; align-self: flex-start; height: 34px; padding: 0 12px; border-radius: 17px; background: #2B0D1C; color: #FFFFFF; display: flex; align-items: center; text-decoration: none; font-weight: 700; font-size: 12px">Message on WhatsApp</a>
+          </div>
+          <div style="padding: 12px; border-radius: 16px; background: #FFF7FA; display: flex; flex-direction: column; gap: 4px; font-size: 13px">
+            <span style="font-size: 11px; font-weight: 800; color: #A3134F; letter-spacing: 0.6px">DELIVERY</span>
+            <span style="font-weight: 700">{{o.ship}}</span><span>{{o.address}}</span>
+            <label style="margin-top: 4px; display: flex; flex-direction: column; gap: 2px; font-size: 12px; font-weight: 600">Rider<select style="height: 34px; padding: 0 8px; border-radius: 12px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"><option>{{o.rider}}</option><option>Musa (Lekki)</option><option>Tunde (Mainland)</option><option>GIG Logistics</option></select></label>
+          </div>
+        </div>
+
+        <div style="padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+          <span style="font-weight: 800">Activity</span>
+          <sc-for list="{{o.log}}" as="l" hint-placeholder-count="3"><div style="display: flex; gap: 10px; font-size: 13px"><span style="width: 8px; height: 8px; border-radius: 4px; background: #D61F69; margin-top: 6px; flex: none"></span><span style="flex: 1">{{l.text}}</span><span style="color: #74525F; white-space: nowrap">{{l.t}}</span></div></sc-for>
+          <label style="display: flex; gap: 8px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Internal note</span><input placeholder="Add an internal note (customers can't see this)" style="flex: 1; min-width: 0; height: 42px; padding: 0 14px; border-radius: 21px; border: 1.5px solid #EAC9D6; font: inherit"></label>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; padding-top: 4px">
+            <button style="height: 38px; padding: 0 14px; border-radius: 19px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 600">Print packing slip</button>
+            <button style="height: 38px; padding: 0 14px; border-radius: 19px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 600">Refund</button>
+            <button style="height: 38px; padding: 0 14px; border-radius: 19px; border: 0; background: #FCE4E2; color: #B3261E; font: inherit; font-weight: 600">Cancel order</button>
+          </div>
+        </div>
+      </aside>
+      </div>
+      </sc-if>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1350}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { drawer: true, tab: 0, sel: 0, stage: { 0: 1, 1: 0, 2: 3, 3: 4, 4: 2, 5: 1, 6: 5, 7: 2 } }; }
+  renderVals() {
+    const st = this.state;
+    const stages = ['Awaiting payment', 'Paid · to pack', 'Packed', 'Out for delivery', 'Delivered', 'Return requested'];
+    const sCol = [['#FFF4D6', '#7A5200'], ['#D61F69', '#FFFFFF'], ['#FFE0EC', '#A3134F'], ['#E5ECF5', '#1F4E79'], ['#E3F4EC', '#0E6B4C'], ['#FCE4E2', '#B3261E']];
+    const nextLabel = ['Confirm transfer received', 'Mark as packed', 'Hand to rider', 'Mark as delivered', '', 'Approve return'];
+    const data = [
+      { id: '#JH-10482', who: 'Adaeze Okafor', when: 'Today, 11:42', total: '₦251,050', ship: 'Same-day · Lekki', pay: 'Card ··4821', thumbs: ['#F7C9DA', '#F2B6CB', '#FBD9E6'] },
+      { id: '#JH-10481', who: 'Tolu Bello', when: 'Today, 10:15', total: '₦176,000', ship: 'Next day · Yaba', pay: 'Bank transfer', thumbs: ['#EFA9C2'] },
+      { id: '#JH-10480', who: 'Ngozi Eze', when: 'Today, 09:02', total: '₦92,500', ship: 'Same-day · Ikeja', pay: 'USSD', thumbs: ['#F9CFDF', '#FFE0EC'] },
+      { id: '#JH-10479', who: 'Funmi Ade', when: 'Yesterday', total: '₦318,000', ship: 'Abuja · 2–4 days', pay: 'Card ··1190', thumbs: ['#F7C9DA'] },
+      { id: '#JH-10478', who: 'Chioma Nwosu', when: 'Yesterday', total: '₦158,000', ship: 'Pickup · Lekki', pay: 'Card ··7702', thumbs: ['#F2B6CB'] },
+      { id: '#JH-10477', who: 'Amaka Obi', when: 'Yesterday', total: '₦210,000', ship: 'Same-day · VI', pay: 'Pay on delivery', thumbs: ['#FBD9E6', '#FFE0EC'] },
+      { id: '#JH-10476', who: 'Kemi Lawal', when: 'Oct 10', total: '₦158,000', ship: 'Port Harcourt', pay: 'Card ··3301', thumbs: ['#EFA9C2'] },
+      { id: '#JH-10475', who: 'Bisi Ola', when: 'Oct 10', total: '₦85,000', ship: 'Next day · Surulere', pay: 'Transfer', thumbs: ['#F9CFDF'] }
+    ];
+    const filters = [['All', null], ['Awaiting payment', [0]], ['To pack', [1, 2]], ['Out for delivery', [3]], ['Delivered', [4]], ['Returns', [5]]];
+    const f = filters[st.tab][1];
+    const rows = data.map((d, i) => ({ d: d, i: i, s: st.stage[i] })).filter((x) => !f || f.indexOf(x.s) >= 0);
+    const sel = data[st.sel], s = st.stage[st.sel];
+    const flow = ['Paid', 'Packed', 'On the way', 'Delivered'];
+    const flowIdx = s === 0 ? -1 : (s === 5 ? 3 : s - 1);
+    return {
+      drawerOpen: st.drawer, closeDrawer: () => this.setState({ drawer: false }),
+      nav: [['Overview', 'PinkAdminDashboard.dc.html'], ['Orders', 'PinkAdminOrders.dc.html'], ['Products', 'PinkAdminProducts.dc.html'], ['Customers', 'PinkAdminCustomers.dc.html'], ['Promotions', 'PinkAdminPromotions.dc.html'], ['Storefront', 'PinkAdminStorefront.dc.html'], ['Reviews', 'PinkAdminReviews.dc.html'], ['Team', 'PinkAdminTeam.dc.html'], ['Settings', 'PinkAdminSettings.dc.html']].map((n) => { const on = n[0] === 'Orders'; return { label: n[0], href: n[1], bg: on ? '#2B0D1C' : 'transparent', fg: on ? '#FFFFFF' : '#4A2536' }; }),
+      tabs: filters.map((x, i) => { const on = i === st.tab; const n = data.filter((d, j) => !x[1] || x[1].indexOf(st.stage[j]) >= 0).length; return { label: x[0], n: n, on: on, border: on ? '#D61F69' : '#F3D6E2', bg: on ? '#D61F69' : '#FFFFFF', fg: on ? '#FFFFFF' : '#2B0D1C', cBg: on ? '#FFFFFF' : '#FFF0F6', cFg: '#A3134F', pick: () => this.setState({ tab: i }) }; }),
+      rows: rows.map((x) => ({ id: x.d.id, who: x.d.who, when: x.d.when, total: x.d.total, ship: x.d.ship, thumbs: x.d.thumbs, status: stages[x.s], sBg: sCol[x.s][0], sFg: sCol[x.s][1], bg: x.i === st.sel ? '#FFF0F6' : 'transparent', pick: () => this.setState({ sel: x.i , drawer: true }) })),
+      o: {
+        id: sel.id, when: sel.when, pay: sel.pay, who: sel.who, ship: sel.ship, status: stages[s], sBg: sCol[s][0], sFg: sCol[s][1],
+        hasNext: !!nextLabel[s], next: nextLabel[s],
+        steps: flow.map((l, i) => ({ label: l, bar: i <= flowIdx ? '#D61F69' : '#FBE3EC', fg: i <= flowIdx ? '#2B0D1C' : '#B898A6' })),
+        items: [
+          { name: 'Bone Straight HD Frontal', v: '1B · 20" · 13×4 · 180% · M', sku: 'BS-20-4-180', p: '₦172,550', tone: '#F7C9DA' },
+          { name: 'Silk Sleep Bonnet', v: 'Free gift', sku: 'SB-CH', p: '₦0', tone: '#FFE0EC' },
+          { name: 'Pixie Curl Bob + Blunt Bob', v: 'BOGO pair', sku: 'PC-10 / BC-8', p: '₦78,500', tone: '#F2B6CB' }
+        ],
+        totals: [
+          { label: 'Subtotal', v: '₦365,500', fg: '#2B0D1C', w: '400' },
+          { label: 'BOGO + FLASH15 + gift', v: '−₦114,450', fg: '#0E6B4C', w: '600' },
+          { label: 'Delivery', v: 'Free', fg: '#2B0D1C', w: '400' },
+          { label: 'Paid', v: sel.total, fg: '#2B0D1C', w: '800' }
+        ],
+        phone: '+234 803 000 0000', orders: '3rd order · ₦612k lifetime', address: '14 Admiralty Way, Lekki Phase 1, Lagos',
+        rider: s >= 3 ? 'Musa (Lekki)' : 'Assign when packed',
+        log: [{ text: 'Order placed and paid by card', t: '11:42' }, { text: 'WhatsApp confirmation sent', t: '11:42' }, { text: 'Address confirmed by phone (Grace)', t: '12:05' }]
+      },
+      advance: () => { const x = Object.assign({}, st.stage); const v = x[st.sel]; x[st.sel] = v === 5 ? 4 : Math.min(4, v + 1); this.setState({ stage: x }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

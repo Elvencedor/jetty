@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Jetty's Hair Admin (Pink) — Team &amp; roles</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&amp;family=Figtree:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#FFF7FA}
+a{color:#A3134F}a:hover{color:#7E0E3D}
+</style>
+</helmet>
+<div style="min-height: 1350px; background: #FFF7FA; color: #2B0D1C; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; line-height: 1.45; display: flex; flex-direction: column">
+
+  <header style="background: #FFFFFF; border-bottom: 1px solid #F3D6E2; padding: 12px clamp(16px, 3vw, 36px); display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px">
+    <span style="display: flex; align-items: center; gap: 8px"><span style="width: 34px; height: 34px; border-radius: 11px; background: #D61F69; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">J</span><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">jetty admin</span></span>
+    <nav aria-label="Admin" style="flex: 1 1 520px; display: flex; flex-wrap: wrap; gap: 4px">
+      <sc-for list="{{nav}}" as="n" hint-placeholder-count="9">
+        <a href="{{n.href}}" style="height: 38px; padding: 0 14px; border-radius: 19px; display: flex; align-items: center; text-decoration: none; font-weight: 600; background: {{n.bg}}; color: {{n.fg}}">{{n.label}}</a>
+      </sc-for>
+    </nav>
+    <span aria-label="Signed in as Jetty" style="width: 40px; height: 40px; border-radius: 20px; background: #F2B6CB; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #7E0E3D">JT</span>
+  </header>
+
+  <main style="padding: 24px clamp(16px, 3vw, 36px) 40px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box; width: 100%">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px">
+      <div style="display: flex; flex-direction: column"><h1 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 36px; letter-spacing: -1px">Team &amp; roles</h1><span style="color: #74525F">Give each person only what they need.</span></div>
+      <button onClick="{{openInvite}}" style="height: 42px; padding: 0 18px; border-radius: 21px; border: 0; background: #D61F69; color: #FFFFFF; font: inherit; font-weight: 700">+ Invite someone</button>
+    </div>
+
+    <sc-if value="{{invite}}" hint-placeholder-val="{{ false }}">
+      <section aria-label="Invite" style="padding: 18px; border-radius: 24px; background: #FFFFFF; border: 2px solid #D61F69; display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end">
+        <label style="flex: 2 1 240px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Email or phone<input placeholder="grace@example.com" style="height: 46px; padding: 0 14px; border-radius: 14px; border: 1.5px solid #EAC9D6; font: inherit; font-weight: 400"></label>
+        <label style="flex: 1 1 200px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Role<select style="height: 46px; padding: 0 12px; border-radius: 14px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"><option>Fulfilment</option><option>Content editor</option><option>Support</option><option>Manager</option></select></label>
+        <button onClick="{{closeInvite}}" style="height: 46px; padding: 0 18px; border-radius: 23px; border: 0; background: #2B0D1C; color: #FFFFFF; font: inherit; font-weight: 700">Send invite</button>
+        <button onClick="{{closeInvite}}" style="height: 46px; padding: 0 14px; border-radius: 23px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 600">Cancel</button>
+      </section>
+    </sc-if>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+      <section aria-label="Team members" style="flex: 999 1 520px; min-width: 0; border-radius: 24px; background: #FFFFFF; border: 1px solid #F3D6E2; overflow: hidden">
+        <div style="overflow-x: auto">
+          <table style="width: 100%; border-collapse: collapse; min-width: 600px">
+            <thead><tr style="text-align: left; color: #74525F; font-size: 12px"><th style="padding: 12px 16px; font-weight: 600">Person</th><th style="padding: 12px 6px; font-weight: 600">Role</th><th style="padding: 12px 6px; font-weight: 600">2-step login</th><th style="padding: 12px 16px 12px 6px; font-weight: 600">Last active</th></tr></thead>
+            <tbody>
+              <sc-for list="{{people}}" as="p" hint-placeholder-count="5">
+                <tr style="border-top: 1px solid #FBE3EC">
+                  <td style="padding: 10px 16px"><span style="display: flex; align-items: center; gap: 10px"><span style="width: 36px; height: 36px; border-radius: 18px; background: {{p.tone}}; color: #7E0E3D; font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center">{{p.ini}}</span><span style="display: flex; flex-direction: column; line-height: 1.3"><span style="font-weight: 700">{{p.name}}</span><span style="font-size: 12px; color: #74525F">{{p.email}}</span></span></span></td>
+                  <td style="padding: 10px 6px"><span style="padding: 3px 10px; border-radius: 12px; background: {{p.rBg}}; color: {{p.rFg}}; font-size: 12px; font-weight: 700">{{p.role}}</span></td>
+                  <td style="padding: 10px 6px; font-weight: 600; color: {{p.tfaFg}}">{{p.tfa}}</td>
+                  <td style="padding: 10px 16px 10px 6px; color: #4A2536">{{p.last}}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section aria-label="Roles" style="flex: 1 1 400px; min-width: 0; padding: 18px; border-radius: 28px; background: #FFFFFF; border: 1px solid #F3D6E2; display: flex; flex-direction: column; gap: 12px">
+        <span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">What each role can do</span>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px">
+          <sc-for list="{{roles}}" as="r" hint-placeholder-count="5"><button onClick="{{r.pick}}" aria-pressed="{{r.on}}" style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1.5px solid {{r.border}}; background: {{r.bg}}; color: {{r.fg}}; font: inherit; font-weight: 700">{{r.label}}</button></sc-for>
+        </div>
+        <span style="font-size: 13px; color: #74525F">{{roleNote}}</span>
+        <sc-for list="{{perms}}" as="p" hint-placeholder-count="8">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 44px; border-bottom: 1px solid #FBE3EC"><span style="display: flex; flex-direction: column; line-height: 1.3"><span style="font-weight: 600">{{p.label}}</span><span style="font-size: 12px; color: #74525F">{{p.note}}</span></span><button onClick="{{p.toggle}}" disabled="{{p.locked}}" role="switch" aria-checked="{{p.on}}" aria-label="{{p.label}}" style="flex: none; width: 44px; height: 26px; border-radius: 13px; border: 0; padding: 3px; background: {{p.swBg}}; display: inline-flex; justify-content: {{p.swJust}}; opacity: {{p.op}}"><span style="width: 20px; height: 20px; border-radius: 10px; background: #FFFFFF"></span></button></div>
+        </sc-for>
+      </section>
+    </div>
+
+    <section aria-label="Activity log" style="padding: 18px; border-radius: 24px; background: #FFFFFF; border: 1px solid #F3D6E2; display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; justify-content: space-between"><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">Who changed what</span><a href="#" style="font-weight: 700">Full log</a></div>
+      <sc-for list="{{log}}" as="l" hint-placeholder-count="5"><div style="display: grid; grid-template-columns: 120px minmax(0, 1fr) 110px; gap: 10px; padding: 8px 0; border-top: 1px solid #FBE3EC; font-size: 13px"><strong>{{l.who}}</strong><span>{{l.what}}</span><span style="color: #74525F; text-align: right">{{l.when}}</span></div></sc-for>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1350}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { invite: false, role: 2, perms: {
+      0: [1, 1, 1, 1, 1, 1, 1, 1], 1: [1, 1, 1, 1, 1, 1, 1, 0], 2: [1, 1, 0, 0, 0, 0, 0, 0], 3: [0, 0, 1, 0, 1, 1, 0, 0], 4: [1, 0, 0, 1, 0, 1, 0, 0] } };
+  }
+  renderVals() {
+    const st = this.state;
+    const roleCol = { Owner: ['#2B0D1C', '#FFFFFF'], Manager: ['#D61F69', '#FFFFFF'], Fulfilment: ['#FFE0EC', '#A3134F'], 'Content editor': ['#E5ECF5', '#1F4E79'], Support: ['#E3F4EC', '#0E6B4C'] };
+    const roleNames = ['Owner', 'Manager', 'Fulfilment', 'Content editor', 'Support'];
+    const notes = ['Full access, including payouts and deleting the store. Only you.', 'Runs the shop day to day. Cannot change payouts.', 'Packs and dispatches orders. Sees addresses, not revenue.', 'Edits products, banners and the homepage. No orders or money.', 'Helps customers. Sees orders and can message, not refund.'];
+    const permDefs = [
+      { label: 'View orders', note: 'Order list, addresses, items' },
+      { label: 'Update order status', note: 'Packed, out for delivery, delivered' },
+      { label: 'Edit products & stock', note: 'Prices, variants, photos' },
+      { label: 'Message customers', note: 'WhatsApp and email from admin' },
+      { label: 'Edit storefront', note: 'Banners, homepage sections, theme' },
+      { label: 'Moderate reviews', note: 'Approve, hide, reply' },
+      { label: 'Promotions & refunds', note: 'Create coupons, issue refunds' },
+      { label: 'Payouts & settings', note: 'Bank details, payment providers' }
+    ];
+    const cur = st.perms[st.role];
+    return {
+      nav: [['Overview', 'PinkAdminDashboard.dc.html'], ['Orders', 'PinkAdminOrders.dc.html'], ['Products', 'PinkAdminProducts.dc.html'], ['Customers', 'PinkAdminCustomers.dc.html'], ['Promotions', 'PinkAdminPromotions.dc.html'], ['Storefront', 'PinkAdminStorefront.dc.html'], ['Reviews', 'PinkAdminReviews.dc.html'], ['Team', 'PinkAdminTeam.dc.html'], ['Settings', 'PinkAdminSettings.dc.html']].map((n) => { const on = n[0] === 'Team'; return { label: n[0], href: n[1], bg: on ? '#2B0D1C' : 'transparent', fg: on ? '#FFFFFF' : '#4A2536' }; }),
+      invite: st.invite, openInvite: () => this.setState({ invite: true }), closeInvite: () => this.setState({ invite: false }),
+      people: [
+        { name: 'Jetty T.', email: 'jetty@[yourdomain].com', role: 'Owner', tfa: 'On', last: 'Now', tone: '#F2B6CB' },
+        { name: 'Grace A.', email: 'grace@[yourdomain].com', role: 'Manager', tfa: 'On', last: '12 min ago', tone: '#F7C9DA' },
+        { name: 'Musa K.', email: '+234 80x xxx xxxx', role: 'Fulfilment', tfa: 'Off', last: '1 h ago', tone: '#FBD9E6' },
+        { name: 'Ife O.', email: 'ife@[yourdomain].com', role: 'Content editor', tfa: 'On', last: 'Yesterday', tone: '#EFA9C2' },
+        { name: 'Zainab Y.', email: 'zainab@[yourdomain].com', role: 'Support', tfa: 'Invite sent', last: '—', tone: '#FFE0EC' }
+      ].map((p) => Object.assign({}, p, { ini: p.name.split(' ').map((x) => x[0]).join(''), rBg: roleCol[p.role][0], rFg: roleCol[p.role][1], tfaFg: p.tfa === 'On' ? '#0E6B4C' : (p.tfa === 'Off' ? '#B3261E' : '#74525F') })),
+      roles: roleNames.map((r, i) => { const on = i === st.role; return { label: r, on: on, border: on ? '#D61F69' : '#EAC9D6', bg: on ? '#D61F69' : '#FFFFFF', fg: on ? '#FFFFFF' : '#2B0D1C', pick: () => this.setState({ role: i }) }; }),
+      roleNote: notes[st.role],
+      perms: permDefs.map((p, i) => { const on = !!cur[i]; const locked = st.role === 0; return { label: p.label, note: p.note, on: on, locked: locked, op: locked ? '0.6' : '1', swBg: on ? '#D61F69' : '#EAC9D6', swJust: on ? 'flex-end' : 'flex-start', toggle: () => { if (locked) return; const all = Object.assign({}, st.perms); const a = all[st.role].slice(); a[i] = a[i] ? 0 : 1; all[st.role] = a; this.setState({ perms: all }); } }; }),
+      log: [
+        { who: 'Grace A.', what: 'Changed price of Bone Straight 24" from ₦205,000 to ₦212,000', when: 'Today 10:02' },
+        { who: 'Ife O.', what: "Published homepage: moved Flash deal strip above Jetty's picks", when: 'Today 09:40' },
+        { who: 'Jetty T.', what: 'Created promotion FLASH15 (15% off frontals, today only)', when: 'Today 08:15' },
+        { who: 'Musa K.', what: 'Marked #JH-10479 as out for delivery', when: 'Yesterday' },
+        { who: 'Grace A.', what: 'Refunded ₦158,000 on #JH-10478 (return approved)', when: 'Yesterday' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

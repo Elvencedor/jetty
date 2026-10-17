@@ -1,0 +1,210 @@
+/*
+ * Jetty's Hair design tokens (Tailwind CSS 4).
+ *
+ * Source of truth: the "Option B · Pink pop" page of the Jetty's Hair design
+ * canvas. See ./01-foundations.md for usage rules and contrast notes.
+ *
+ * How to use (not wired in yet; do this when you start building UI):
+ *   1. In src/app/globals.css, replace the default :root/@theme block with:
+ *        @import "tailwindcss";
+ *        @import "../../design/tokens.css";
+ *   2. Load the fonts with next/font/google in src/app/layout.tsx and expose
+ *      them as --font-display and --font-body (see 01-foundations.md).
+ *
+ * Tailwind utilities generated from @theme, e.g.:
+ *   bg-primary text-on-primary border-line rounded-card text-display-lg
+ *   shadow-drawer font-display ease-drawer duration-drawer
+ *
+ * The admin portal and the storefront share these tokens.
+ * Option A ("Luxe editorial") is kept as an alternative theme behind
+ * [data-theme="luxe"] because the storefront editor lets the owner switch
+ * themes. Only Option B screens are specified in this handoff.
+ */
+
+@theme {
+  /* ---------- Brand palette (raw) ---------- */
+  --color-pink-50: #fff7fa;
+  --color-pink-100: #fff0f6;
+  --color-pink-150: #ffe0ec;
+  --color-pink-200: #fbd9e6;
+  --color-pink-250: #f9cfdf;
+  --color-pink-300: #f7c9da;
+  --color-pink-350: #f2b6cb;
+  --color-pink-400: #efa9c2;
+  --color-pink-450: #f2a1c2;
+  --color-pink-500: #e8558f;
+  --color-pink-600: #d61f69; /* primary */
+  --color-pink-700: #c0175b;
+  --color-pink-800: #a3134f;
+  --color-pink-900: #7e0e3d;
+
+  --color-plum-950: #2b0d1c; /* ink */
+  --color-plum-800: #4a2536;
+  --color-plum-600: #74525f;
+  --color-plum-400: #b898a6;
+  --color-plum-200: #eac9d6;
+  --color-plum-100: #f3d6e2;
+  --color-plum-50: #fbe3ec;
+
+  /* ---------- Semantic colours ---------- */
+  --color-primary: var(--color-pink-600);          /* CTAs, selected states, brand marks */
+  --color-primary-strong: var(--color-pink-800);   /* pink text/links on white or tint */
+  --color-primary-deep: var(--color-pink-900);     /* hover for links; text on pink-300 */
+  --color-on-primary: #ffffff;
+
+  --color-surface: #ffffff;                         /* page and card background */
+  --color-surface-subtle: var(--color-pink-50);     /* admin page bg, quiet panels */
+  --color-surface-tint: var(--color-pink-100);      /* search fields, chips, info panels */
+  --color-surface-blush: var(--color-pink-150);     /* soft promo tiles, avatars */
+  --color-surface-inverse: var(--color-plum-950);   /* dark tiles, tab bar, sticky bars */
+  --color-surface-inverse-raised: var(--color-plum-800);
+
+  --color-ink: var(--color-plum-950);               /* body text, headings */
+  --color-ink-soft: var(--color-plum-800);          /* secondary body text */
+  --color-muted: var(--color-plum-600);             /* captions, meta, helper text */
+  --color-faint: var(--color-plum-400);             /* disabled text, drag handles only */
+  --color-on-inverse: #ffffff;
+  --color-on-inverse-muted: #ffc2da;                /* secondary text on ink */
+
+  --color-line: var(--color-plum-100);              /* card borders, dividers */
+  --color-line-strong: var(--color-plum-200);       /* input borders, unselected chips */
+  --color-line-accent: var(--color-pink-450);       /* dashed "add" affordances */
+  --color-line-soft: var(--color-plum-50);          /* row dividers inside cards */
+
+  --color-success: #0e6b4c;
+  --color-success-bg: #e3f4ec;
+  --color-danger: #b3261e;
+  --color-danger-bg: #fce4e2;
+  --color-warning: #7a5200;
+  --color-warning-bg: #fff4d6;
+  --color-info: #1f4e79;
+  --color-info-bg: #e5ecf5;
+  --color-neutral-bg: #f1eef0;                      /* "Draft", "Hidden" pills */
+
+  /* Image placeholder tones (until real photography exists) */
+  --color-photo-1: var(--color-pink-300);
+  --color-photo-2: var(--color-pink-350);
+  --color-photo-3: var(--color-pink-200);
+  --color-photo-4: var(--color-pink-400);
+  --color-photo-5: var(--color-pink-250);
+
+  /* Hair colour swatches (product data, not theme) */
+  --color-hair-1b: #1e1612;
+  --color-hair-4: #5a3a28;
+  --color-hair-99j: #6b1f2a;
+  --color-hair-27: #c08a4a;
+
+  /* ---------- Typography ---------- */
+  --font-display: var(--font-bricolage), "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-figtree), "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-body);
+
+  /* size / line-height / letter-spacing / weight — display uses font-display */
+  --text-display-xl: 2.75rem;      /* 44px  confirmation hero, revenue figure */
+  --text-display-xl--line-height: 0.95;
+  --text-display-xl--letter-spacing: -0.075rem;
+  --text-display-lg: 2.5rem;       /* 40px  home hero cards */
+  --text-display-lg--line-height: 0.95;
+  --text-display-lg--letter-spacing: -0.0625rem;
+  --text-display-md: 2.25rem;      /* 36px  admin page titles, PLP title (38) */
+  --text-display-md--line-height: 1;
+  --text-display-md--letter-spacing: -0.0625rem;
+  --text-heading-lg: 1.875rem;     /* 30px  PDP product name */
+  --text-heading-lg--line-height: 1.05;
+  --text-heading-lg--letter-spacing: -0.05rem;
+  --text-heading-md: 1.625rem;     /* 26px  section titles, checkout step titles */
+  --text-heading-md--line-height: 1.1;
+  --text-heading-md--letter-spacing: -0.03rem;
+  --text-heading-sm: 1.375rem;     /* 22px  admin panel titles, drawer titles */
+  --text-heading-sm--line-height: 1.15;
+  --text-heading-xs: 1.125rem;     /* 18px  admin card titles */
+  --text-heading-xs--line-height: 1.2;
+  --text-body-lg: 1rem;            /* 16px  primary CTA labels */
+  --text-body-lg--line-height: 1.5;
+  --text-body: 0.9375rem;          /* 15px  storefront body */
+  --text-body--line-height: 1.5;
+  --text-body-sm: 0.875rem;        /* 14px  admin body, card titles */
+  --text-body-sm--line-height: 1.45;
+  --text-label: 0.8125rem;         /* 13px  form labels (600), meta */
+  --text-label--line-height: 1.4;
+  --text-caption: 0.75rem;         /* 12px  helper text, captions */
+  --text-caption--line-height: 1.35;
+  --text-micro: 0.6875rem;         /* 11px  badges (700), overlines */
+  --text-micro--line-height: 1.2;
+
+  /* ---------- Radius ---------- */
+  --radius-xs: 0.5rem;     /* 8   badges, tags */
+  --radius-sm: 0.75rem;    /* 12  thumbnails, small inputs, status rows */
+  --radius-md: 1rem;       /* 16  inputs, list items, upload zones */
+  --radius-lg: 1.25rem;    /* 20  product media, cards in lists */
+  --radius-card: 1.5rem;   /* 24  admin cards, panels */
+  --radius-xl: 1.75rem;    /* 28  hero cards, large panels, sheets */
+  --radius-2xl: 2.25rem;   /* 36  confirmation hero bottom corners */
+  --radius-pill: 9999px;   /* buttons, chips, segmented controls, tab bar */
+
+  /* ---------- Elevation ---------- */
+  --shadow-panel: 0 12px 40px rgb(214 31 105 / 0.10);
+  --shadow-drawer: -16px 0 48px rgb(43 13 28 / 0.20);
+  --shadow-swatch-inset: inset 0 0 0 2px #ffffff;
+  --color-scrim: rgb(43 13 28 / 0.45);
+
+  /* ---------- Motion ---------- */
+  --ease-drawer: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;    /* hover, press */
+  --duration-base: 200ms;    /* scrim fade, chip select, accordion */
+  --duration-drawer: 280ms;  /* drawer / sheet slide */
+
+  --animate-drawer-in: drawer-in var(--duration-drawer) var(--ease-drawer);
+  --animate-sheet-in: sheet-in var(--duration-drawer) var(--ease-drawer);
+  --animate-scrim-in: scrim-in var(--duration-base) ease-out;
+
+  @keyframes drawer-in { from { transform: translateX(100%); } to { transform: none; } }
+  @keyframes sheet-in { from { transform: translateY(100%); } to { transform: none; } }
+  @keyframes scrim-in { from { opacity: 0; } to { opacity: 1; } }
+
+  /* ---------- Layout ---------- */
+  --breakpoint-sm: 30rem;   /* 480  drawer stops being full-screen */
+  --breakpoint-md: 48rem;   /* 768 */
+  --breakpoint-lg: 64rem;   /* 1024 storefront switches to desktop header */
+  --breakpoint-xl: 80rem;   /* 1280 */
+  --container-store: 80rem; /* 1280 storefront max content width */
+  --container-admin: 90rem; /* 1440 admin max content width */
+  --container-drawer: 30rem;/* 480  side drawers */
+  --container-checkout: 35rem; /* 560 checkout column on desktop */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Alternative theme: Option A "Luxe editorial". Selected in Storefront › Theme & logo. */
+[data-theme="luxe"] {
+  --color-primary: #221915;
+  --color-primary-strong: #6e2433;
+  --color-primary-deep: #4f1724;
+  --color-on-primary: #f6f1ea;
+  --color-surface: #fffdf9;
+  --color-surface-subtle: #f6f1ea;
+  --color-surface-tint: #efe6db;
+  --color-surface-blush: #f1e0dc;
+  --color-surface-inverse: #221915;
+  --color-ink: #221915;
+  --color-ink-soft: #3e332d;
+  --color-muted: #6b5d54;
+  --color-on-inverse-muted: #e2c690;
+  --color-line: #e4dace;
+  --color-line-strong: #cdbda9;
+  --color-line-accent: #b79c80;
+  --color-success: #2f5d46;
+  --color-success-bg: #e6eee8;
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-body: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --radius-pill: 0;
+  --radius-card: 0.25rem;
+  --radius-lg: 0.25rem;
+}
