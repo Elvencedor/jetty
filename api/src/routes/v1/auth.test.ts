@@ -27,10 +27,13 @@ describe('customer auth', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not s
     const raw = ([] as string[]).concat(res.headers['set-cookie'] as string | string[]).find((c) => c.startsWith('jh_refresh='));
     return raw ? raw.split(';')[0]! : undefined;
   };
-  const register = async (email: string, extra: Json = {}) => {
-    const res = await post('/auth/register', { email, password: 'correct horse battery', ...extra });
+  let phones = 0;
+  const newPhone = () => `+23480${String(10_000_000 + ++phones)}`;
+  const register = async (extra: Json = {}) => {
+    const phone = extra.phone ?? newPhone();
+    const res = await post('/auth/register', { password: 'correct horse battery', ...extra, phone });
     assert.equal(res.statusCode, 201, JSON.stringify(res.result));
-    return { body: res.result as Json, cookie: cookieOf(res)! };
+    return { body: res.result as Json, cookie: cookieOf(res)!, phone: phone as string };
   };
   const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
   const checkoutBody = (over: Json = {}) => ({
@@ -66,54 +69,68 @@ describe('customer auth', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not s
     await t?.destroy();
   });
 
-  it('registers, returns a session and never exposes the password hash', async () => {
-    const { body, cookie } = await register('Ada@Example.com', { phone: '+2348011111111' });
+  it('registers with a phone number alone, returns a session and never exposes the password hash', async () => {
+    const { body, phone } = await register();
     assert.equal(body.tokenType, 'Bearer');
-    assert.equal(body.customer.email, 'ada@example.com');
+    assert.equal(body.customer.phone, phone);
+    assert.equal(body.customer.email, null);
     assert.ok(!JSON.stringify(body).includes('password'));
-    assert.ok(cookie);
-    const [row] = await t.db.select().from(customers).where(eq(customers.email, 'ada@example.com'));
+    const [row] = await t.db.select().from(customers).where(eq(customers.phoneE164, phone));
     assert.match(row!.passwordHash!, /^scrypt\$/);
-    const res = await post('/auth/register', { email: 'ada@example.com', password: 'another long password' });
-    assert.equal(res.statusCode, 409);
-    assert.equal((res.result as Json).error.code, 'ACCOUNT_EXISTS');
+    const dup = await post('/auth/register', { phone, password: 'another long password' });
+    assert.equal(dup.statusCode, 409);
+    assert.equal((dup.result as Json).error.code, 'ACCOUNT_EXISTS');
   });
 
-  it('validates registration input', async () => {
-    assert.equal((await post('/auth/register', { email: 'not-an-email', password: 'correct horse battery' })).statusCode, 422);
-    assert.equal((await post('/auth/register', { email: 'short@example.com', password: 'short' })).statusCode, 422);
+  it('stores an optional email normalised, and rejects an email already in use', async () => {
+    const { body } = await register({ email: 'Ada@Example.com' });
+    assert.equal(body.customer.email, 'ada@example.com');
+    const dup = await post('/auth/register', { phone: newPhone(), email: 'ADA@example.com', password: 'correct horse battery' });
+    assert.equal(dup.statusCode, 409);
+  });
+
+  it('validates registration input: phone is required, email is not', async () => {
+    assert.equal((await post('/auth/register', { email: 'only@example.com', password: 'correct horse battery' })).statusCode, 422);
+    assert.equal((await post('/auth/register', { phone: '08012345678', password: 'correct horse battery' })).statusCode, 422);
+    assert.equal((await post('/auth/register', { phone: newPhone(), email: 'not-an-email', password: 'correct horse battery' })).statusCode, 422);
+    assert.equal((await post('/auth/register', { phone: newPhone(), password: 'short' })).statusCode, 422);
   });
 
   it('sets a Secure, HttpOnly, SameSite=Strict refresh cookie scoped to /auth', async () => {
-    const res = await post('/auth/register', { email: 'cookie@example.com', password: 'correct horse battery' });
+    const res = await post('/auth/register', { phone: newPhone(), password: 'correct horse battery' });
     const raw = ([] as string[]).concat(res.headers['set-cookie'] as string | string[]).find((c) => c.startsWith('jh_refresh='))!;
     for (const part of ['Secure', 'HttpOnly', 'SameSite=Strict', 'Path=/api/v1/auth']) assert.ok(raw.includes(part), raw);
     assert.equal(res.headers['cache-control'], 'no-store');
     assert.ok(!('refreshToken' in (res.result as Json)));
   });
 
-  it('logs in with generic failures for a wrong password, unknown email and blocked account', async () => {
-    await register('login@example.com');
-    const ok = await post('/auth/login', { email: 'LOGIN@example.com', password: 'correct horse battery' });
+  it('logs in by phone, or by email when one was registered, with generic failures', async () => {
+    const { phone } = await register({ email: 'login@example.com' });
+    const ok = await post('/auth/login', { phone, password: 'correct horse battery' });
     assert.equal(ok.statusCode, 200);
-    const wrong = await post('/auth/login', { email: 'login@example.com', password: 'wrong password!!' });
-    const unknown = await post('/auth/login', { email: 'nobody@example.com', password: 'wrong password!!' });
-    assert.equal(wrong.statusCode, 401);
-    assert.deepEqual((wrong.result as Json).error.code, 'INVALID_CREDENTIALS');
-    assert.equal((wrong.result as Json).error.message, (unknown.result as Json).error.message);
-    assert.equal(unknown.statusCode, 401);
+    assert.equal((await post('/auth/login', { email: 'LOGIN@example.com', password: 'correct horse battery' })).statusCode, 200);
 
-    await t.db.update(customers).set({ status: 'blocked' }).where(eq(customers.email, 'login@example.com'));
-    const blocked = await post('/auth/login', { email: 'login@example.com', password: 'correct horse battery' });
+    const wrong = await post('/auth/login', { phone, password: 'wrong password!!' });
+    const unknown = await post('/auth/login', { phone: newPhone(), password: 'wrong password!!' });
+    assert.equal(wrong.statusCode, 401);
+    assert.equal((wrong.result as Json).error.code, 'INVALID_CREDENTIALS');
+    assert.equal(unknown.statusCode, 401);
+    assert.equal((wrong.result as Json).error.message, (unknown.result as Json).error.message);
+
+    assert.equal((await post('/auth/login', { password: 'correct horse battery' })).statusCode, 422, 'an identifier is required');
+    assert.equal((await post('/auth/login', { phone, email: 'login@example.com', password: 'correct horse battery' })).statusCode, 422, 'not both');
+
+    await t.db.update(customers).set({ status: 'blocked' }).where(eq(customers.phoneE164, phone));
+    const blocked = await post('/auth/login', { phone, password: 'correct horse battery' });
     assert.equal(blocked.statusCode, 401);
     assert.equal((blocked.result as Json).error.code, 'INVALID_CREDENTIALS');
   });
 
   it('GET /me requires a valid bearer token', async () => {
-    const { body } = await register('me@example.com');
+    const { body } = await register();
     const me = await api.inject({ method: 'GET', url: '/api/v1/me', headers: bearer(body.accessToken) });
     assert.equal(me.statusCode, 200);
-    assert.equal((me.result as Json).email, 'me@example.com');
+    assert.equal((me.result as Json).phone, body.customer.phone);
     assert.equal((await api.inject({ method: 'GET', url: '/api/v1/me' })).statusCode, 401);
     assert.equal((await api.inject({ method: 'GET', url: '/api/v1/me', headers: bearer('garbage.token.value') })).statusCode, 401);
 
@@ -126,7 +143,7 @@ describe('customer auth', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not s
   });
 
   it('rotates the refresh token and revokes the session when an old one is replayed', async () => {
-    const { cookie } = await register('rotate@example.com');
+    const { cookie } = await register();
     const first = await post('/auth/refresh', undefined, { cookie });
     assert.equal(first.statusCode, 200);
     const rotated = cookieOf(first)!;
@@ -142,13 +159,13 @@ describe('customer auth', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not s
   });
 
   it('refuses refresh from a foreign origin', async () => {
-    const { cookie } = await register('origin@example.com');
+    const { cookie } = await register();
     assert.equal((await post('/auth/refresh', undefined, { cookie, origin: 'https://evil.example' })).statusCode, 403);
     assert.equal((await post('/auth/refresh', undefined, { cookie, origin: 'http://localhost:3000' })).statusCode, 200);
   });
 
   it('logout revokes the session immediately', async () => {
-    const { body, cookie } = await register('bye@example.com');
+    const { body, cookie } = await register();
     assert.equal((await post('/auth/logout', undefined, bearer(body.accessToken))).statusCode, 204);
     assert.equal((await api.inject({ method: 'GET', url: '/api/v1/me', headers: bearer(body.accessToken) })).statusCode, 401);
     assert.equal((await post('/auth/refresh', undefined, { cookie })).statusCode, 401);
@@ -158,15 +175,15 @@ describe('customer auth', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not s
   });
 
   it('answers 503 when no signing secret is configured', async () => {
-    const res = await post('/auth/login', { email: 'a@example.com', password: 'whatever it is' }, {}, noAuth);
+    const res = await post('/auth/login', { phone: '+2348099999999', password: 'whatever it is' }, {}, noAuth);
     assert.equal(res.statusCode, 503);
     assert.equal((res.result as Json).error.code, 'AUTH_UNAVAILABLE');
   });
 
   describe('checkout as a customer', () => {
     it('attaches the order to the customer, issues no guest cookie, and lets only them read its status', async () => {
-      const { body } = await register('shopper@example.com');
-      const other = await register('other@example.com');
+      const { body } = await register();
+      const other = await register();
       const res = await place(bearer(body.accessToken));
       assert.equal(res.statusCode, 201, JSON.stringify(res.result));
       assert.ok(!res.headers['set-cookie'], 'no guest checkout cookie');
@@ -195,7 +212,7 @@ describe('customer auth', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not s
     it('applies per-customer-limited promotions only to signed-in customers', async () => {
       const [promo] = await t.db.insert(promotions).values({ name: 'Once', kind: 'fixed_amount', configuration: { version: 1, amountMinor: 10000 }, status: 'active', perCustomerLimit: 1 }).returning();
       await t.db.insert(promotionCodes).values({ promotionId: promo!.id, code: 'MEMBERONLY' });
-      const { body } = await register('member@example.com');
+      const { body } = await register();
 
       const guest = await place({}, { promotionCodes: ['MEMBERONLY'] });
       assert.equal((guest.result as Json).quote.discountMinor, 0);
@@ -207,8 +224,8 @@ describe('customer auth', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not s
     });
 
     it('scopes idempotency keys per customer', async () => {
-      const a = await register('keya@example.com');
-      const b = await register('keyb@example.com');
+      const a = await register();
+      const b = await register();
       const key = 'shared-key-0000000000000001';
       const first = await api.inject({ method: 'POST', url: '/api/v1/checkout', payload: checkoutBody(), headers: { 'idempotency-key': key, ...bearer(a.body.accessToken) } });
       const second = await api.inject({ method: 'POST', url: '/api/v1/checkout', payload: checkoutBody(), headers: { 'idempotency-key': key, ...bearer(b.body.accessToken) } });

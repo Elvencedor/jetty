@@ -5,6 +5,7 @@ import type { PaymentProvider } from './modules/payments/provider.js';
 import { createLogger, type Logger } from './lib/logger.js';
 import { errorEnvelope } from './plugins/error-envelope.js';
 import { customerAuth } from './plugins/customer-auth.js';
+import { rateLimit } from './plugins/rate-limit.js';
 import { requestContext } from './plugins/request-context.js';
 import { healthRoutes, v1Routes } from './routes/index.js';
 
@@ -53,6 +54,7 @@ export async function createServer({ env, logger, database, payments }: CreateSe
   if (payments) server.app.payments = payments;
 
   await server.register(requestContext(log));
+  await server.register(rateLimit());
   await server.register(customerAuth());
   await server.register(errorEnvelope({ isProduction: env.isProduction }));
 

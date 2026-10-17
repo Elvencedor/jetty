@@ -102,7 +102,8 @@ export const orders = pgTable(
     guestCheckoutTokenExpiresAt: tstz('guest_checkout_token_expires_at'),
     status: orderStatus('status').notNull().default('pending_payment'),
     paymentStatus: paymentStatus('payment_status').notNull().default('pending'),
-    email: text('email').notNull(),
+    // Phone is the primary contact; email is optional.
+    email: text('email'),
     phoneE164: text('phone_e164').notNull(),
     currency: text('currency').notNull().default('NGN'),
     subtotalMinor: money('subtotal_minor').notNull(),

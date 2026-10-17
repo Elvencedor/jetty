@@ -18,6 +18,12 @@ const schema = Joi.object({
   WEBHOOK_PORT: Joi.number().port().optional(),
   // HMAC key for customer access tokens (at least 32 characters). Auth routes return 503 until it is set.
   AUTH_TOKEN_SECRET: Joi.string().min(32).optional(),
+  // Per-IP/account request limits (Postgres-backed). Off by default under NODE_ENV=test.
+  RATE_LIMIT_ENABLED: Joi.boolean().when('NODE_ENV', { is: 'test', then: Joi.boolean().default(false), otherwise: Joi.boolean().default(true) }),
+  // Number of proxies we control in front of the API (Railway: 1, Cloudflare + Railway: 2); 0 uses the socket address.
+  TRUSTED_PROXY_HOPS: Joi.number().integer().min(0).max(5).default(0),
+  // Paystack requires an email; customers without one get a per-phone address on this domain (use a mailbox-less domain you control).
+  PAYSTACK_PLACEHOLDER_EMAIL_DOMAIN: Joi.string().domain({ tlds: { allow: false } }).default('noemail.jettyshair.com'),
   PAYSTACK_BASE_URL: Joi.string().uri({ scheme: ['https', 'http'] }).default('https://api.paystack.co'),
   // Where Paystack redirects the browser after payment; the page must verify server-side.
   PAYSTACK_CALLBACK_URL: Joi.string().uri({ scheme: ['https', 'http'] }).optional(),
@@ -33,6 +39,9 @@ export type Env = {
   PAYSTACK_WEBHOOK_SECRET: string | undefined;
   WEBHOOK_PORT: number | undefined;
   AUTH_TOKEN_SECRET: string | undefined;
+  RATE_LIMIT_ENABLED: boolean;
+  TRUSTED_PROXY_HOPS: number;
+  PAYSTACK_PLACEHOLDER_EMAIL_DOMAIN: string;
   PAYSTACK_BASE_URL: string;
   PAYSTACK_CALLBACK_URL: string | undefined;
   corsOrigins: string[];
@@ -57,6 +66,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     PAYSTACK_WEBHOOK_SECRET: value.PAYSTACK_WEBHOOK_SECRET,
     WEBHOOK_PORT: value.WEBHOOK_PORT,
     AUTH_TOKEN_SECRET: value.AUTH_TOKEN_SECRET,
+    RATE_LIMIT_ENABLED: value.RATE_LIMIT_ENABLED,
+    TRUSTED_PROXY_HOPS: value.TRUSTED_PROXY_HOPS,
+    PAYSTACK_PLACEHOLDER_EMAIL_DOMAIN: value.PAYSTACK_PLACEHOLDER_EMAIL_DOMAIN,
     PAYSTACK_BASE_URL: value.PAYSTACK_BASE_URL,
     PAYSTACK_CALLBACK_URL: value.PAYSTACK_CALLBACK_URL,
     corsOrigins: String(value.CORS_ORIGINS)

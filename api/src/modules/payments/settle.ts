@@ -154,12 +154,12 @@ export async function settleTransaction(
     await releasePromotionHolds(tx, [orderId]);
     await claimPromotions(tx, order.id, order.customerId, order.appliedPromotions as AppliedPromotionSnapshot[]);
 
-    await tx.insert(notificationOutbox).values({
-      eventType: 'order.placed',
-      recipient: order.email,
-      channel: 'email',
-      payload: { orderId, orderNumber: order.orderNumber },
-    });
+    // Phone is the primary channel; email is an extra copy when the customer gave one.
+    const payload = { orderId, orderNumber: order.orderNumber };
+    await tx.insert(notificationOutbox).values([
+      { eventType: 'order.placed', recipient: order.phoneE164, channel: 'sms', payload },
+      ...(order.email ? [{ eventType: 'order.placed', recipient: order.email, channel: 'email', payload }] : []),
+    ]);
 
     return { outcome: 'paid', orderId };
   });

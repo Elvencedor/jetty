@@ -3,6 +3,7 @@ import Joi from 'joi';
 import type { Db } from '../../db/client.js';
 import { apiError } from '../../lib/errors.js';
 import { abandonIdempotent, beginIdempotent, completeIdempotent, hashRequest } from '../../lib/idempotency.js';
+import { LIMITS } from '../../lib/rate-policies.js';
 import { checkout, GUEST_TOKEN_TTL_MS, type CheckoutInput } from '../../modules/checkout/checkout.js';
 import { loadOwnedOrder, orderStatus, retryPayment, verifyByReference } from '../../modules/checkout/orders.js';
 import { DELIVERY_METHODS } from '../../modules/delivery/zones.js';
@@ -19,7 +20,7 @@ const payload = Joi.object({
     .required(),
   promotionCodes: Joi.array().items(text(64)).max(5).default([]),
   contact: Joi.object({
-    email: Joi.string().trim().lowercase().email().max(254).required(),
+    email: Joi.string().trim().lowercase().email().max(254),
     phone: Joi.string().trim().pattern(/^\+[1-9]\d{7,14}$/).required().messages({ 'string.pattern.base': 'phone must be in E.164 format, e.g. +2348012345678' }),
   }).required(),
   deliveryAddress: Joi.object({
@@ -64,6 +65,11 @@ const paymentsOf = (request: Request) => {
   if (!payments) throw apiError(503, 'PAYMENTS_UNAVAILABLE', 'Payments are temporarily unavailable.');
   return payments;
 };
+
+const checkoutOptions = (request: Request) => ({
+  callbackUrl: request.server.app.env.PAYSTACK_CALLBACK_URL,
+  emailDomain: request.server.app.env.PAYSTACK_PLACEHOLDER_EMAIL_DOMAIN,
+});
 
 const customerId = (request: Request) => (request.auth.isAuthenticated ? request.auth.credentials.customerId : undefined);
 
@@ -114,6 +120,7 @@ export const checkoutRoutes: ServerRoute[] = [
     path: '/checkout',
     options: {
       auth: { strategy: 'customer', mode: 'optional' },
+      plugins: { rateLimit: { ip: [LIMITS.checkout] } },
       description: 'Recalculate, create a pending_payment order with stock reservation, and initialize payment',
       tags: ['api', 'checkout'],
       validate: { headers: idempotencyHeader, payload },
@@ -123,7 +130,7 @@ export const checkoutRoutes: ServerRoute[] = [
       const body = request.payload as CheckoutInput & { termsAccepted: true };
       const customer = customerId(request);
       return idempotent(request, h, customer ? `checkout:customer:${customer}` : 'checkout:guest', body, async () => {
-        const result = await checkout(db(request), payments, body, { callbackUrl: request.server.app.env.PAYSTACK_CALLBACK_URL, customerId: customer });
+        const result = await checkout(db(request), payments, body, { ...checkoutOptions(request), customerId: customer });
         return {
           status: result.status,
           body: result.status === 201 ? result.body : { error: result.error },
@@ -147,6 +154,7 @@ export const checkoutRoutes: ServerRoute[] = [
     path: '/checkout/{orderId}/payment-attempts',
     options: {
       auth: { strategy: 'customer', mode: 'optional' },
+      plugins: { rateLimit: { ip: [LIMITS.payment] } },
       description: 'Start a new payment attempt once the previous one has definitively failed or expired',
       tags: ['api', 'checkout'],
       validate: { headers: idempotencyHeader, params: Joi.object({ orderId: Joi.string().uuid().required() }) },
@@ -156,7 +164,7 @@ export const checkoutRoutes: ServerRoute[] = [
       const { orderId } = request.params as { orderId: string };
       return idempotent(request, h, `payment-attempt:${orderId}`, { orderId }, async () => {
         const order = await loadOwnedOrder(db(request), orderId, { guestToken: guestToken(request), customerId: customerId(request) });
-        const result = await retryPayment(db(request), payments, order, { callbackUrl: request.server.app.env.PAYSTACK_CALLBACK_URL });
+        const result = await retryPayment(db(request), payments, order, checkoutOptions(request));
         return { status: result.status, body: result.status === 201 ? result.body : { error: result.error } };
       });
     },
@@ -180,6 +188,7 @@ export const checkoutRoutes: ServerRoute[] = [
     path: '/checkout/paystack/verify',
     options: {
       auth: false,
+      plugins: { rateLimit: { ip: [LIMITS.payment] } },
       description: 'Verify a Paystack transaction server-to-server by reference after the client returns',
       tags: ['api', 'checkout'],
       validate: { payload: Joi.object({ reference: Joi.string().trim().min(8).max(100).required() }) },

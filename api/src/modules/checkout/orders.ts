@@ -1,3 +1,4 @@
+import { paymentEmail } from './contact.js';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
@@ -140,7 +141,7 @@ export async function retryPayment(
   db: Db,
   provider: PaymentProvider,
   order: Order,
-  options: { callbackUrl?: string | undefined; now?: Date } = {},
+  options: { callbackUrl?: string | undefined; emailDomain: string; now?: Date },
 ): Promise<RetryResult> {
   const now = options.now ?? new Date();
 
@@ -187,7 +188,7 @@ export async function retryPayment(
     orderNumber: order.orderNumber,
     attemptId,
     reference,
-    email: order.email,
+    email: paymentEmail(order.email, order.phoneE164, options.emailDomain),
     amountMinor: order.totalMinor,
     currency: order.currency,
     method: 'card',

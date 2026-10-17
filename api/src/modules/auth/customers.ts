@@ -1,4 +1,4 @@
-import { and, eq, isNull, gt } from 'drizzle-orm';
+import { and, eq, isNull, gt, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import { customerSessions, customers } from '../../db/schema/index.js';
 import { apiError, conflict } from '../../lib/errors.js';
@@ -12,8 +12,8 @@ type Customer = typeof customers.$inferSelect;
 
 export const profile = (c: Customer) => ({
   id: c.id,
-  email: c.email,
   phone: c.phoneE164,
+  email: c.email,
   emailVerified: c.emailVerifiedAt !== null,
   phoneVerified: c.phoneVerifiedAt !== null,
   createdAt: c.createdAt,
@@ -60,16 +60,16 @@ function tokens(customer: Customer, sessionId: string, refreshSecret: string, se
 export async function register(
   db: Db,
   secret: string,
-  input: { email: string; password: string; phone?: string | undefined },
+  input: { phone: string; password: string; email?: string | undefined },
   now: Date = new Date(),
 ): Promise<Issued> {
-  const email = input.email.trim().toLowerCase();
+  const email = input.email?.trim().toLowerCase() || null;
   const passwordHash = await hashPassword(input.password);
   let customer: Customer;
   try {
     [customer] = (await db
       .insert(customers)
-      .values({ email, phoneE164: input.phone ?? null, passwordHash, status: 'active' })
+      .values({ phoneE164: input.phone, email, passwordHash, status: 'active' })
       .returning()) as [Customer];
   } catch (err) {
     if (((err as { cause?: { code?: string } }).cause?.code ?? (err as { code?: string }).code) === '23505') {
@@ -80,8 +80,14 @@ export async function register(
   return issue(db, customer, secret, now);
 }
 
-export async function login(db: Db, secret: string, input: { email: string; password: string }, now: Date = new Date()): Promise<Issued> {
-  const [customer] = await db.select().from(customers).where(eq(customers.email, input.email.trim().toLowerCase()));
+/** The phone number is the primary identifier; email works as a fallback only if the customer registered one. */
+export type LoginIdentifier = { phone: string } | { email: string };
+
+export async function login(db: Db, secret: string, input: LoginIdentifier & { password: string }, now: Date = new Date()): Promise<Issued> {
+  const [customer] = await db
+    .select()
+    .from(customers)
+    .where('phone' in input ? eq(customers.phoneE164, input.phone) : sql`lower(${customers.email}) = ${input.email.trim().toLowerCase()}`);
   const ok = await verifyPassword(input.password, customer?.passwordHash ?? (await decoyHash()));
   if (!customer || !customer.passwordHash || !ok || customer.status === 'blocked') throw invalidCredentials();
   return issue(db, customer, secret, now);

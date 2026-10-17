@@ -49,7 +49,9 @@ export function errorEnvelope(options: { isProduction: boolean }): Plugin<void> 
 
         // This response replaces the one request-context decorated, so the
         // correlation header is re-applied here.
-        return h.response(envelope).code(effectiveStatus).header('x-request-id', requestId).takeover();
+        const reply = h.response(envelope).code(effectiveStatus);
+        for (const [name, value] of Object.entries(boom.output.headers)) reply.header(name, String(value));
+        return reply.header('x-request-id', requestId).takeover();
       });
     },
   };

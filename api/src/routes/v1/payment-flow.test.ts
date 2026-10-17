@@ -198,7 +198,7 @@ describe('payment confirmation, retry and webhook', { skip: !TEST_DATABASE_URL &
       assert.equal((await welcome()).usageCount, usedBefore + 1);
       assert.equal((await stock(v.wig!)).onHandQuantity, before.onHandQuantity - 1);
       assert.equal((await t.db.select().from(inventoryMovements).where(eq(inventoryMovements.orderId, placed.orderId))).length, 1);
-      assert.equal((await t.db.select().from(notificationOutbox).where(eq(notificationOutbox.eventType, 'order.placed'))).filter((m) => (m.payload as Json).orderId === placed.orderId).length, 1);
+      assert.equal((await t.db.select().from(notificationOutbox).where(eq(notificationOutbox.eventType, 'order.placed'))).filter((m) => (m.payload as Json).orderId === placed.orderId).length, 2, 'one SMS and one email, not duplicated');
     });
 
     it('returns 404 for an unknown reference and 503 when the provider cannot be reached', async () => {
@@ -303,7 +303,7 @@ describe('payment confirmation, retry and webhook', { skip: !TEST_DATABASE_URL &
         deliveryMethod: 'next_day',
         paymentMethod: 'card',
       };
-      const results = await Promise.allSettled(Array.from({ length: 8 }, () => checkout(t.db, provider, input)));
+      const results = await Promise.allSettled(Array.from({ length: 8 }, () => checkout(t.db, provider, input, { emailDomain: 'noemail.test' })));
       const placed = results.filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof checkout>>> => r.status === 'fulfilled');
       for (const r of results) {
         if (r.status === 'rejected') assert.equal((r.reason as { data?: { code?: string } }).data?.code ?? (r.reason as { output?: { payload?: { error?: { code?: string } } } }).output?.payload?.error?.code, 'PROMOTION_UNAVAILABLE');
@@ -343,14 +343,14 @@ describe('payment confirmation, retry and webhook', { skip: !TEST_DATABASE_URL &
         deliveryMethod: 'next_day',
         paymentMethod: 'card',
       };
-      const result = await checkout(t.db, provider, input, { customerId: customer!.id });
+      const result = await checkout(t.db, provider, input, { customerId: customer!.id, emailDomain: 'noemail.test' });
       assert.equal(result.status, 201);
       const reference = (result as { body: Json }).body.reference as string;
 
       // The unpaid order already holds the customer's only use.
       const during = await priceCart(t.db, { items: input.items, promotionCodes: ['ONCEEACH'], customerId: customer!.id });
       assert.deepEqual(during.promotions.rejectedCodes, [{ code: 'ONCEEACH', reason: 'USAGE_LIMIT_REACHED' }]);
-      const concurrent = await checkout(t.db, provider, input, { customerId: customer!.id });
+      const concurrent = await checkout(t.db, provider, input, { customerId: customer!.id, emailDomain: 'noemail.test' });
       assert.equal((concurrent as { body: Json }).body.quote.discountMinor, 0);
 
       provider.set(reference, { status: 'success' });

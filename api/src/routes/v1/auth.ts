@@ -4,7 +4,10 @@ import type { Db } from '../../db/client.js';
 import { apiError } from '../../lib/errors.js';
 import { customers } from '../../db/schema/index.js';
 import { eq } from 'drizzle-orm';
-import { logout, profile, refresh, REFRESH_TOKEN_TTL_MS, register, login, type Issued } from '../../modules/auth/customers.js';
+import { enforce } from '../../plugins/rate-limit.js';
+import { LIMITS } from '../../lib/rate-policies.js';
+import { resetLimit } from '../../lib/rate-limit.js';
+import { logout, profile, refresh, REFRESH_TOKEN_TTL_MS, register, login, type Issued, type LoginIdentifier } from '../../modules/auth/customers.js';
 
 export const REFRESH_COOKIE = 'jh_refresh';
 const NO_STORE = 'no-store';
@@ -48,7 +51,11 @@ function sessionResponse(h: ResponseToolkit, issued: Issued, status = 200) {
   return response;
 }
 
-const email = Joi.string().trim().lowercase().email().max(254).required();
+const phone = Joi.string()
+  .trim()
+  .pattern(/^\+[1-9]\d{7,14}$/)
+  .messages({ 'string.pattern.base': 'phone must be in E.164 format, e.g. +2348012345678' });
+const email = Joi.string().trim().lowercase().email().max(254);
 const password = Joi.string().min(10).max(128).required();
 
 export const authRoutes: ServerRoute[] = [
@@ -57,28 +64,36 @@ export const authRoutes: ServerRoute[] = [
     path: '/auth/register',
     options: {
       auth: false,
-      description: 'Create a customer account with email and password and start a session',
+      description: 'Create a customer account identified by phone (email optional) and start a session',
+      plugins: { rateLimit: { ip: [LIMITS.register] } },
       tags: ['api', 'auth'],
       validate: {
-        payload: Joi.object({
-          email,
-          password,
-          phone: Joi.string().trim().pattern(/^\+[1-9]\d{7,14}$/).messages({ 'string.pattern.base': 'phone must be in E.164 format, e.g. +2348012345678' }),
-        }),
+        payload: Joi.object({ phone: phone.required(), email, password }),
       },
     },
-    handler: async (request, h) => sessionResponse(h, await register(db(request), secret(request), request.payload as { email: string; password: string; phone?: string }), 201),
+    handler: async (request, h) => sessionResponse(h, await register(db(request), secret(request), request.payload as { phone: string; password: string; email?: string }), 201),
   },
   {
     method: 'POST',
     path: '/auth/login',
     options: {
       auth: false,
-      description: 'Email and password login; credential failures are indistinguishable',
+      description: 'Phone (or optional email) and password login; credential failures are indistinguishable',
+      plugins: { rateLimit: { ip: [LIMITS.login] } },
       tags: ['api', 'auth'],
-      validate: { payload: Joi.object({ email, password: Joi.string().min(1).max(128).required() }) },
+      validate: {
+        payload: Joi.object({ phone, email, password: Joi.string().min(1).max(128).required() }).xor('phone', 'email'),
+      },
     },
-    handler: async (request, h) => sessionResponse(h, await login(db(request), secret(request), request.payload as { email: string; password: string })),
+    handler: async (request, h) => {
+      const credentials = request.payload as LoginIdentifier & { password: string };
+      const subject = 'phone' in credentials ? credentials.phone : credentials.email;
+      // Failed attempts per account are capped across all IPs; the counter is cleared on success.
+      await enforce(request, LIMITS.loginAccount, subject);
+      const issued = await login(db(request), secret(request), credentials);
+      await resetLimit(db(request), LIMITS.loginAccount, subject);
+      return sessionResponse(h, issued);
+    },
   },
   {
     method: 'POST',
@@ -86,6 +101,7 @@ export const authRoutes: ServerRoute[] = [
     options: {
       auth: false,
       description: 'Rotate the refresh cookie and issue a new access token',
+      plugins: { rateLimit: { ip: [LIMITS.refresh] } },
       tags: ['api', 'auth'],
     },
     handler: async (request, h) => {

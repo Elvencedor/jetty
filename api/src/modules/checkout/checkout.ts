@@ -1,3 +1,4 @@
+import { paymentEmail } from './contact.js';
 import { acquirePromotionHolds } from '../promotions/holds.js';
 import { createHash, randomBytes } from 'node:crypto';
 import { and, eq, inArray, like, sql } from 'drizzle-orm';
@@ -39,7 +40,7 @@ export type DeliveryAddress = {
 export type CheckoutInput = {
   items: CartItem[];
   promotionCodes: string[];
-  contact: { email: string; phone: string };
+  contact: { phone: string; email?: string | undefined };
   deliveryAddress: DeliveryAddress;
   deliveryMethod: DeliveryMethod;
   paymentMethod: 'card';
@@ -81,7 +82,7 @@ export async function checkout(
   db: Db,
   provider: PaymentProvider,
   input: CheckoutInput,
-  options: { callbackUrl?: string | undefined; customerId?: string | undefined; now?: Date } = {},
+  options: { callbackUrl?: string | undefined; emailDomain: string; customerId?: string | undefined; now?: Date },
 ): Promise<CheckoutResult> {
   const now = options.now ?? new Date();
 
@@ -134,7 +135,7 @@ export async function checkout(
   const guestToken = options.customerId ? null : randomBytes(32).toString('base64url');
   const reference = newPaymentReference();
   const reservationExpiresAt = new Date(now.getTime() + RESERVATION_TTL_MS);
-  const email = input.contact.email.trim().toLowerCase();
+  const email = input.contact.email?.trim().toLowerCase() || null;
 
   let created: { orderId: string; orderNumber: string; attemptId: string };
   try {
@@ -229,7 +230,7 @@ export async function checkout(
     orderNumber: created.orderNumber,
     attemptId: created.attemptId,
     reference,
-    email,
+    email: paymentEmail(email, input.contact.phone, options.emailDomain),
     amountMinor: totalMinor,
     currency: cart.currency,
     method: input.paymentMethod,

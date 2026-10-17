@@ -107,14 +107,15 @@ another request has already updated the cart.
 
 ### Customer authentication (email and password)
 
-`POST /auth/register` (`email`, `password` of 10-128 characters, optional E.164
-`phone`) and `POST /auth/login` return `{ accessToken, tokenType: "Bearer",
+`POST /auth/register` (E.164 `phone` required, `password` of 10-128 characters,
+optional `email`) and `POST /auth/login` (`phone` or `email`, plus `password`)
+return `{ accessToken, tokenType: "Bearer",
 expiresIn, customer }` and set the `jh_refresh` cookie (`Secure`, `HttpOnly`,
 `SameSite=Strict`, path `/api/v1/auth`, 30 days). Access tokens are signed
 15-minute bearer tokens tied to a session row, so logout revokes them at once.
 `POST /auth/refresh` rotates the cookie; presenting a rotated-out token revokes
 the whole session. Refresh and logout reject a foreign `Origin`. Login failures
-(wrong password, unknown email, blocked account) are identical `401
+(wrong password, unknown phone/email, blocked account) are identical `401
 INVALID_CREDENTIALS`; a duplicate registration is `409 ACCOUNT_EXISTS`.
 `POST /auth/logout` returns `204`; `GET /me` returns the profile. Auth routes
 return `503 AUTH_UNAVAILABLE` until `AUTH_TOKEN_SECRET` is set.
@@ -413,3 +414,24 @@ webhook.
   events, jobs, and payment metadata.
 - Track and alert on payment/checkout failures, webhook lag, outbox backlog,
   inventory reservation expiry, and API error/latency rates.
+
+## Phone-first identity, order history and rate limits (implemented)
+
+Customers are identified by phone number; email is optional everywhere,
+including checkout (`contact.email`). When there is no email, Paystack receives
+a per-phone placeholder on `PAYSTACK_PLACEHOLDER_EMAIL_DOMAIN`, which is never
+stored on the order, and notifications go by SMS only.
+
+`GET /me/orders` (`limit` 1-50, `cursor`) and `GET /me/orders/{orderId}` need a
+bearer token; other customers' and guest orders return `404`. `POST /orders/track`
+takes `{ orderNumber, phone }` and returns only status, payment status, delivery
+method, placed time and a timeline; a wrong phone and an unknown order are the
+same `404`.
+
+Limits are Postgres-backed fixed windows (`rate_limit_buckets`), answered with
+`429 RATE_LIMITED` and `Retry-After`: register 10/h/IP, login 30/15m/IP and
+8/15m/account, refresh 60/15m/IP, track 20/15m/IP and 10/h/order number, quote
+60/m/IP, checkout 20/10m/IP, payment attempts and verify 30/10m/IP, webhook
+600/m/IP. Set `TRUSTED_PROXY_HOPS` to the number of proxies in front of the API
+so `x-forwarded-for` is trusted. The worker purges stale buckets. The limiter
+fails open if the database errors.

@@ -1,3 +1,4 @@
+import { LIMITS } from '../../lib/rate-policies.js';
 import type { Request, ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
 import type { Db } from '../../db/client.js';
@@ -48,6 +49,7 @@ export const pricingRoutes: ServerRoute[] = [
     path: '/pricing/quote',
     options: {
       auth: false,
+      plugins: { rateLimit: { ip: [LIMITS.quote] } },
       description: 'Stateless server-calculated quote for submitted variants, promotion codes and delivery',
       tags: ['api', 'pricing'],
       validate: {
@@ -75,6 +77,7 @@ export const pricingRoutes: ServerRoute[] = [
     path: '/delivery/quotes',
     options: {
       auth: false,
+      plugins: { rateLimit: { ip: [LIMITS.quote] } },
       description: 'Delivery zone, methods, fees, ETAs and same-day eligibility for a destination and cart',
       tags: ['api', 'delivery'],
       validate: { payload: Joi.object({ items, promotionCodes, deliveryAddress: deliveryAddress.required() }) },

@@ -4,6 +4,8 @@ import type { Database } from '../db/client.js';
 import { createLogger, type Logger } from '../lib/logger.js';
 import type { PaymentProvider } from '../modules/payments/provider.js';
 import { errorEnvelope } from '../plugins/error-envelope.js';
+import { rateLimit } from '../plugins/rate-limit.js';
+import { LIMITS } from '../lib/rate-policies.js';
 import { requestContext } from '../plugins/request-context.js';
 import { healthRoutes } from '../routes/health.js';
 import { handlePaystackEvent } from './process.js';
@@ -40,6 +42,7 @@ export async function createWebhookServer({ env, database, payments, signingSecr
   server.app.database = database;
 
   await server.register(requestContext(log));
+  await server.register(rateLimit());
   await server.register(errorEnvelope({ isProduction: env.isProduction }));
 
   server.route(healthRoutes);
@@ -50,6 +53,7 @@ export async function createWebhookServer({ env, database, payments, signingSecr
       auth: false,
       description: 'Signed Paystack events; verified server-to-server before any state change',
       tags: ['webhooks'],
+      plugins: { rateLimit: { ip: [LIMITS.webhook] } },
       // The signature covers the exact bytes Paystack sent, so the body must not be parsed first.
       payload: { parse: false, output: 'data', maxBytes: MAX_WEBHOOK_BYTES },
     },
