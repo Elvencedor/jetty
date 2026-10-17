@@ -1,0 +1,1 @@
+ALTER TABLE "orders" ADD COLUMN "applied_promotions" jsonb DEFAULT '[]'::jsonb NOT NULL;
