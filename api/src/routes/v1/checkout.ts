@@ -65,6 +65,8 @@ const paymentsOf = (request: Request) => {
   return payments;
 };
 
+const customerId = (request: Request) => (request.auth.isAuthenticated ? request.auth.credentials.customerId : undefined);
+
 const guestToken = (request: Request) => {
   const value = request.state[CHECKOUT_COOKIE];
   return typeof value === 'string' ? value : undefined;
@@ -111,7 +113,7 @@ export const checkoutRoutes: ServerRoute[] = [
     method: 'POST',
     path: '/checkout',
     options: {
-      auth: false,
+      auth: { strategy: 'customer', mode: 'optional' },
       description: 'Recalculate, create a pending_payment order with stock reservation, and initialize payment',
       tags: ['api', 'checkout'],
       validate: { headers: idempotencyHeader, payload },
@@ -119,9 +121,9 @@ export const checkoutRoutes: ServerRoute[] = [
     handler: (request, h) => {
       const payments = paymentsOf(request);
       const body = request.payload as CheckoutInput & { termsAccepted: true };
-      // No authenticated customer yet, so keys are scoped to guests; the key itself is high-entropy.
-      return idempotent(request, h, 'checkout:guest', body, async () => {
-        const result = await checkout(db(request), payments, body, { callbackUrl: request.server.app.env.PAYSTACK_CALLBACK_URL });
+      const customer = customerId(request);
+      return idempotent(request, h, customer ? `checkout:customer:${customer}` : 'checkout:guest', body, async () => {
+        const result = await checkout(db(request), payments, body, { callbackUrl: request.server.app.env.PAYSTACK_CALLBACK_URL, customerId: customer });
         return {
           status: result.status,
           body: result.status === 201 ? result.body : { error: result.error },
@@ -144,7 +146,7 @@ export const checkoutRoutes: ServerRoute[] = [
     method: 'POST',
     path: '/checkout/{orderId}/payment-attempts',
     options: {
-      auth: false,
+      auth: { strategy: 'customer', mode: 'optional' },
       description: 'Start a new payment attempt once the previous one has definitively failed or expired',
       tags: ['api', 'checkout'],
       validate: { headers: idempotencyHeader, params: Joi.object({ orderId: Joi.string().uuid().required() }) },
@@ -153,7 +155,7 @@ export const checkoutRoutes: ServerRoute[] = [
       const payments = paymentsOf(request);
       const { orderId } = request.params as { orderId: string };
       return idempotent(request, h, `payment-attempt:${orderId}`, { orderId }, async () => {
-        const order = await loadOwnedOrder(db(request), orderId, { guestToken: guestToken(request) });
+        const order = await loadOwnedOrder(db(request), orderId, { guestToken: guestToken(request), customerId: customerId(request) });
         const result = await retryPayment(db(request), payments, order, { callbackUrl: request.server.app.env.PAYSTACK_CALLBACK_URL });
         return { status: result.status, body: result.status === 201 ? result.body : { error: result.error } };
       });
@@ -163,13 +165,13 @@ export const checkoutRoutes: ServerRoute[] = [
     method: 'GET',
     path: '/checkout/{orderId}/status',
     options: {
-      auth: false,
+      auth: { strategy: 'customer', mode: 'optional' },
       description: 'Minimal payment/order status for the owning customer or guest checkout token',
       tags: ['api', 'checkout'],
       validate: { params: Joi.object({ orderId: Joi.string().uuid().required() }) },
     },
     handler: async (request, h) => {
-      const order = await loadOwnedOrder(db(request), (request.params as { orderId: string }).orderId, { guestToken: guestToken(request) });
+      const order = await loadOwnedOrder(db(request), (request.params as { orderId: string }).orderId, { guestToken: guestToken(request), customerId: customerId(request) });
       return h.response(await orderStatus(db(request), order.id)).header('Cache-Control', NO_STORE);
     },
   },

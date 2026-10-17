@@ -16,6 +16,8 @@ const schema = Joi.object({
   PAYSTACK_WEBHOOK_SECRET: Joi.string().min(8).optional(),
   // Port of the standalone webhook service (falls back to PORT, which Railway sets per service).
   WEBHOOK_PORT: Joi.number().port().optional(),
+  // HMAC key for customer access tokens (at least 32 characters). Auth routes return 503 until it is set.
+  AUTH_TOKEN_SECRET: Joi.string().min(32).optional(),
   PAYSTACK_BASE_URL: Joi.string().uri({ scheme: ['https', 'http'] }).default('https://api.paystack.co'),
   // Where Paystack redirects the browser after payment; the page must verify server-side.
   PAYSTACK_CALLBACK_URL: Joi.string().uri({ scheme: ['https', 'http'] }).optional(),
@@ -30,6 +32,7 @@ export type Env = {
   PAYSTACK_SECRET_KEY: string | undefined;
   PAYSTACK_WEBHOOK_SECRET: string | undefined;
   WEBHOOK_PORT: number | undefined;
+  AUTH_TOKEN_SECRET: string | undefined;
   PAYSTACK_BASE_URL: string;
   PAYSTACK_CALLBACK_URL: string | undefined;
   corsOrigins: string[];
@@ -53,6 +56,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     PAYSTACK_SECRET_KEY: value.PAYSTACK_SECRET_KEY,
     PAYSTACK_WEBHOOK_SECRET: value.PAYSTACK_WEBHOOK_SECRET,
     WEBHOOK_PORT: value.WEBHOOK_PORT,
+    AUTH_TOKEN_SECRET: value.AUTH_TOKEN_SECRET,
     PAYSTACK_BASE_URL: value.PAYSTACK_BASE_URL,
     PAYSTACK_CALLBACK_URL: value.PAYSTACK_CALLBACK_URL,
     corsOrigins: String(value.CORS_ORIGINS)

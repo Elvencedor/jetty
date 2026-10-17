@@ -105,6 +105,26 @@ another request has already updated the cart.
 | `POST /me/data-erasure` | Submit erasure request; preserve legally required financial/order records | P1 |
 | `POST /products/{productId}/stock-notifications` | Subscribe by email/phone for a selected unavailable variant | P1 |
 
+### Customer authentication (email and password)
+
+`POST /auth/register` (`email`, `password` of 10-128 characters, optional E.164
+`phone`) and `POST /auth/login` return `{ accessToken, tokenType: "Bearer",
+expiresIn, customer }` and set the `jh_refresh` cookie (`Secure`, `HttpOnly`,
+`SameSite=Strict`, path `/api/v1/auth`, 30 days). Access tokens are signed
+15-minute bearer tokens tied to a session row, so logout revokes them at once.
+`POST /auth/refresh` rotates the cookie; presenting a rotated-out token revokes
+the whole session. Refresh and logout reject a foreign `Origin`. Login failures
+(wrong password, unknown email, blocked account) are identical `401
+INVALID_CREDENTIALS`; a duplicate registration is `409 ACCOUNT_EXISTS`.
+`POST /auth/logout` returns `204`; `GET /me` returns the profile. Auth routes
+return `503 AUTH_UNAVAILABLE` until `AUTH_TOKEN_SECRET` is set.
+
+`POST /checkout`, `GET /checkout/{orderId}/status` and
+`POST /checkout/{orderId}/payment-attempts` accept an optional bearer token. With
+one, the order belongs to the customer (no guest cookie), per-customer promotion
+limits apply, and idempotency keys are scoped to the customer. A bad or revoked
+token is `401`; it is never treated as a guest.
+
 ### Client cart and pricing
 
 | Method and path | Purpose / contract | Phase |

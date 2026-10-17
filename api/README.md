@@ -45,6 +45,7 @@ src/
   modules/delivery/            admin-configured delivery zones and methods
   modules/checkout/            atomic order + reservation + payment attempt creation
   modules/payments/            payment provider interface, Paystack client, settlement transaction
+  modules/auth/                customer register, login, refresh rotation, logout
   worker/                      background worker: releases expired reservations and holds, cleans idempotency keys (npm run start:worker)
   webhook/                     standalone Paystack webhook server (own process: npm run start:webhook)
   db/                          Drizzle schema, client, migrate and seed
@@ -78,6 +79,6 @@ process exits on invalid configuration rather than starting in a broken state.
 
 ## Not built yet
 
-Authentication, the transactional outbox processor and the remaining worker
+Phone/OTP and password-reset auth, admin auth, the transactional outbox processor and the remaining worker
 jobs. `/readyz` reports the process only; add
 dependency checks there as they are wired up.
