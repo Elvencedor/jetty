@@ -359,7 +359,7 @@ CREATE TABLE "orders" (
 	"guest_checkout_token_expires_at" timestamp with time zone,
 	"status" "order_status" DEFAULT 'pending_payment' NOT NULL,
 	"payment_status" "payment_status" DEFAULT 'pending' NOT NULL,
-	"email" text NOT NULL,
+	"email" text,
 	"phone_e164" text NOT NULL,
 	"currency" text DEFAULT 'NGN' NOT NULL,
 	"subtotal_minor" bigint NOT NULL,
@@ -369,6 +369,7 @@ CREATE TABLE "orders" (
 	"total_minor" bigint NOT NULL,
 	"delivery_address_snapshot" jsonb NOT NULL,
 	"delivery_method" text NOT NULL,
+	"applied_promotions" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"terms_accepted_at" timestamp with time zone NOT NULL,
 	"reservation_expires_at" timestamp with time zone,
 	"placed_at" timestamp with time zone,
@@ -416,6 +417,15 @@ CREATE TABLE "promotion_codes" (
 	CONSTRAINT "promotion_codes_code_unique" UNIQUE("code"),
 	CONSTRAINT "promotion_codes_code_normalized" CHECK ("promotion_codes"."code" = upper(btrim("promotion_codes"."code"))),
 	CONSTRAINT "promotion_codes_count_valid" CHECK ("promotion_codes"."redemption_count" >= 0)
+);
+--> statement-breakpoint
+CREATE TABLE "promotion_holds" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"promotion_id" uuid NOT NULL,
+	"promotion_code_id" uuid,
+	"customer_id" uuid,
+	"order_id" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "promotion_redemptions" (
@@ -564,6 +574,7 @@ CREATE TABLE "notification_outbox" (
 	"next_attempt_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"sent_at" timestamp with time zone,
 	"last_error" text,
+	"provider_message_id" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -640,6 +651,10 @@ ALTER TABLE "order_status_events" ADD CONSTRAINT "order_status_events_order_id_o
 ALTER TABLE "orders" ADD CONSTRAINT "orders_customer_id_customers_id_fk" FOREIGN KEY ("customer_id") REFERENCES "public"."customers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_attempts" ADD CONSTRAINT "payment_attempts_order_id_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "promotion_codes" ADD CONSTRAINT "promotion_codes_promotion_id_promotions_id_fk" FOREIGN KEY ("promotion_id") REFERENCES "public"."promotions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "promotion_holds" ADD CONSTRAINT "promotion_holds_promotion_id_promotions_id_fk" FOREIGN KEY ("promotion_id") REFERENCES "public"."promotions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "promotion_holds" ADD CONSTRAINT "promotion_holds_promotion_code_id_promotion_codes_id_fk" FOREIGN KEY ("promotion_code_id") REFERENCES "public"."promotion_codes"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "promotion_holds" ADD CONSTRAINT "promotion_holds_customer_id_customers_id_fk" FOREIGN KEY ("customer_id") REFERENCES "public"."customers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "promotion_holds" ADD CONSTRAINT "promotion_holds_order_id_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "promotion_redemptions" ADD CONSTRAINT "promotion_redemptions_promotion_id_promotions_id_fk" FOREIGN KEY ("promotion_id") REFERENCES "public"."promotions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "promotion_redemptions" ADD CONSTRAINT "promotion_redemptions_promotion_code_id_promotion_codes_id_fk" FOREIGN KEY ("promotion_code_id") REFERENCES "public"."promotion_codes"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "promotion_redemptions" ADD CONSTRAINT "promotion_redemptions_customer_id_customers_id_fk" FOREIGN KEY ("customer_id") REFERENCES "public"."customers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -702,6 +717,10 @@ CREATE INDEX "payment_attempts_order_created_idx" ON "payment_attempts" USING bt
 CREATE INDEX "payment_attempts_order_status_idx" ON "payment_attempts" USING btree ("order_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "payment_webhook_events_key_uq" ON "payment_webhook_events" USING btree ("provider","provider_event_key");--> statement-breakpoint
 CREATE INDEX "promotion_codes_promotion_idx" ON "promotion_codes" USING btree ("promotion_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "promotion_holds_promotion_order_uq" ON "promotion_holds" USING btree ("promotion_id","order_id");--> statement-breakpoint
+CREATE INDEX "promotion_holds_code_idx" ON "promotion_holds" USING btree ("promotion_code_id");--> statement-breakpoint
+CREATE INDEX "promotion_holds_customer_idx" ON "promotion_holds" USING btree ("promotion_id","customer_id");--> statement-breakpoint
+CREATE INDEX "promotion_holds_order_idx" ON "promotion_holds" USING btree ("order_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "promotion_redemptions_promotion_order_uq" ON "promotion_redemptions" USING btree ("promotion_id","order_id");--> statement-breakpoint
 CREATE INDEX "promotion_redemptions_customer_idx" ON "promotion_redemptions" USING btree ("promotion_id","customer_id");--> statement-breakpoint
 CREATE INDEX "promotions_status_window_idx" ON "promotions" USING btree ("status","starts_at","ends_at");--> statement-breakpoint
