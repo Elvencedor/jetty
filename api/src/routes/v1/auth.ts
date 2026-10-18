@@ -6,7 +6,6 @@ import { customers } from '../../db/schema/index.js';
 import { eq } from 'drizzle-orm';
 import { enforce } from '../../plugins/rate-limit.js';
 import { LIMITS } from '../../lib/rate-policies.js';
-import { resetLimit } from '../../lib/rate-limit.js';
 import { logout, profile, refresh, REFRESH_TOKEN_TTL_MS, register, login, type Issued, type LoginIdentifier } from '../../modules/auth/customers.js';
 
 export const REFRESH_COOKIE = 'jh_refresh';
@@ -91,7 +90,7 @@ export const authRoutes: ServerRoute[] = [
       // Failed attempts per account are capped across all IPs; the counter is cleared on success.
       await enforce(request, LIMITS.loginAccount, subject);
       const issued = await login(db(request), secret(request), credentials);
-      await resetLimit(db(request), LIMITS.loginAccount, subject);
+      await request.server.app.rateLimiter?.reset(LIMITS.loginAccount, subject).catch(() => undefined);
       return sessionResponse(h, issued);
     },
   },

@@ -64,6 +64,7 @@ and `media`; all clients use the same versioned API contract.
 | Scheduled work | Railway cron/scheduled service or worker scheduler | Expire stock reservations, process scheduled promotions, and run review requests/exports; make every scheduled action idempotent |
 | Media storage | Cloudflare R2 private bucket | Short-lived presigned upload intents; validate type/size; scan uploads; create WebP/AVIF derivatives in worker; immutable object keys and lifecycle rules |
 | DNS/CDN/WAF | Cloudflare | TLS, WAF/rate limits, static asset caching; cache only public read-only catalog responses, never customer/cart/checkout/admin responses |
+| Rate limiting | Railway Redis (limiter counters only) | App-level per-IP/account limits behind Cloudflare WAF; counters are disposable with TTLs, keys hold only hashed subjects, and the limiter fails open if Redis is down. Redis is not used for carts or jobs |
 | Cart | Client-side storefront state/storage | No server-side cart table, Redis service, or cart persistence API; client submits variant IDs/quantities and checkout inputs, which the API revalidates |
 | Payments | Paystack API and webhook | API initializes/verifies transactions with the secret key; browser uses returned access code or authorization URL; verify `x-paystack-signature`, then verify transaction/reference/amount/currency server-side |
 | Email/messaging | Resend/Postmark or equivalent; WhatsApp Business/SMS adapter | Transactional sends from outbox worker; record provider message IDs/failures; marketing sends require recorded consent |

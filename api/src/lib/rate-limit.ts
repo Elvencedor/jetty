@@ -1,6 +1,4 @@
-import { lt, sql } from 'drizzle-orm';
-import type { Db } from '../db/client.js';
-import { rateLimitBuckets } from '../db/schema/index.js';
+import { Redis } from 'ioredis';
 import { apiError } from './errors.js';
 import { sha256 } from './tokens.js';
 
@@ -8,46 +6,64 @@ export type Policy = { name: string; limit: number; windowMs: number };
 
 export type Decision = { allowed: boolean; count: number; retryAfterSeconds: number };
 
-/** Subjects (IPs, phone numbers, order numbers) are hashed so the table never holds raw identifiers. */
-const bucketKey = (policy: Policy, subject: string) => `${policy.name}:${sha256(subject.trim().toLowerCase())}`;
+export interface RateLimiter {
+  /** Counts one hit against `policy` for `subject`. */
+  consume(policy: Policy, subject: string): Promise<Decision>;
+  /** Clears a counter, e.g. an account's failed-login count after a successful login. */
+  reset(policy: Policy, subject: string): Promise<void>;
+  close(): Promise<void>;
+}
 
-/**
- * Counts one hit against a fixed window in a single atomic upsert, so every
- * API replica shares the same counter and concurrent requests cannot slip past
- * the limit. A fixed window allows up to twice the limit across a boundary,
- * which is acceptable for abuse control.
- */
-export async function consume(db: Db, policy: Policy, subject: string, now: Date = new Date()): Promise<Decision> {
-  const at = now.toISOString();
-  const windowSeconds = policy.windowMs / 1000;
-  const rows = await db.execute<{ count: number; window_start: Date | string }>(sql`
-    insert into rate_limit_buckets as b (key, window_start, count)
-    values (${bucketKey(policy, subject)}, ${at}::timestamptz, 1)
-    on conflict (key) do update set
-      window_start = case when b.window_start + make_interval(secs => ${windowSeconds}) <= ${at}::timestamptz then ${at}::timestamptz else b.window_start end,
-      count = case when b.window_start + make_interval(secs => ${windowSeconds}) <= ${at}::timestamptz then 1 else b.count + 1 end
-    returning count, window_start`);
-  const row = [...rows][0]!;
-  const resetAt = new Date(row.window_start).getTime() + policy.windowMs;
+// INCR and the expiry run in one script, so a crash can never leave a counter without a TTL and
+// concurrent requests cannot slip past the limit. The window starts at the first hit and Redis
+// expires the key when it ends. A fixed window allows up to twice the limit across a boundary.
+const CONSUME = `
+local count = redis.call('INCR', KEYS[1])
+local ttl = redis.call('PTTL', KEYS[1])
+if count == 1 or ttl < 0 then
+  redis.call('PEXPIRE', KEYS[1], ARGV[1])
+  ttl = tonumber(ARGV[1])
+end
+return {count, ttl}
+`;
+
+export type RedisRateLimiterOptions = {
+  /** Namespaces keys; tests use a random one so runs never share counters. */
+  prefix?: string;
+  /** Upper bound on any command; the caller fails open past it. */
+  commandTimeoutMs?: number;
+};
+
+/** Subjects (IPs, phone numbers, order numbers) are hashed so Redis never holds raw identifiers. */
+const bucketKey = (prefix: string, policy: Policy, subject: string) => `${prefix}${policy.name}:${sha256(subject.trim().toLowerCase())}`;
+
+/** Connects eagerly so a wrong REDIS_URL stops the service at startup instead of silently disabling limits. */
+export async function createRedisRateLimiter(url: string, { prefix = 'rl:', commandTimeoutMs = 250 }: RedisRateLimiterOptions = {}): Promise<RateLimiter> {
+  const redis = new Redis(url, {
+    lazyConnect: true,
+    commandTimeout: commandTimeoutMs,
+    connectTimeout: 5000,
+    maxRetriesPerRequest: 1,
+    // Fail fast while disconnected rather than queueing requests behind the limiter.
+    enableOfflineQueue: false,
+    retryStrategy: (attempt) => Math.min(attempt * 200, 2000),
+  });
+  // Without a listener ioredis would throw on connection errors; failures surface per command instead.
+  redis.on('error', () => undefined);
+  await redis.connect();
+
   return {
-    allowed: row.count <= policy.limit,
-    count: row.count,
-    retryAfterSeconds: Math.max(1, Math.ceil((resetAt - now.getTime()) / 1000)),
+    async consume(policy, subject) {
+      const [count, ttl] = (await redis.eval(CONSUME, 1, bucketKey(prefix, policy, subject), String(policy.windowMs))) as [number, number];
+      return { allowed: count <= policy.limit, count, retryAfterSeconds: Math.max(1, Math.ceil(ttl / 1000)) };
+    },
+    async reset(policy, subject) {
+      await redis.del(bucketKey(prefix, policy, subject));
+    },
+    async close() {
+      redis.disconnect();
+    },
   };
-}
-
-/** Clears a counter, e.g. an account's failed-login count after a successful login. */
-export async function resetLimit(db: Db, policy: Policy, subject: string): Promise<void> {
-  await db.execute(sql`delete from rate_limit_buckets where key = ${bucketKey(policy, subject)}`);
-}
-
-/** Drops counters whose window ended long ago. */
-export async function purgeRateLimits(db: Db, now: Date = new Date(), olderThanMs = 2 * 60 * 60 * 1000): Promise<number> {
-  const removed = await db
-    .delete(rateLimitBuckets)
-    .where(lt(rateLimitBuckets.windowStart, new Date(now.getTime() - olderThanMs)))
-    .returning({ key: rateLimitBuckets.key });
-  return removed.length;
 }
 
 export function tooManyRequests(retryAfterSeconds: number) {

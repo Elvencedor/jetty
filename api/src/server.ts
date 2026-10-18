@@ -1,6 +1,7 @@
 import Hapi, { type Server } from '@hapi/hapi';
 import type { Env } from './config/env.js';
 import type { Database } from './db/client.js';
+import type { RateLimiter } from './lib/rate-limit.js';
 import type { PaymentProvider } from './modules/payments/provider.js';
 import { createLogger, type Logger } from './lib/logger.js';
 import { errorEnvelope } from './plugins/error-envelope.js';
@@ -18,13 +19,15 @@ export type CreateServerOptions = {
   database?: Database;
   /** Omit to leave checkout disabled (503). Tests inject a fake. */
   payments?: PaymentProvider;
+  /** Redis-backed limiter; required for limits to apply when RATE_LIMIT_ENABLED is true. */
+  rateLimiter?: RateLimiter;
 };
 
 /**
  * Builds a fully configured, unstarted server. Tests call this and use
  * `server.inject(...)` without binding a port.
  */
-export async function createServer({ env, logger, database, payments }: CreateServerOptions): Promise<Server> {
+export async function createServer({ env, logger, database, payments, rateLimiter }: CreateServerOptions): Promise<Server> {
   const log = logger ?? createLogger(env.LOG_LEVEL, { service: 'api' });
 
   const server = Hapi.server({
@@ -51,6 +54,7 @@ export async function createServer({ env, logger, database, payments }: CreateSe
   server.app.env = env;
   server.app.logger = log;
   if (database) server.app.database = database;
+  if (rateLimiter) server.app.rateLimiter = rateLimiter;
   if (payments) server.app.payments = payments;
 
   await server.register(requestContext(log));
@@ -70,5 +74,6 @@ declare module '@hapi/hapi' {
     logger: Logger;
     database?: Database;
     payments?: PaymentProvider;
+    rateLimiter?: RateLimiter;
   }
 }

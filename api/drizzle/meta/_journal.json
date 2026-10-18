@@ -29,6 +29,13 @@
       "when": 1792281275317,
       "tag": "0003_phone_primary_rate_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792281867446,
+      "tag": "0004_drop_rate_limit_buckets",
+      "breakpoints": true
     }
   ]
 }

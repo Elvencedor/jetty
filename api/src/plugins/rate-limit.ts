@@ -1,5 +1,5 @@
 import type { Plugin, Request } from '@hapi/hapi';
-import { consume, tooManyRequests, type Policy } from '../lib/rate-limit.js';
+import { tooManyRequests, type Policy } from '../lib/rate-limit.js';
 
 declare module '@hapi/hapi' {
   interface PluginSpecificConfiguration {
@@ -25,13 +25,13 @@ export function clientIp(request: Request, hops: number): string {
   return request.info.remoteAddress;
 }
 
-/** Throws 429 when `subject` has exhausted `policy`. A broken limiter never blocks traffic that would otherwise succeed. */
+/** Throws 429 when `subject` has exhausted `policy`. A Redis outage never blocks traffic that would otherwise succeed. */
 export async function enforce(request: Request, policy: Policy, subject: string): Promise<void> {
-  const { env, database } = request.server.app;
-  if (!env.RATE_LIMIT_ENABLED || !database) return;
+  const { env, rateLimiter } = request.server.app;
+  if (!env.RATE_LIMIT_ENABLED || !rateLimiter) return;
   let decision;
   try {
-    decision = await consume(database.db, policy, subject);
+    decision = await rateLimiter.consume(policy, subject);
   } catch (err) {
     request.app.logger?.error('rate limiter unavailable', { policy: policy.name, err: err instanceof Error ? err.message : String(err) });
     return;

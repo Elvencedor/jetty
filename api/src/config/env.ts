@@ -18,8 +18,9 @@ const schema = Joi.object({
   WEBHOOK_PORT: Joi.number().port().optional(),
   // HMAC key for customer access tokens (at least 32 characters). Auth routes return 503 until it is set.
   AUTH_TOKEN_SECRET: Joi.string().min(32).optional(),
-  // Per-IP/account request limits (Postgres-backed). Off by default under NODE_ENV=test.
+  // Per-IP/account request limits (Redis-backed, so REDIS_URL is required when on). Off by default under NODE_ENV=test.
   RATE_LIMIT_ENABLED: Joi.boolean().when('NODE_ENV', { is: 'test', then: Joi.boolean().default(false), otherwise: Joi.boolean().default(true) }),
+  REDIS_URL: Joi.string().uri({ scheme: ['redis', 'rediss'] }).optional(),
   // Number of proxies we control in front of the API (Railway: 1, Cloudflare + Railway: 2); 0 uses the socket address.
   TRUSTED_PROXY_HOPS: Joi.number().integer().min(0).max(5).default(0),
   // Paystack requires an email; customers without one get a per-phone address on this domain (use a mailbox-less domain you control).
@@ -39,6 +40,7 @@ export type Env = {
   PAYSTACK_WEBHOOK_SECRET: string | undefined;
   WEBHOOK_PORT: number | undefined;
   AUTH_TOKEN_SECRET: string | undefined;
+  REDIS_URL: string | undefined;
   RATE_LIMIT_ENABLED: boolean;
   TRUSTED_PROXY_HOPS: number;
   PAYSTACK_PLACEHOLDER_EMAIL_DOMAIN: string;
@@ -56,6 +58,10 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     throw new Error(`Invalid environment configuration: ${details}`);
   }
 
+  if (value.RATE_LIMIT_ENABLED && !value.REDIS_URL) {
+    throw new Error('Invalid environment configuration: "REDIS_URL" is required when RATE_LIMIT_ENABLED is true');
+  }
+
   return {
     NODE_ENV: value.NODE_ENV,
     HOST: value.HOST,
@@ -66,6 +72,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     PAYSTACK_WEBHOOK_SECRET: value.PAYSTACK_WEBHOOK_SECRET,
     WEBHOOK_PORT: value.WEBHOOK_PORT,
     AUTH_TOKEN_SECRET: value.AUTH_TOKEN_SECRET,
+    REDIS_URL: value.REDIS_URL,
     RATE_LIMIT_ENABLED: value.RATE_LIMIT_ENABLED,
     TRUSTED_PROXY_HOPS: value.TRUSTED_PROXY_HOPS,
     PAYSTACK_PLACEHOLDER_EMAIL_DOMAIN: value.PAYSTACK_PLACEHOLDER_EMAIL_DOMAIN,

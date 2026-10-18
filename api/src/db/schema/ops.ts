@@ -142,17 +142,6 @@ export const analyticsEvents = pgTable(
   (t) => [index('analytics_events_name_time_idx').on(t.eventName, t.occurredAt)],
 );
 
-/** Fixed-window request counters shared by every API replica. `key` holds only hashed subjects, never raw phone numbers or IPs. */
-export const rateLimitBuckets = pgTable(
-  'rate_limit_buckets',
-  {
-    key: text('key').primaryKey(),
-    windowStart: tstz('window_start').notNull(),
-    count: integer('count').notNull(),
-  },
-  (t) => [index('rate_limit_buckets_window_idx').on(t.windowStart)],
-);
-
 export const idempotencyKeys = pgTable(
   'idempotency_keys',
   {

@@ -4,6 +4,7 @@ import type { Database } from '../db/client.js';
 import { createLogger, type Logger } from '../lib/logger.js';
 import type { PaymentProvider } from '../modules/payments/provider.js';
 import { errorEnvelope } from '../plugins/error-envelope.js';
+import type { RateLimiter } from '../lib/rate-limit.js';
 import { rateLimit } from '../plugins/rate-limit.js';
 import { LIMITS } from '../lib/rate-policies.js';
 import { requestContext } from '../plugins/request-context.js';
@@ -17,6 +18,7 @@ const MAX_WEBHOOK_BYTES = 64 * 1024;
 export type CreateWebhookServerOptions = {
   env: Env;
   database: Database;
+  rateLimiter?: RateLimiter;
   payments: PaymentProvider;
   /** HMAC key for x-paystack-signature. */
   signingSecret: string;
@@ -30,7 +32,7 @@ export type CreateWebhookServerOptions = {
  * firewalled independently so webhook traffic can never starve checkout and
  * vice versa. It shares the database and settlement code with the API.
  */
-export async function createWebhookServer({ env, database, payments, signingSecret, logger }: CreateWebhookServerOptions): Promise<Server> {
+export async function createWebhookServer({ env, database, rateLimiter, payments, signingSecret, logger }: CreateWebhookServerOptions): Promise<Server> {
   const log = logger ?? createLogger(env.LOG_LEVEL, { service: 'webhooks' });
 
   const server = Hapi.server({
@@ -40,6 +42,7 @@ export async function createWebhookServer({ env, database, payments, signingSecr
   server.app.env = env;
   server.app.logger = log;
   server.app.database = database;
+  server.app.rateLimiter = rateLimiter;
 
   await server.register(requestContext(log));
   await server.register(rateLimit());

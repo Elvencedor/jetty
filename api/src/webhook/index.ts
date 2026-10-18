@@ -2,6 +2,7 @@ import { loadEnv } from '../config/env.js';
 import { createDatabase } from '../db/client.js';
 import { createLogger } from '../lib/logger.js';
 import { PaystackProvider } from '../modules/payments/paystack.js';
+import { createRedisRateLimiter } from '../lib/rate-limit.js';
 import { createWebhookServer } from './server.js';
 
 /** Entry point of the standalone webhook service: `npm run start:webhook`. */
@@ -13,9 +14,11 @@ async function main(): Promise<void> {
 
   const database = createDatabase(env.DATABASE_URL, { max: 5 });
   const payments = new PaystackProvider({ secretKey: env.PAYSTACK_SECRET_KEY, baseUrl: env.PAYSTACK_BASE_URL });
+  const rateLimiter = env.RATE_LIMIT_ENABLED && env.REDIS_URL ? await createRedisRateLimiter(env.REDIS_URL) : undefined;
   const server = await createWebhookServer({
     env,
     database,
+    rateLimiter,
     payments,
     signingSecret: env.PAYSTACK_WEBHOOK_SECRET ?? env.PAYSTACK_SECRET_KEY,
     logger,
@@ -29,6 +32,7 @@ async function main(): Promise<void> {
     try {
       await server.stop({ timeout: 10_000 });
       await database.close();
+      await rateLimiter?.close();
       process.exit(0);
     } catch (err) {
       logger.error('shutdown failed', { err: err instanceof Error ? err.message : String(err) });

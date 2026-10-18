@@ -2,6 +2,7 @@ import { loadEnv } from './config/env.js';
 import { createLogger } from './lib/logger.js';
 import { createDatabase } from './db/client.js';
 import { PaystackProvider } from './modules/payments/paystack.js';
+import { createRedisRateLimiter } from './lib/rate-limit.js';
 import { createServer } from './server.js';
 
 async function main(): Promise<void> {
@@ -11,7 +12,8 @@ async function main(): Promise<void> {
   const payments = env.PAYSTACK_SECRET_KEY
     ? new PaystackProvider({ secretKey: env.PAYSTACK_SECRET_KEY, baseUrl: env.PAYSTACK_BASE_URL })
     : undefined;
-  const server = await createServer({ env, logger, database, payments });
+  const rateLimiter = env.RATE_LIMIT_ENABLED && env.REDIS_URL ? await createRedisRateLimiter(env.REDIS_URL) : undefined;
+  const server = await createServer({ env, logger, database, payments, rateLimiter });
 
   // Railway replaces instances at will, so shut down cleanly rather than
   // dropping in-flight requests.
@@ -23,6 +25,7 @@ async function main(): Promise<void> {
     try {
       await server.stop({ timeout: 10_000 });
       await database?.close();
+      await rateLimiter?.close();
       logger.info('shutdown complete');
       process.exit(0);
     } catch (err) {

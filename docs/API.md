@@ -428,10 +428,11 @@ takes `{ orderNumber, phone }` and returns only status, payment status, delivery
 method, placed time and a timeline; a wrong phone and an unknown order are the
 same `404`.
 
-Limits are Postgres-backed fixed windows (`rate_limit_buckets`), answered with
+Limits are Redis-backed fixed windows (atomic Lua `INCR` + TTL, keys hashed), answered with
 `429 RATE_LIMITED` and `Retry-After`: register 10/h/IP, login 30/15m/IP and
 8/15m/account, refresh 60/15m/IP, track 20/15m/IP and 10/h/order number, quote
 60/m/IP, checkout 20/10m/IP, payment attempts and verify 30/10m/IP, webhook
 600/m/IP. Set `TRUSTED_PROXY_HOPS` to the number of proxies in front of the API
-so `x-forwarded-for` is trusted. The worker purges stale buckets. The limiter
-fails open if the database errors.
+so `x-forwarded-for` is trusted. Redis expires counters itself. `REDIS_URL` is required
+when `RATE_LIMIT_ENABLED` is true, and the service fails at startup if Redis is
+unreachable; once running, the limiter fails open if Redis errors.

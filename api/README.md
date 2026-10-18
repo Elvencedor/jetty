@@ -20,10 +20,10 @@ npm run dev
 npm run build && npm start   # compiled
 npm run db:migrate           # needs DATABASE_URL (PostgreSQL 16+)
 npm run db:seed              # idempotent; set SEED_OWNER_EMAIL/SEED_OWNER_PASSWORD for the first owner
-npm test                     # integration tests skip unless TEST_DATABASE_URL is set
+npm test                     # integration tests skip unless TEST_DATABASE_URL (and TEST_REDIS_URL for rate limits) is set
 
-docker compose up -d --wait  # disposable Postgres on :55432 for integration tests
-TEST_DATABASE_URL=postgres://postgres:postgres@localhost:55432/postgres npm test
+docker compose up -d --wait  # disposable Postgres on :55432 and Redis on :56379 for integration tests
+TEST_DATABASE_URL=postgres://postgres:postgres@localhost:55432/postgres TEST_REDIS_URL=redis://localhost:56379 npm test
 ```
 
 ## Layout

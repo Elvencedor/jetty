@@ -4,20 +4,22 @@ import type { Server } from '@hapi/hapi';
 import { eq } from 'drizzle-orm';
 import { loadEnv } from '../../config/env.js';
 import { deliveryZones, inventory, notificationOutbox, orders, orderStatusEvents, productVariants, products } from '../../db/schema/index.js';
-import { consume, purgeRateLimits, type Policy } from '../../lib/rate-limit.js';
+import { type Policy, type RateLimiter } from '../../lib/rate-limit.js';
 import { createLogger } from '../../lib/logger.js';
 import { createServer } from '../../server.js';
 import { createTestDatabase, TEST_DATABASE_URL, type TestDatabase } from '../../testing/database.js';
 import { FakeProvider } from '../../testing/fake-provider.js';
+import { createTestRateLimiter, TEST_REDIS_URL } from '../../testing/redis.js';
 
 type Json = Record<string, any>;
 const AUTH_SECRET = 'test-auth-secret-0123456789-abcdefghij';
 const PASSWORD = 'correct horse battery';
 
-describe('order history, tracking, optional email and rate limits', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not set' }, () => {
+describe('order history, tracking, optional email and rate limits', { skip: (!TEST_DATABASE_URL && 'TEST_DATABASE_URL not set') || (!TEST_REDIS_URL && 'TEST_REDIS_URL not set') }, () => {
   let t: TestDatabase;
   let api: Server;
   let limited: Server;
+  let limiter: RateLimiter;
   const provider = new FakeProvider();
   let variantId = '';
   let n = 0;
@@ -66,7 +68,8 @@ describe('order history, tracking, optional email and rate limits', { skip: !TES
     t = await createTestDatabase();
     api = await createServer({ env: env(), logger: createLogger('error'), database: t, payments: provider });
     await api.initialize();
-    limited = await createServer({ env: env({ RATE_LIMIT_ENABLED: 'true', TRUSTED_PROXY_HOPS: '1' }), logger: createLogger('error'), database: t, payments: provider });
+    limiter = await createTestRateLimiter();
+    limited = await createServer({ env: env({ RATE_LIMIT_ENABLED: 'true', REDIS_URL: TEST_REDIS_URL!, TRUSTED_PROXY_HOPS: '1' }), logger: createLogger('error'), database: t, payments: provider, rateLimiter: limiter });
     await limited.initialize();
 
     const [p] = await t.db.insert(products).values({ slug: 'orders-wig', title: 'Orders Wig', status: 'active', publishedAt: new Date('2026-01-01') }).returning();
@@ -78,6 +81,7 @@ describe('order history, tracking, optional email and rate limits', { skip: !TES
   after(async () => {
     await api?.stop();
     await limited?.stop();
+    await limiter?.close();
     await t?.destroy();
   });
 
@@ -230,32 +234,54 @@ describe('order history, tracking, optional email and rate limits', { skip: !TES
   });
 
   describe('rate limiting', () => {
-    const policy: Policy = { name: 'unit', limit: 3, windowMs: 60_000 };
+
 
     it('counts within a window, resets after it, and keeps subjects separate', async () => {
-      const t0 = new Date('2026-01-01T00:00:00Z');
-      const at = (s: number) => new Date(t0.getTime() + s * 1000);
+      const short: Policy = { name: 'unit-short', limit: 3, windowMs: 1000 };
       const subject = `subject-${Date.now()}`;
-      for (let i = 1; i <= 3; i++) assert.equal((await consume(t.db, policy, subject, at(i))).allowed, true);
-      const blocked = await consume(t.db, policy, subject, at(10));
+      for (let i = 1; i <= 3; i++) assert.equal((await limiter.consume(short, subject)).allowed, true);
+      const blocked = await limiter.consume(short, subject);
       assert.equal(blocked.allowed, false);
-      assert.equal(blocked.retryAfterSeconds, 51);
-      assert.equal((await consume(t.db, policy, `${subject}-other`, at(10))).allowed, true);
-      assert.equal((await consume(t.db, policy, subject.toUpperCase(), at(11))).allowed, false, 'subjects are case-insensitive');
-      const fresh = await consume(t.db, policy, subject, at(61));
+      assert.equal(blocked.retryAfterSeconds, 1);
+      assert.equal((await limiter.consume(short, `${subject}-other`)).allowed, true);
+      assert.equal((await limiter.consume(short, subject.toUpperCase())).allowed, false, 'subjects are case-insensitive');
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+      const fresh = await limiter.consume(short, subject);
       assert.equal(fresh.allowed, true);
       assert.equal(fresh.count, 1);
     });
 
+    it('reports the time left in the window', async () => {
+      const decision = await limiter.consume({ name: 'unit-ttl', limit: 1, windowMs: 60_000 }, `ttl-${Date.now()}`);
+      assert.ok(decision.retryAfterSeconds > 55 && decision.retryAfterSeconds <= 60);
+    });
+
     it('is atomic under concurrency', async () => {
       const subject = `race-${Date.now()}`;
-      const results = await Promise.all(Array.from({ length: 12 }, () => consume(t.db, { name: 'race', limit: 5, windowMs: 60_000 }, subject)));
+      const results = await Promise.all(Array.from({ length: 12 }, () => limiter.consume({ name: 'race', limit: 5, windowMs: 60_000 }, subject)));
       assert.equal(results.filter((r) => r.allowed).length, 5);
     });
 
-    it('purges stale buckets', async () => {
-      await consume(t.db, { name: 'old', limit: 1, windowMs: 1000 }, 'x', new Date('2020-01-01T00:00:00Z'));
-      assert.ok((await purgeRateLimits(t.db)) >= 1);
+    it('clears a counter on reset', async () => {
+      const once: Policy = { name: 'unit-reset', limit: 1, windowMs: 60_000 };
+      const subject = `reset-${Date.now()}`;
+      await limiter.consume(once, subject);
+      assert.equal((await limiter.consume(once, subject)).allowed, false);
+      await limiter.reset(once, subject);
+      assert.equal((await limiter.consume(once, subject)).allowed, true);
+    });
+
+    it('fails open when Redis is unreachable', async () => {
+      const down = await createServer({
+        env: env({ RATE_LIMIT_ENABLED: 'true', REDIS_URL: TEST_REDIS_URL! }),
+        logger: createLogger('error'),
+        database: t,
+        payments: provider,
+        rateLimiter: { consume: () => Promise.reject(new Error('redis down')), reset: () => Promise.reject(new Error('redis down')), close: async () => {} },
+      });
+      await down.initialize();
+      assert.equal((await track({ orderNumber: 'JH-20000101-0001', phone: '+2348000000009' }, down)).statusCode, 404);
+      await down.stop();
     });
 
     it('throttles guest tracking per IP with a 429, Retry-After and the standard envelope', async () => {
