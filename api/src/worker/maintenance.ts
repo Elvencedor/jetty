@@ -1,6 +1,7 @@
 import type { Db } from '../db/client.js';
 import type { Logger } from '../lib/logger.js';
 import { cleanupIdempotencyKeys } from '../lib/idempotency.js';
+import { cleanupChallenges, scrubStaleCodes } from '../modules/auth/challenges.js';
 import { releaseExpiredReservations } from '../modules/inventory/reservations.js';
 
 /**
@@ -8,10 +9,12 @@ import { releaseExpiredReservations } from '../modules/inventory/reservations.js
  * blocks the others, and every task is idempotent and safe across replicas.
  */
 export async function runMaintenance(db: Db, logger: Logger, now: Date = new Date()) {
-  const result = { reservationsReleased: 0, idempotencyKeysRemoved: 0, failed: [] as string[] };
+  const result = { reservationsReleased: 0, idempotencyKeysRemoved: 0, authChallengesRemoved: 0, staleCodesScrubbed: 0, failed: [] as string[] };
   const tasks: [string, () => Promise<void>][] = [
     ['release-expired-reservations', async () => void (result.reservationsReleased = await releaseExpiredReservations(db, now))],
     ['cleanup-idempotency-keys', async () => void (result.idempotencyKeysRemoved = await cleanupIdempotencyKeys(db, now))],
+    ['cleanup-auth-challenges', async () => void (result.authChallengesRemoved = await cleanupChallenges(db, now))],
+    ['scrub-stale-codes', async () => void (result.staleCodesScrubbed = await scrubStaleCodes(db, now))],
   ];
   for (const [name, task] of tasks) {
     try {
@@ -21,6 +24,6 @@ export async function runMaintenance(db: Db, logger: Logger, now: Date = new Dat
       logger.error('maintenance task failed', { task: name, err: err instanceof Error ? err.message : String(err) });
     }
   }
-  if (result.reservationsReleased || result.idempotencyKeysRemoved) logger.info('maintenance pass', result);
+  if (result.reservationsReleased || result.idempotencyKeysRemoved || result.authChallengesRemoved || result.staleCodesScrubbed) logger.info('maintenance pass', result);
   return result;
 }

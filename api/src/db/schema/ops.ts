@@ -123,6 +123,7 @@ export const notificationOutbox = pgTable(
     nextAttemptAt: tstz('next_attempt_at').notNull().defaultNow(),
     sentAt: tstz('sent_at'),
     lastError: text('last_error'),
+    providerMessageId: text('provider_message_id'),
     createdAt: createdAt(),
   },
   (t) => [index('notification_outbox_status_next_idx').on(t.status, t.nextAttemptAt)],

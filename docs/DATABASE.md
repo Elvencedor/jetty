@@ -82,7 +82,11 @@ The list below defines the required logical shape. Names are snake_case.
 
 Do not store OTPs or password-reset tokens in plaintext. Persist only a
 cryptographic hash, purpose, expiry, attempt count, and consumed timestamp;
-expire records promptly. 2FA recovery codes are single-use hashes.
+expire records promptly. 2FA recovery codes are single-use hashes. Codes are
+HMAC-keyed (not plain hashes), because a six-digit code is otherwise trivially
+brute-forced from a leaked table. A code must also reach the worker, so it sits in the
+`notification_outbox` payload until the message is sent or has failed, then is
+removed; anything undelivered after ten minutes is expired and scrubbed.
 
 ### Catalog, merchandising, and inventory
 
@@ -209,7 +213,7 @@ identifier. Never trust the browser callback as payment proof.
 | `store_settings` | `key` PK, `value` JSONB, `updated_by_admin_id`, `updated_at`; allow-list keys and validate types in application code | P0 |
 | `content_entries` | `id`, unique `(content_type, slug)`, `content_type`, `title`, `body` JSONB, `status`, `starts_at`, `ends_at`, `sort_order`, `created_by_admin_id`, timestamps | P0 announcements, heroes, static pages; P1 advanced sections |
 | `content_placements` | `id`, `content_entry_id`, `placement`, `sort_order`, `settings` JSONB | P0 |
-| `notification_outbox` | `id`, `event_type`, `recipient`, `channel`, `payload` JSONB, `status`, `attempt_count`, `next_attempt_at`, `sent_at`, `last_error`, `created_at`; indexed by `(status, next_attempt_at)` | P0 email; P1 WhatsApp |
+| `notification_outbox` | `id`, `event_type`, `recipient`, `channel`, `payload` JSONB, `status`, `attempt_count`, `next_attempt_at`, `sent_at`, `last_error`, `provider_message_id`, `created_at`; `status` is `pending`, `sending` (leased by a worker), `sent` or `failed`; indexed by `(status, next_attempt_at)` | P0 email; P1 WhatsApp |
 | `analytics_events` | `id`, nullable `customer_id`, `anonymous_id`, `session_id`, `event_name`, `properties` JSONB, `occurred_at`; partition/retention strategy required at volume | P0 |
 | `idempotency_keys` | `(scope, key)` unique, `request_hash`, `response_status`, `response_body` JSONB, `expires_at`, `created_at` | P0 |
 

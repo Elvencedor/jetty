@@ -6,7 +6,22 @@ import { customers } from '../../db/schema/index.js';
 import { eq } from 'drizzle-orm';
 import { enforce } from '../../plugins/rate-limit.js';
 import { LIMITS } from '../../lib/rate-policies.js';
-import { logout, profile, refresh, REFRESH_TOKEN_TTL_MS, register, login, type Issued, type LoginIdentifier } from '../../modules/auth/customers.js';
+import { CODE_TTL_MS, RESEND_COOLDOWN_MS } from '../../modules/auth/challenges.js';
+import {
+  loginWithCode,
+  logout,
+  profile,
+  refresh,
+  REFRESH_TOKEN_TTL_MS,
+  register,
+  login,
+  requestLoginCode,
+  requestPasswordReset,
+  resetPassword,
+  type Issued,
+  type LoginIdentifier,
+  type ResetIdentifier,
+} from '../../modules/auth/customers.js';
 
 export const REFRESH_COOKIE = 'jh_refresh';
 const NO_STORE = 'no-store';
@@ -56,6 +71,14 @@ const phone = Joi.string()
   .messages({ 'string.pattern.base': 'phone must be in E.164 format, e.g. +2348012345678' });
 const email = Joi.string().trim().lowercase().email().max(254);
 const password = Joi.string().min(10).max(128).required();
+const code = Joi.string().trim().pattern(/^\d{6}$/).required().messages({ 'string.pattern.base': 'code must be the 6-digit code you received' });
+
+// Same body whether or not the number or account exists, so these endpoints reveal nothing.
+const codeSent = (h: ResponseToolkit) =>
+  h
+    .response({ expiresInSeconds: CODE_TTL_MS / 1000, resendAfterSeconds: RESEND_COOLDOWN_MS / 1000 })
+    .code(202)
+    .header('Cache-Control', NO_STORE);
 
 export const authRoutes: ServerRoute[] = [
   {
@@ -92,6 +115,73 @@ export const authRoutes: ServerRoute[] = [
       const issued = await login(db(request), secret(request), credentials);
       await request.server.app.rateLimiter?.reset(LIMITS.loginAccount, subject).catch(() => undefined);
       return sessionResponse(h, issued);
+    },
+  },
+  {
+    method: 'POST',
+    path: '/auth/otp/request',
+    options: {
+      auth: false,
+      description: 'Text a sign-in code to a phone number; signing in with it creates the account if needed',
+      plugins: { rateLimit: { ip: [LIMITS.otpRequest] } },
+      tags: ['api', 'auth'],
+      validate: { payload: Joi.object({ phone: phone.required() }) },
+    },
+    handler: async (request, h) => {
+      const { phone: number } = request.payload as { phone: string };
+      await enforce(request, LIMITS.otpRequestPhone, number);
+      await requestLoginCode(db(request), secret(request), number);
+      return codeSent(h);
+    },
+  },
+  {
+    method: 'POST',
+    path: '/auth/otp/verify',
+    options: {
+      auth: false,
+      description: 'Verify a sign-in code and start a session',
+      plugins: { rateLimit: { ip: [LIMITS.otpVerify] } },
+      tags: ['api', 'auth'],
+      validate: { payload: Joi.object({ phone: phone.required(), code }) },
+    },
+    handler: async (request, h) => {
+      const input = request.payload as { phone: string; code: string };
+      await enforce(request, LIMITS.otpVerifyAccount, input.phone);
+      return sessionResponse(h, await loginWithCode(db(request), secret(request), input));
+    },
+  },
+  {
+    method: 'POST',
+    path: '/auth/password/forgot',
+    options: {
+      auth: false,
+      description: 'Send a password reset code to the account phone (or email); the response never reveals whether the account exists',
+      plugins: { rateLimit: { ip: [LIMITS.passwordForgot] } },
+      tags: ['api', 'auth'],
+      validate: { payload: Joi.object({ phone, email }).xor('phone', 'email') },
+    },
+    handler: async (request, h) => {
+      const input = request.payload as ResetIdentifier;
+      await enforce(request, LIMITS.passwordForgotAccount, 'phone' in input ? input.phone : input.email);
+      await requestPasswordReset(db(request), secret(request), input);
+      return codeSent(h);
+    },
+  },
+  {
+    method: 'POST',
+    path: '/auth/password/reset',
+    options: {
+      auth: false,
+      description: 'Set a new password with a reset code; ends every session of the account',
+      plugins: { rateLimit: { ip: [LIMITS.passwordReset] } },
+      tags: ['api', 'auth'],
+      validate: { payload: Joi.object({ phone, email, code, password }).xor('phone', 'email') },
+    },
+    handler: async (request, h) => {
+      const input = request.payload as ResetIdentifier & { code: string; password: string };
+      await enforce(request, LIMITS.otpVerifyAccount, 'phone' in input ? input.phone : input.email);
+      await resetPassword(db(request), secret(request), input);
+      return h.response().code(204).unstate(REFRESH_COOKIE, { path: '/api/v1/auth' }).header('Cache-Control', NO_STORE);
     },
   },
   {

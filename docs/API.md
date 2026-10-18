@@ -436,3 +436,37 @@ Limits are Redis-backed fixed windows (atomic Lua `INCR` + TTL, keys hashed), an
 so `x-forwarded-for` is trusted. Redis expires counters itself. `REDIS_URL` is required
 when `RATE_LIMIT_ENABLED` is true, and the service fails at startup if Redis is
 unreachable; once running, the limiter fails open if Redis errors.
+
+## One-time codes and notification delivery (implemented)
+
+`POST /auth/otp/request` (`{ phone }`) texts a six-digit code and
+`POST /auth/otp/verify` (`{ phone, code }`) returns the same session response
+as login. A code is sent to any well-formed number and signing in with it
+creates the account if needed, so nothing reveals whether an account exists.
+Codes expire after ten minutes, allow 5 wrong guesses, and work once. A new
+code replaces the old one, and requests within 60 seconds of the last one are
+ignored silently. Every failure is `401 INVALID_CODE`. Limits: requests are
+10/15m/IP and 5/h/phone; verification is 30/15m/IP and 10/15m/account.
+
+Proving a phone number is what password registration never did. If the account
+for that number was still unverified, verifying it removes the password and
+revokes all sessions, so someone who registered a number they do not own cannot
+keep access.
+
+`POST /auth/password/forgot` (`phone` or `email`) always returns `202`, with an
+identical body for unknown accounts. For a known account it sends a code by SMS
+(phone) or email (email). `POST /auth/password/reset` (`phone` or `email`,
+`code`, `password`) returns `204`, ends every session of the account and marks
+the contact that received the code as verified. This uses the same six-digit
+code as sign-in rather than a long link token, because phone is the primary
+channel.
+
+The worker sends the outbox every 5 seconds. Rows are claimed with
+`FOR UPDATE SKIP LOCKED` and a 2-minute lease, so several workers are safe and a
+crashed worker's rows are retried. Delivery is at-least-once. Transient
+failures retry with backoff (30s doubling, capped at 1h) up to 6 attempts;
+provider rejections fail at once. Failed rows stay in `notification_outbox` with
+`last_error`, and the worker logs an error when the oldest undelivered row has
+waited over 5 minutes. Providers are Termii (SMS) and Resend (email); `log`
+prints messages for development and is refused in production.
+

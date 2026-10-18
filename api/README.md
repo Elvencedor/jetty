@@ -20,6 +20,7 @@ npm run dev
 npm run build && npm start   # compiled
 npm run db:migrate           # needs DATABASE_URL (PostgreSQL 16+)
 npm run db:seed              # idempotent; set SEED_OWNER_EMAIL/SEED_OWNER_PASSWORD for the first owner
+npm run start:worker         # sends the notification outbox and runs maintenance (needs SMS_PROVIDER/EMAIL_PROVIDER)
 npm test                     # integration tests skip unless TEST_DATABASE_URL (and TEST_REDIS_URL for rate limits) is set
 
 docker compose up -d --wait  # disposable Postgres on :55432 and Redis on :56379 for integration tests

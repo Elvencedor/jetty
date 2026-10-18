@@ -334,6 +334,19 @@ describe('order history, tracking, optional email and rate limits', { skip: (!TE
       assert.equal(res.statusCode, 200);
     });
 
+    it('limits sign-in code requests per phone and per IP, so texts cannot be pumped', async () => {
+      const request = (phone: string, ip: string) =>
+        limited.inject({ method: 'POST', url: '/api/v1/auth/otp/request', payload: { phone }, headers: { 'x-forwarded-for': ip } });
+      const phone = newPhone();
+      const perPhone: number[] = [];
+      for (let i = 0; i < 6; i++) perPhone.push((await request(phone, `203.0.113.${100 + i}`)).statusCode);
+      assert.deepEqual(perPhone, [202, 202, 202, 202, 202, 429]);
+
+      const perIp: number[] = [];
+      for (let i = 0; i < 11; i++) perIp.push((await request(newPhone(), '203.0.113.200')).statusCode);
+      assert.deepEqual(perIp, [...Array(10).fill(202), 429]);
+    });
+
     it('limits registrations per IP', async () => {
       let last;
       for (let i = 0; i < 11; i++) {
