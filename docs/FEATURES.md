@@ -193,7 +193,7 @@ IDs are stable so tickets can reference them (e.g. `PROMO-04`).
 
 | ID | Feature | Priority |
 |---|---|---|
-| ADM-01 | Admin login with 2FA | P0 |
+| ADM-01 | Admin login (email and password; 2FA deferred) | P0 |
 | ADM-02 | Roles and permissions (owner, manager, fulfilment, content editor, support) | P1 |
 | ADM-03 | Team member invites and management | P1 |
 | ADM-04 | Audit log of admin changes (prices, promotions, refunds) | P1 |

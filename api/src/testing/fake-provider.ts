@@ -3,6 +3,7 @@ import {
   PaymentRejectedError,
   type InitializeInput,
   type PaymentProvider,
+  type RefundInput,
   type VerifiedTransaction,
 } from '../modules/payments/provider.js';
 
@@ -15,6 +16,8 @@ export class FakeProvider implements PaymentProvider {
   initializeMode: 'ok' | 'reject' | 'timeout' = 'ok';
   verifyDown = false;
   verifyCalls = 0;
+  refundMode: 'ok' | 'reject' | 'timeout' = 'ok';
+  refunds: RefundInput[] = [];
   transactions = new Map<string, Txn>();
   private seq = 1000;
 
@@ -23,6 +26,8 @@ export class FakeProvider implements PaymentProvider {
     this.initializeMode = 'ok';
     this.verifyDown = false;
     this.verifyCalls = 0;
+    this.refundMode = 'ok';
+    this.refunds = [];
   }
 
   async initialize(input: InitializeInput) {
@@ -39,6 +44,13 @@ export class FakeProvider implements PaymentProvider {
     const t = this.transactions.get(reference);
     if (!t) return { found: false };
     return { found: true, reference, status: t.status, amountMinor: t.amountMinor, currency: t.currency, transactionId: t.id, paidAt: t.status === 'success' ? new Date() : null };
+  }
+
+  async refund(input: RefundInput) {
+    this.refunds.push(input);
+    if (this.refundMode === 'reject') throw new PaymentRejectedError('rejected');
+    if (this.refundMode === 'timeout') throw new PaymentIndeterminateError('timeout');
+    return { providerReference: `rf_${this.refunds.length}`, status: 'pending' };
   }
 
   /** Test control: set the provider-side state of a transaction. */

@@ -1,18 +1,9 @@
 import type { Request, ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
-import type { Db } from '../../db/client.js';
-import { apiError } from '../../lib/errors.js';
 import { LIMITS } from '../../lib/rate-policies.js';
 import { getCustomerOrder, listCustomerOrders, trackOrder } from '../../modules/orders/history.js';
 import { enforce } from '../../plugins/rate-limit.js';
-
-const NO_STORE = 'no-store';
-
-function db(request: Request): Db {
-  const database = request.server.app.database;
-  if (!database) throw apiError(503, 'DATABASE_UNAVAILABLE', 'The service is temporarily unavailable.');
-  return database.db;
-}
+import { db, NO_STORE } from './shared.js';
 
 const customerId = (request: Request) => request.auth.credentials.customerId!;
 
@@ -25,7 +16,7 @@ export const orderRoutes: ServerRoute[] = [
       description: 'Authenticated order history, newest first',
       tags: ['api', 'me'],
       validate: {
-        query: Joi.object({ limit: Joi.number().integer().min(1).max(50).default(20), cursor: Joi.string().max(512) }),
+        query: Joi.object({ limit: Joi.number().integer().min(1).max(100).default(20), cursor: Joi.string().max(512) }),
       },
     },
     handler: async (request, h) =>

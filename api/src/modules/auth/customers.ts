@@ -5,6 +5,7 @@ import { apiError, conflict } from '../../lib/errors.js';
 import { hashPassword, verifyPassword } from '../../lib/password.js';
 import { consumeChallenge, issueChallenge } from './challenges.js';
 import { newOpaqueSecret, sha256, sameHash, signAccessToken } from '../../lib/tokens.js';
+import { uniqueViolation } from '../../lib/sql.js';
 
 export const ACCESS_TOKEN_TTL_S = 15 * 60;
 export const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -73,7 +74,7 @@ export async function register(
       .values({ phoneE164: input.phone, email, passwordHash, status: 'active' })
       .returning()) as [Customer];
   } catch (err) {
-    if (((err as { cause?: { code?: string } }).cause?.code ?? (err as { code?: string }).code) === '23505') {
+    if (uniqueViolation(err)) {
       throw conflict('ACCOUNT_EXISTS', 'An account with these details already exists. Try signing in.');
     }
     throw err;
@@ -139,7 +140,6 @@ export async function activeSession(db: Db, sessionId: string, customerId: strin
   return row && row.customer.status !== 'blocked' ? row.customer : null;
 }
 
-const uniqueViolation = (err: unknown) => ((err as { cause?: { code?: string } }).cause?.code ?? (err as { code?: string }).code) === '23505';
 
 const revokeSessions = (db: Db, customerId: string, now: Date) =>
   db.update(customerSessions).set({ revokedAt: now }).where(and(eq(customerSessions.customerId, customerId), isNull(customerSessions.revokedAt)));

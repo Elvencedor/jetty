@@ -19,7 +19,7 @@ export type PricedLine = {
 
 export type PricingWarning =
   | { code: 'OUT_OF_STOCK' | 'INSUFFICIENT_STOCK'; variantId: string; requestedQuantity: number; availableQuantity: number }
-  | { code: 'CUSTOMER_ELIGIBILITY_VERIFIED_AT_CHECKOUT' };
+  | { code: 'SIGN_IN_FOR_OFFERS' };
 
 export type PricedCart = {
   currency: string;
@@ -138,7 +138,7 @@ export async function priceCart(
       });
     }
   }
-  if (loaded.customerLimitsUnverified) warnings.push({ code: 'CUSTOMER_ELIGIBILITY_VERIFIED_AT_CHECKOUT' });
+  if (loaded.withheldForGuests) warnings.push({ code: 'SIGN_IN_FOR_OFFERS' });
 
   return {
     currency,

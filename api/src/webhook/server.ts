@@ -7,6 +7,7 @@ import { errorEnvelope } from '../plugins/error-envelope.js';
 import type { RateLimiter } from '../lib/rate-limit.js';
 import { rateLimit } from '../plugins/rate-limit.js';
 import { LIMITS } from '../lib/rate-policies.js';
+import { SECURITY_HEADERS } from '../server.js';
 import { requestContext } from '../plugins/request-context.js';
 import { healthRoutes } from '../routes/health.js';
 import { handlePaystackEvent } from './process.js';
@@ -38,6 +39,7 @@ export async function createWebhookServer({ env, database, rateLimiter, payments
   const server = Hapi.server({
     host: env.HOST,
     port: env.WEBHOOK_PORT ?? env.PORT,
+    routes: { security: SECURITY_HEADERS },
   });
   server.app.env = env;
   server.app.logger = log;
@@ -69,7 +71,7 @@ export async function createWebhookServer({ env, database, rateLimiter, payments
         return h.response({ error: { code: 'INVALID_SIGNATURE', message: 'Invalid signature.', requestId } }).code(401);
       }
 
-      const result = await handlePaystackEvent(database.db, payments, raw);
+      const result = await handlePaystackEvent(database.db, payments, raw, request.app.logger);
       if (result.status === 200) return h.response({ received: true, outcome: result.outcome }).code(200);
       if (result.status === 400) return h.response({ error: { code: 'BAD_REQUEST', message: 'Malformed event.', requestId } }).code(400);
       return h.response({ error: { code: 'VERIFICATION_UNAVAILABLE', message: 'Try again.', requestId } }).code(503);

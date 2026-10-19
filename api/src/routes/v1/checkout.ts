@@ -1,12 +1,13 @@
 import type { Request, ResponseObject, ResponseToolkit, ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
-import type { Db } from '../../db/client.js';
-import { apiError } from '../../lib/errors.js';
+import { apiError, unprocessable } from '../../lib/errors.js';
 import { abandonIdempotent, beginIdempotent, completeIdempotent, hashRequest } from '../../lib/idempotency.js';
 import { LIMITS } from '../../lib/rate-policies.js';
+import { deriveToken } from '../../lib/tokens.js';
 import { checkout, GUEST_TOKEN_TTL_MS, type CheckoutInput } from '../../modules/checkout/checkout.js';
 import { loadOwnedOrder, orderStatus, retryPayment, verifyByReference } from '../../modules/checkout/orders.js';
 import { DELIVERY_METHODS } from '../../modules/delivery/zones.js';
+import { db, NO_STORE } from './shared.js';
 
 export const CHECKOUT_COOKIE = 'jh_checkout';
 
@@ -37,16 +38,10 @@ const payload = Joi.object({
   deliveryMethod: Joi.string()
     .valid(...DELIVERY_METHODS)
     .required(),
-  // Only card is P0; USSD and pay-on-delivery are P1.
-  paymentMethod: Joi.string().valid('card').required(),
+  // Card and bank transfer are P0; USSD and pay-on-delivery are P1.
+  paymentMethod: Joi.string().valid('card', 'bank_transfer').required(),
   termsAccepted: Joi.boolean().valid(true).required(),
 });
-
-function db(request: Request): Db {
-  const database = request.server.app.database;
-  if (!database) throw apiError(503, 'DATABASE_UNAVAILABLE', 'The service is temporarily unavailable.');
-  return database.db;
-}
 
 type StoredError = { error: { code: string; message: string; details: unknown[] } };
 
@@ -57,8 +52,6 @@ const idempotencyHeader = Joi.object({
     .pattern(/^[A-Za-z0-9._~-]+$/)
     .required(),
 }).unknown(true);
-
-const NO_STORE = 'no-store';
 
 const paymentsOf = (request: Request) => {
   const payments = request.server.app.payments;
@@ -72,6 +65,12 @@ const checkoutOptions = (request: Request) => ({
 });
 
 const customerId = (request: Request) => (request.auth.isAuthenticated ? request.auth.credentials.customerId : undefined);
+
+const setCheckoutCookie = (response: ResponseObject, token: string) =>
+  response.state(CHECKOUT_COOKIE, token, { isSecure: true, isHttpOnly: true, isSameSite: 'Lax', path: '/api/v1/checkout', ttl: GUEST_TOKEN_TTL_MS, encoding: 'none' });
+
+/** Guest checkouts need an unguessable key: whoever holds it can replay the order and receive its cookie. */
+const GUEST_KEY_MIN_LENGTH = 32;
 
 const guestToken = (request: Request) => {
   const value = request.state[CHECKOUT_COOKIE];
@@ -90,6 +89,8 @@ async function idempotent(
   scope: string,
   requestBody: unknown,
   run: () => Promise<{ status: number; body: unknown; decorate?: (response: ResponseObject) => void }>,
+  /** Applied to a replayed response, e.g. to hand a guest their checkout cookie again. */
+  decorateReplay?: (response: ResponseObject) => void,
 ) {
   const database = db(request);
   const requestId = request.app.requestId ?? 'unknown';
@@ -99,7 +100,11 @@ async function idempotent(
       : h.response(body as object).code(status);
 
   const started = await beginIdempotent(database, { scope, key: String(request.headers['idempotency-key']), requestHash: hashRequest(requestBody) });
-  if (started.kind === 'replay') return respond(started.status, started.body).header('Cache-Control', NO_STORE);
+  if (started.kind === 'replay') {
+    const replayed = respond(started.status, started.body);
+    decorateReplay?.(replayed);
+    return replayed.header('Cache-Control', NO_STORE);
+  }
 
   try {
     const result = await run();
@@ -129,24 +134,29 @@ export const checkoutRoutes: ServerRoute[] = [
       const payments = paymentsOf(request);
       const body = request.payload as CheckoutInput & { termsAccepted: true };
       const customer = customerId(request);
-      return idempotent(request, h, customer ? `checkout:customer:${customer}` : 'checkout:guest', body, async () => {
-        const result = await checkout(db(request), payments, body, { ...checkoutOptions(request), customerId: customer });
-        return {
-          status: result.status,
-          body: result.status === 201 ? result.body : { error: result.error },
-          decorate: (response) => {
-            if (!result.guestToken) return;
-            response.state(CHECKOUT_COOKIE, result.guestToken, {
-              isSecure: true,
-              isHttpOnly: true,
-              isSameSite: 'Lax',
-              path: '/api/v1/checkout',
-              ttl: GUEST_TOKEN_TTL_MS,
-              encoding: 'none',
-            });
-          },
-        };
-      });
+      const key = String(request.headers['idempotency-key']);
+      if (!customer && key.length < GUEST_KEY_MIN_LENGTH) {
+        throw unprocessable('VALIDATION_FAILED', `Idempotency-Key must be at least ${GUEST_KEY_MIN_LENGTH} characters for guest checkout; use a random UUID.`, [{ path: 'idempotency-key', code: 'string.min' }]);
+      }
+      const secret = request.server.app.env.AUTH_TOKEN_SECRET;
+      const derived = !customer && secret ? deriveToken(secret, 'guest-checkout', key) : undefined;
+      return idempotent(
+        request,
+        h,
+        customer ? `checkout:customer:${customer}` : 'checkout:guest',
+        body,
+        async () => {
+          const result = await checkout(db(request), payments, body, { ...checkoutOptions(request), customerId: customer, guestToken: derived });
+          return {
+            status: result.status,
+            body: result.status === 201 ? result.body : { error: result.error },
+            decorate: (response) => {
+              if (result.guestToken) setCheckoutCookie(response, result.guestToken);
+            },
+          };
+        },
+        derived ? (response) => setCheckoutCookie(response, derived) : undefined,
+      );
     },
   },
   {

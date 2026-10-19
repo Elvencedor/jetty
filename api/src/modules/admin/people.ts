@@ -1,0 +1,97 @@
+import { eq, sql } from 'drizzle-orm';
+import type { Db } from '../../db/client.js';
+import { customers, reviews } from '../../db/schema/index.js';
+import { decodeCursor, encodeCursor } from '../../lib/cursor.js';
+import { notFound } from '../../lib/errors.js';
+import { likeContains } from '../../lib/sql.js';
+
+const likeOf = likeContains;
+const iso = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
+
+/** Lifetime value counts paid orders only, net of fully refunded ones. */
+const stats = sql`
+  select count(*) filter (where o.payment_status = 'paid')::int as order_count,
+    coalesce(sum(o.total_minor) filter (where o.payment_status = 'paid'), 0)::bigint as ltv,
+    max(o.placed_at) as last_order_at
+  from orders o where o.customer_id = c.id`;
+
+export async function listAdminCustomers(db: Db, input: { q?: string | undefined; sort: 'newest' | 'spend'; limit: number; cursor?: string | undefined }) {
+  const where = [sql`true`];
+  if (input.q) where.push(sql`(c.phone_e164 like ${likeOf(input.q)} or c.email ilike ${likeOf(input.q)})`);
+  const spend = input.sort === 'spend';
+  let after = sql``;
+  if (input.cursor) {
+    const values = decodeCursor(input.cursor, `admin-customers:${input.sort}`, 2);
+    after = spend ? sql`and (s.ltv, c.id) < (${values[0]}::bigint, ${values[1]}::uuid)` : sql`and (c.created_at, c.id) < (${values[0]}::timestamptz, ${values[1]}::uuid)`;
+  }
+  const rows = (await db.execute(sql`
+    select c.id, c.phone_e164, c.email, c.status, c.phone_verified_at, c.created_at, s.order_count, s.ltv, s.last_order_at,
+      ${spend ? sql`s.ltv::text` : sql`c.created_at::text`} as cur_a
+    from customers c cross join lateral (${stats}) s
+    where ${sql.join(where, sql` and `)} ${after}
+    order by ${spend ? sql`s.ltv desc, c.id desc` : sql`c.created_at desc, c.id desc`} limit ${input.limit + 1}`)) as unknown as Record<string, unknown>[];
+  const hasMore = rows.length > input.limit;
+  const page = hasMore ? rows.slice(0, input.limit) : rows;
+  const last = page[page.length - 1];
+  return {
+    data: page.map((r) => ({
+      id: r.id as string, phone: (r.phone_e164 as string | null) ?? null, email: (r.email as string | null) ?? null, status: r.status as string,
+      phoneVerified: Boolean(r.phone_verified_at), orderCount: r.order_count as number, lifetimeValueMinor: Number(r.ltv), lastOrderAt: iso(r.last_order_at), createdAt: iso(r.created_at),
+    })),
+    page: { nextCursor: hasMore && last ? encodeCursor({ sort: `admin-customers:${input.sort}`, values: [String(last.cur_a), String(last.id)] }) : null },
+  };
+}
+
+export async function getAdminCustomer(db: Db, id: string) {
+  const [c] = await db.select({ id: customers.id, phone: customers.phoneE164, email: customers.email, status: customers.status, phoneVerifiedAt: customers.phoneVerifiedAt, emailVerifiedAt: customers.emailVerifiedAt, createdAt: customers.createdAt }).from(customers).where(eq(customers.id, id));
+  if (!c) throw notFound('Customer not found.');
+  const [[agg], recent] = await Promise.all([
+    db.execute(sql`select s.order_count, s.ltv, s.last_order_at from customers c cross join lateral (${stats}) s where c.id = ${id}`) as unknown as Promise<Record<string, unknown>[]>,
+    db.execute(sql`select id, order_number, status, payment_status, total_minor, created_at from orders where customer_id = ${id} order by created_at desc limit 10`) as unknown as Promise<Record<string, unknown>[]>,
+  ]);
+  return {
+    customer: c,
+    orderCount: agg!.order_count as number,
+    lifetimeValueMinor: Number(agg!.ltv),
+    lastOrderAt: iso(agg!.last_order_at),
+    recentOrders: recent.map((o) => ({ id: o.id, orderNumber: o.order_number, status: o.status, paymentStatus: o.payment_status, totalMinor: Number(o.total_minor), createdAt: iso(o.created_at) })),
+  };
+}
+
+// ----------------------------------------------------------------- reviews
+
+export async function listAdminReviews(db: Db, input: { status?: string | undefined; productId?: string | undefined; limit: number; cursor?: string | undefined }) {
+  const where = [sql`true`];
+  if (input.status) where.push(sql`r.status = ${input.status}`);
+  if (input.productId) where.push(sql`r.product_id = ${input.productId}`);
+  let after = sql``;
+  if (input.cursor) {
+    const [at, id] = decodeCursor(input.cursor, 'admin-reviews', 2);
+    after = sql`and (r.created_at, r.id) < (${at}::timestamptz, ${id}::uuid)`;
+  }
+  const rows = (await db.execute(sql`
+    select r.id, r.product_id, p.title as product_title, r.customer_id, c.phone_e164, r.rating, r.title, r.body, r.location, r.status,
+      r.verified_buyer, r.created_at, r.moderated_at, oi.options_snapshot as variant, r.created_at::text as cur_at
+    from reviews r join products p on p.id = r.product_id join customers c on c.id = r.customer_id
+    left join order_items oi on oi.id = r.order_item_id
+    where ${sql.join(where, sql` and `)} ${after} order by r.created_at desc, r.id desc limit ${input.limit + 1}`)) as unknown as Record<string, unknown>[];
+  const hasMore = rows.length > input.limit;
+  const page = hasMore ? rows.slice(0, input.limit) : rows;
+  const last = page[page.length - 1];
+  const mask = (p: string | null) => (p ? `${p.slice(0, 4)}••••${p.slice(-3)}` : null);
+  return {
+    data: page.map((r) => ({
+      id: r.id as string, productId: r.product_id as string, productTitle: r.product_title as string, customerId: r.customer_id as string, customerPhone: mask(r.phone_e164 as string | null),
+      rating: r.rating as number, title: (r.title as string | null) ?? null, body: (r.body as string | null) ?? null, location: (r.location as string | null) ?? null,
+      status: r.status as string, verifiedBuyer: r.verified_buyer as boolean, variant: r.variant ?? null, createdAt: iso(r.created_at), moderatedAt: iso(r.moderated_at),
+    })),
+    page: { nextCursor: hasMore && last ? encodeCursor({ sort: 'admin-reviews', values: [String(last.cur_at), String(last.id)] }) : null },
+  };
+}
+
+export async function moderateReview(db: Db, id: string, status: 'approved' | 'rejected' | 'hidden') {
+  const [before] = await db.select({ status: reviews.status }).from(reviews).where(eq(reviews.id, id));
+  if (!before) throw notFound('Review not found.');
+  const [after] = await db.update(reviews).set({ status, moderatedAt: new Date() }).where(eq(reviews.id, id)).returning({ id: reviews.id, status: reviews.status, moderatedAt: reviews.moderatedAt });
+  return { before: before.status, after: after! };
+}

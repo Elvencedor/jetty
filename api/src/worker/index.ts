@@ -32,7 +32,7 @@ async function main(): Promise<void> {
     // A slow provider must not stack passes on top of each other.
     if (stopping || outboxRunning) return;
     outboxRunning = true;
-    sending = processOutbox(database.db, senders, logger)
+    sending = processOutbox(database.db, senders, logger, new Date(), { opsEmail: env.OPS_ALERT_EMAIL })
       .then(async (result) => {
         if (result.sent || result.retried || result.failed) logger.info('outbox pass', result);
         const waiting = await oldestPendingSeconds(database.db);

@@ -1,6 +1,7 @@
 import { sql, type SQL } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import { decodeCursor, encodeCursor } from '../../lib/cursor.js';
+import { escapeLike } from '../../lib/sql.js';
 
 export const PRODUCT_SORTS = ['recommended', 'bestSelling', 'newest', 'priceAsc', 'priceDesc', 'topRated'] as const;
 export type ProductSort = (typeof PRODUCT_SORTS)[number];
@@ -65,6 +66,8 @@ export type ProductFilters = {
   onOffer?: boolean;
   categorySlug?: string;
   collectionSlug?: string;
+  /** Restrict to these product ids (e.g. a curated row); the caller restores order. */
+  ids?: string[];
 };
 
 export type ProductCard = {
@@ -82,7 +85,6 @@ export type ProductCard = {
 
 export type ProductPage = { data: ProductCard[]; page: { nextCursor: string | null } };
 
-const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 const list = (values: string[]) => sql.join(values.map((v) => sql`${v}`), sql`, `);
 
 /** Public visibility rule shared by every storefront product query. */
@@ -97,6 +99,7 @@ function buildFilters(f: ProductFilters): SQL[] {
         or p.title ilike ${`%${escapeLike(f.q)}%`})`,
     );
   }
+  if (f.ids) where.push(f.ids.length > 0 ? sql`p.id in (${list(f.ids)})` : sql`false`);
   if (f.categorySlug) {
     where.push(sql`p.id in (
       select pc.product_id from product_categories pc where pc.category_id in (
@@ -164,7 +167,7 @@ export async function listProducts(
         coalesce(p.published_at, p.created_at) as pub,
         v.min_price, v.max_price, v.currency, v.in_stock, v.on_offer,
         coalesce(r.rating_avg, 0) as rating_avg, coalesce(r.rating_count, 0) as rating_count,
-        coalesce(s.sold, 0) as sold,
+        ${input.sort === 'bestSelling' ? sql`coalesce(s.sold, 0)` : sql`0::bigint`} as sold,
         m.object_key, m.alt_text, m.width, m.height
       from products p
       cross join lateral (
@@ -179,11 +182,11 @@ export async function listProducts(
         select round(avg(rv.rating), 2) as rating_avg, count(*) as rating_count
         from reviews rv where rv.product_id = p.id and rv.status = 'approved'
       ) r on true
-      left join lateral (
+      ${input.sort === 'bestSelling' ? sql`      left join lateral (
         select sum(oi.quantity) as sold
         from order_items oi join orders o on o.id = oi.order_id
         where oi.product_id = p.id and o.payment_status = 'paid'
-      ) s on true
+      ) s on true` : sql``}
       left join lateral (
         select pm.object_key, pm.alt_text, pm.width, pm.height
         from product_media pm where pm.product_id = p.id
@@ -235,4 +238,29 @@ function toCard(r: Record<string, unknown>): ProductCard {
         }
       : null,
   };
+}
+
+export type Suggestion = { id: string; slug: string; title: string; image: ProductCard['image'] };
+
+/** Type-ahead: titles with a word starting with the query, shortest titles first. Cheap by design (no ranking joins). */
+export async function suggestProducts(db: Db, q: string, limit: number): Promise<Suggestion[]> {
+  const term = escapeLike(q.toLowerCase());
+  const rows = (await db.execute(sql`
+    select p.id, p.slug, p.title, m.object_key, m.alt_text, m.width, m.height
+    from products p
+    left join lateral (
+      select pm.object_key, pm.alt_text, pm.width, pm.height from product_media pm
+      where pm.product_id = p.id order by pm.is_cover desc, pm.sort_order asc, pm.created_at asc limit 1
+    ) m on true
+    where ${visibleProduct}
+      and (lower(p.title) like ${`${term}%`} or lower(p.title) like ${`% ${term}%`})
+      and exists (select 1 from product_variants v where v.product_id = p.id and v.active)
+    order by length(p.title), p.title
+    limit ${limit}`)) as unknown as Record<string, unknown>[];
+  return rows.map((r) => ({
+    id: r.id as string,
+    slug: r.slug as string,
+    title: r.title as string,
+    image: r.object_key ? { objectKey: r.object_key as string, altText: (r.alt_text as string | null) ?? null, width: (r.width as number | null) ?? null, height: (r.height as number | null) ?? null } : null,
+  }));
 }

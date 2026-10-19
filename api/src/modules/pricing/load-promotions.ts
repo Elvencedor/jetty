@@ -29,14 +29,12 @@ const toEngine = (row: Row, code: string | null): EnginePromotion => ({
 /**
  * Loads promotions that could apply: every currently active automatic
  * promotion plus those unlocked by the submitted codes. Promotions with a
- * per-customer limit are excluded for guests (no customerId). First-order-only
- * is checked only when a customerId is known; checkout re-enforces both inside
- * the order transaction.
+ * per-customer limit or restricted to first orders are excluded for guests (no customerId).
  */
 export async function loadPromotions(
   db: Db,
   input: { codes: string[]; now: Date; customerId?: string | undefined },
-): Promise<{ promotions: EnginePromotion[]; rejections: CodeRejection[]; customerLimitsUnverified: boolean }> {
+): Promise<{ promotions: EnginePromotion[]; rejections: CodeRejection[]; withheldForGuests: boolean }> {
   const { now } = input;
   const inWindow = and(
     eq(promotions.status, 'active'),
@@ -109,15 +107,18 @@ export async function loadPromotions(
 
   const rows = [...automatic, ...coded.map((c) => c.promotion)];
 
-  // Per-customer limits can only be enforced for authenticated customers, so guests never get them.
+  // Offers tied to who the buyer is (first order only, per-customer limits) cannot be verified for a guest,
+  // so guests never get them; a submitted code for one is rejected, and the quote tells the client to sign in.
+  let withheldForGuests = false;
   if (!input.customerId) {
     for (const [id, p] of [...chosen]) {
-      if (rows.find((r) => r.id === id)!.perCustomerLimit === null) continue;
+      const row = rows.find((r) => r.id === id)!;
+      if (row.perCustomerLimit === null && !row.firstOrderOnly) continue;
       chosen.delete(id);
+      withheldForGuests = true;
       if (p.code) rejections.push({ code: p.code, reason: 'NOT_ELIGIBLE' });
     }
   }
-  const needsCustomer = rows.some((p) => chosen.has(p.id) && p.firstOrderOnly);
 
   if (input.customerId) {
     const [{ paid } = { paid: 0 }] = await db
@@ -155,6 +156,6 @@ export async function loadPromotions(
   return {
     promotions: [...chosen.values()],
     rejections,
-    customerLimitsUnverified: needsCustomer && !input.customerId,
+    withheldForGuests,
   };
 }

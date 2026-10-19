@@ -5,14 +5,14 @@ import { PermanentSendError, TransientSendError, type Message, type SendResult, 
 type FetchLike = typeof fetch;
 const TIMEOUT_MS = 10_000;
 
-async function post(fetchImpl: FetchLike, url: string, init: RequestInit): Promise<{ status: number; body: Record<string, any> }> {
+async function post(fetchImpl: FetchLike, url: string, init: RequestInit): Promise<{ status: number; body: Record<string, unknown> }> {
   let res: Response;
   try {
     res = await fetchImpl(url, { ...init, method: 'POST', signal: AbortSignal.timeout(TIMEOUT_MS) });
   } catch (err) {
     throw new TransientSendError(`request failed: ${err instanceof Error ? err.message : String(err)}`);
   }
-  const body = (await res.json().catch(() => ({}))) as Record<string, any>;
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (res.status === 429 || res.status >= 500) throw new TransientSendError(`provider responded ${res.status}`);
   if (res.status >= 400) throw new PermanentSendError(`provider rejected the message (${res.status}): ${String(body.message ?? '').slice(0, 200)}`);
   return { status: res.status, body };

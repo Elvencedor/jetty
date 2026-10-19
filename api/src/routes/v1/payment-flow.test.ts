@@ -12,7 +12,6 @@ import {
   orders,
   orderStatusEvents,
   paymentAttempts,
-  paymentWebhookEvents,
   productVariants,
   products,
   promotionCodes,
@@ -55,7 +54,7 @@ describe('payment confirmation, retry and webhook', { skip: !TEST_DATABASE_URL &
     termsAccepted: true,
     ...over,
   });
-  const key = () => `flow-key-${String(++n).padStart(6, '0')}-abcdefgh`;
+  const key = () => `flow-key-${String(++n).padStart(6, '0')}-abcdefgh-0123456789abcdefghijklmnopqrstuv`;
 
   async function place(over: Json = {}): Promise<Json & { cookie: string }> {
     const res = await api.inject({ method: 'POST', url: '/api/v1/checkout', payload: body(over), headers: { 'idempotency-key': key() } });
@@ -580,7 +579,7 @@ describe('payment confirmation, retry and webhook', { skip: !TEST_DATABASE_URL &
       assert.equal(tampered.statusCode, 401);
 
       assert.equal((await order(placed.orderId)).status, 'pending_payment');
-      assert.equal((await t.db.select().from(paymentWebhookEvents).where(eq(paymentWebhookEvents.providerEventKey, `charge.success:${placed.reference}:1`))).length, 0);
+      assert.equal((await t.db.select().from(paymentAttempts).where(eq(paymentAttempts.providerReference, placed.reference)))[0]!.webhookEventKey, null, 'an unsigned event leaves no trace on the attempt');
     });
 
     it('verifies with the provider and ignores what the body claims', async () => {
@@ -593,19 +592,20 @@ describe('payment confirmation, retry and webhook', { skip: !TEST_DATABASE_URL &
       assert.ok(provider.verifyCalls >= 1);
     });
 
-    it('settles a verified payment, stores only a redacted event, and deduplicates redelivery', async () => {
+    it('settles a verified payment, records the event key on the attempt, and deduplicates redelivery', async () => {
       const placed = await place();
       provider.set(placed.reference, { status: 'success' });
       const first = await webhook(chargeSuccess(placed.reference, '9002'));
       assert.equal(first.status, 200);
       assert.equal(first.body.outcome, 'paid');
+      const callsAfterFirst = provider.verifyCalls;
       const again = await webhook(chargeSuccess(placed.reference, '9002'));
       assert.equal(again.body.outcome, 'duplicate');
+      assert.equal(provider.verifyCalls, callsAfterFirst, 'a redelivery of a finished attempt costs no provider call');
 
-      const [stored] = await t.db.select().from(paymentWebhookEvents).where(eq(paymentWebhookEvents.providerEventKey, `charge.success:${placed.reference}:9002`));
-      assert.ok(stored!.processedAt);
-      assert.equal(stored!.processingStatus, 'paid');
-      assert.ok(!JSON.stringify(stored!.payloadRedacted).includes('pii.test'));
+      const [attempt] = await t.db.select().from(paymentAttempts).where(eq(paymentAttempts.providerReference, placed.reference));
+      assert.equal(attempt!.webhookEventKey, `charge.success:${placed.reference}:9002`);
+      assert.ok(attempt!.webhookReceivedAt);
       assert.equal((await redemptions(placed.orderId)).length, 1);
     });
 

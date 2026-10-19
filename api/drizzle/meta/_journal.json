@@ -8,6 +8,13 @@
       "when": 1792283166453,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792449296126,
+      "tag": "0001_webhook_columns_and_indexes",
+      "breakpoints": true
     }
   ]
 }

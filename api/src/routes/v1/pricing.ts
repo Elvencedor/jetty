@@ -1,10 +1,9 @@
 import { LIMITS } from '../../lib/rate-policies.js';
-import type { Request, ServerRoute } from '@hapi/hapi';
+import type { ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
-import type { Db } from '../../db/client.js';
-import { apiError } from '../../lib/errors.js';
 import { DELIVERY_METHODS, type DeliveryMethod } from '../../modules/delivery/zones.js';
 import { deliveryQuote, quote } from '../../modules/pricing/quote.js';
+import { db, NO_STORE } from './shared.js';
 
 const items = Joi.array()
   .items(
@@ -33,15 +32,6 @@ type Body = {
   deliveryAddress?: { state: string; area?: string };
   deliveryMethod?: DeliveryMethod;
 };
-
-function db(request: Request): Db {
-  const database = request.server.app.database;
-  if (!database) throw apiError(503, 'DATABASE_UNAVAILABLE', 'The service is temporarily unavailable.');
-  return database.db;
-}
-
-// Quotes depend on live stock and promotions; never let shared caches store them.
-const NO_STORE = 'no-store';
 
 export const pricingRoutes: ServerRoute[] = [
   {

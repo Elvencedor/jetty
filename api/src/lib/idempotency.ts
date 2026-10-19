@@ -80,3 +80,28 @@ export async function cleanupIdempotencyKeys(db: Db, now: Date = new Date()): Pr
   const removed = await db.delete(idempotencyKeys).where(reapable(now)).returning({ id: idempotencyKeys.id });
   return removed.length;
 }
+
+export type IdempotentResult = { status: number; body: unknown };
+
+/**
+ * Runs `run` at most once per (scope, key). A replay returns the stored result; a failure that threw a 4xx created
+ * nothing, so it frees the key for a corrected retry; any other outcome (including a 5xx-style result the caller
+ * returns, not throws) stays claimed because side effects may exist.
+ */
+export async function runIdempotent(
+  db: Db,
+  input: { scope: string; key: string; payload: unknown },
+  run: () => Promise<IdempotentResult>,
+): Promise<IdempotentResult & { replayed: boolean }> {
+  const started = await beginIdempotent(db, { scope: input.scope, key: input.key, requestHash: hashRequest(input.payload) });
+  if (started.kind === 'replay') return { status: started.status, body: started.body, replayed: true };
+  try {
+    const result = await run();
+    await completeIdempotent(db, started.id, result.status, result.body);
+    return { ...result, replayed: false };
+  } catch (err) {
+    const status = (err as { output?: { statusCode?: number } }).output?.statusCode;
+    if (status && status < 500) await abandonIdempotent(db, started.id);
+    throw err;
+  }
+}

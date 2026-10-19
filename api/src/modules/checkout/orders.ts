@@ -4,9 +4,10 @@ import { and, desc, eq, isNull } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import { orders, paymentAttempts, stockReservations } from '../../db/schema/index.js';
 import { apiError, conflict, notFound } from '../../lib/errors.js';
+import { uniqueViolation } from '../../lib/sql.js';
 import { PaymentIndeterminateError, type PaymentProvider } from '../payments/provider.js';
 import { settleTransaction } from '../payments/settle.js';
-import { initializeAttempt, newPaymentReference, paymentResponse } from './checkout.js';
+import { initializeAttempt, newPaymentReference, paymentResponse, type PaymentMethod } from './checkout.js';
 
 type Order = typeof orders.$inferSelect;
 type Attempt = typeof paymentAttempts.$inferSelect;
@@ -158,6 +159,8 @@ export async function retryPayment(
     if (outcome === 'active') throw inProgress();
   }
 
+  // A retry keeps the method the shopper chose at checkout.
+  const method: PaymentMethod = previous?.method === 'bank_transfer' ? 'bank_transfer' : 'card';
   const reference = newPaymentReference();
   let attemptId: string;
   try {
@@ -172,14 +175,13 @@ export async function retryPayment(
 
       const [attempt] = await tx
         .insert(paymentAttempts)
-        .values({ orderId: order.id, provider: provider.name, providerReference: reference, method: 'card', amountMinor: order.totalMinor, currency: order.currency })
+        .values({ orderId: order.id, provider: provider.name, providerReference: reference, method, amountMinor: order.totalMinor, currency: order.currency })
         .returning({ id: paymentAttempts.id });
       return attempt!.id;
     });
   } catch (err) {
     // The one-active-attempt unique index is the final guard against concurrent retries.
-    const code = (err as { code?: string; cause?: { code?: string } }).cause?.code ?? (err as { code?: string }).code;
-    if (code === '23505') throw inProgress();
+    if (uniqueViolation(err)) throw inProgress();
     throw err;
   }
 
@@ -191,7 +193,7 @@ export async function retryPayment(
     email: paymentEmail(order.email, order.phoneE164, options.emailDomain),
     amountMinor: order.totalMinor,
     currency: order.currency,
-    method: 'card',
+    method,
     callbackUrl: options.callbackUrl,
   });
   if (!started.ok) return { status: 502, error: started.error };

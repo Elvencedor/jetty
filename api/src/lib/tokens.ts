@@ -5,6 +5,8 @@ const b64 = (input: string | Buffer) => Buffer.from(input).toString('base64url')
 export const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 /** Keyed hash for low-entropy secrets (6-digit codes), so a database leak alone cannot be brute-forced offline. */
 export const hmacSha256 = (secret: string, value: string) => createHmac('sha256', secret).update(value).digest('hex');
+/** A token derivable only with the server secret, so it can be re-issued from the same input without being stored. */
+export const deriveToken = (secret: string, label: string, value: string) => createHmac('sha256', secret).update(`${label}:${value}`).digest('base64url');
 export const newOpaqueSecret = () => randomBytes(32).toString('base64url');
 
 export function sameHash(a: string, b: string): boolean {

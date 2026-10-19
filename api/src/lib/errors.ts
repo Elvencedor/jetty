@@ -47,6 +47,10 @@ export const conflict = (code: string, message: string, details?: unknown[]) =>
 export const unprocessable = (code: string, message: string, details?: unknown[]) =>
   apiError(422, code, message, details);
 
+/** Converts a Joi validation error (from a schema applied inside a handler) into the contract's 422. */
+export const fromJoi = (error: { details: { path: (string | number)[]; type: string; message: string }[] }, message = 'The request is invalid.') =>
+  unprocessable('VALIDATION_FAILED', message, error.details.map((d) => ({ path: d.path.join('.'), code: d.type, message: d.message })));
+
 /** Fallback HTTP-status-to-code mapping for errors raised outside `apiError`. */
 const STATUS_CODES: Record<number, string> = {
   400: 'BAD_REQUEST',

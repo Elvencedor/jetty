@@ -43,7 +43,7 @@ describe('POST /checkout', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not 
     termsAccepted: true,
     ...over,
   });
-  const submit = async (payload: Json, key = `key-${String(++keyCounter).padStart(4, '0')}-abcdefghij`) => {
+  const submit = async (payload: Json, key = `key-${String(++keyCounter).padStart(4, '0')}-abcdefghij-0123456789abcdefghijklmnopqrstuv`) => {
     const res = await server.inject({ method: 'POST', url: '/api/v1/checkout', payload, headers: { 'idempotency-key': key } });
     return { status: res.statusCode, body: res.result as Json, headers: res.headers, key };
   };
@@ -158,7 +158,7 @@ describe('POST /checkout', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not 
   });
 
   it('creates exactly one order for concurrent submissions with one key', async () => {
-    const key = 'concurrent-key-0001-abcdef';
+    const key = 'concurrent-key-0001-abcdef-0123456789abcdefghijklmnopqrstuv';
     const results = await Promise.all(Array.from({ length: 5 }, () => submit(base(), key)));
     const created = results.filter((r) => r.status === 201);
     assert.ok(created.length >= 1);
@@ -192,7 +192,7 @@ describe('POST /checkout', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not 
 
   it('returns 409 OUT_OF_STOCK, and leaves no order, reservation or key behind', async () => {
     const before = await stock(v.scarce!);
-    const key = 'oos-key-00000001-abcdef';
+    const key = 'oos-key-00000001-abcdef-0123456789abcdefghijklmnopqrstuv';
     const res = await submit(base({ items: [{ variantId: v.scarce, quantity: 3 }] }), key);
     assert.equal(res.status, 409);
     assert.equal(res.body.error.code, 'OUT_OF_STOCK');
@@ -263,7 +263,7 @@ describe('POST /checkout', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not 
   it('is unavailable (503) when no payment provider is configured', async () => {
     const bare = await createServer({ env: loadEnv({ NODE_ENV: 'test', PORT: '0', LOG_LEVEL: 'error' }), logger: createLogger('error'), database: t });
     await bare.initialize();
-    const res = await bare.inject({ method: 'POST', url: '/api/v1/checkout', payload: base(), headers: { 'idempotency-key': 'nopay-key-0000001-abcd' } });
+    const res = await bare.inject({ method: 'POST', url: '/api/v1/checkout', payload: base(), headers: { 'idempotency-key': 'nopay-key-0000001-abcd-0123456789abcdefghijklmnopqrstuv' } });
     assert.equal(res.statusCode, 503);
     assert.equal((res.result as Json).error.code, 'PAYMENTS_UNAVAILABLE');
     await bare.stop();

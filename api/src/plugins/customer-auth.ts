@@ -3,8 +3,6 @@ import type { Plugin } from '@hapi/hapi';
 import { verifyAccessToken } from '../lib/tokens.js';
 import { activeSession } from '../modules/auth/customers.js';
 
-export type CustomerCredentials = { customerId: string; sessionId: string };
-
 declare module '@hapi/hapi' {
   interface AuthCredentials {
     customerId?: string;

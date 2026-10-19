@@ -18,6 +18,14 @@ const schema = Joi.object({
   WEBHOOK_PORT: Joi.number().port().optional(),
   // HMAC key for customer access tokens (at least 32 characters). Auth routes return 503 until it is set.
   AUTH_TOKEN_SECRET: Joi.string().min(32).optional(),
+  // S3-compatible object storage for product media (Cloudflare R2). Upload intents return 503 until all are set.
+  MEDIA_S3_ENDPOINT: Joi.string().uri({ scheme: ['https', 'http'] }).optional(),
+  MEDIA_S3_BUCKET: Joi.string().optional(),
+  MEDIA_S3_ACCESS_KEY_ID: Joi.string().optional(),
+  MEDIA_S3_SECRET_ACCESS_KEY: Joi.string().optional(),
+  MEDIA_S3_REGION: Joi.string().default('auto'),
+  // Where payment exceptions (duplicate or late charges) are emailed for a person to act on.
+  OPS_ALERT_EMAIL: Joi.string().email().optional(),
   // Per-IP/account request limits (Redis-backed, so REDIS_URL is required when on). Off by default under NODE_ENV=test.
   RATE_LIMIT_ENABLED: Joi.boolean().when('NODE_ENV', { is: 'test', then: Joi.boolean().default(false), otherwise: Joi.boolean().default(true) }),
   REDIS_URL: Joi.string().uri({ scheme: ['redis', 'rediss'] }).optional(),
@@ -48,6 +56,12 @@ export type Env = {
   PAYSTACK_WEBHOOK_SECRET: string | undefined;
   WEBHOOK_PORT: number | undefined;
   AUTH_TOKEN_SECRET: string | undefined;
+  MEDIA_S3_ENDPOINT: string | undefined;
+  MEDIA_S3_BUCKET: string | undefined;
+  MEDIA_S3_ACCESS_KEY_ID: string | undefined;
+  MEDIA_S3_SECRET_ACCESS_KEY: string | undefined;
+  MEDIA_S3_REGION: string;
+  OPS_ALERT_EMAIL: string | undefined;
   REDIS_URL: string | undefined;
   RATE_LIMIT_ENABLED: boolean;
   TRUSTED_PROXY_HOPS: number;
@@ -66,6 +80,11 @@ export type Env = {
 };
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
+  // Railway does not set NODE_ENV for you. Silently falling back to "development" would allow the log providers
+  // (which print one-time codes) and skip the production checks, so on Railway it must be explicit.
+  if (source.RAILWAY_ENVIRONMENT && !source.NODE_ENV) {
+    throw new Error('Invalid environment configuration: NODE_ENV must be set explicitly (use "production") when running on Railway');
+  }
   const { value, error } = schema.validate(source, { abortEarly: false, stripUnknown: false });
 
   if (error) {
@@ -87,6 +106,12 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     PAYSTACK_WEBHOOK_SECRET: value.PAYSTACK_WEBHOOK_SECRET,
     WEBHOOK_PORT: value.WEBHOOK_PORT,
     AUTH_TOKEN_SECRET: value.AUTH_TOKEN_SECRET,
+    MEDIA_S3_ENDPOINT: value.MEDIA_S3_ENDPOINT,
+    MEDIA_S3_BUCKET: value.MEDIA_S3_BUCKET,
+    MEDIA_S3_ACCESS_KEY_ID: value.MEDIA_S3_ACCESS_KEY_ID,
+    MEDIA_S3_SECRET_ACCESS_KEY: value.MEDIA_S3_SECRET_ACCESS_KEY,
+    MEDIA_S3_REGION: value.MEDIA_S3_REGION,
+    OPS_ALERT_EMAIL: value.OPS_ALERT_EMAIL,
     REDIS_URL: value.REDIS_URL,
     RATE_LIMIT_ENABLED: value.RATE_LIMIT_ENABLED,
     TRUSTED_PROXY_HOPS: value.TRUSTED_PROXY_HOPS,

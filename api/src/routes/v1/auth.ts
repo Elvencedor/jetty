@@ -1,6 +1,5 @@
 import type { Request, ResponseObject, ResponseToolkit, ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
-import type { Db } from '../../db/client.js';
 import { apiError } from '../../lib/errors.js';
 import { customers } from '../../db/schema/index.js';
 import { eq } from 'drizzle-orm';
@@ -22,16 +21,9 @@ import {
   type LoginIdentifier,
   type ResetIdentifier,
 } from '../../modules/auth/customers.js';
+import { db, NO_STORE } from './shared.js';
 
 export const REFRESH_COOKIE = 'jh_refresh';
-const NO_STORE = 'no-store';
-
-function db(request: Request): Db {
-  const database = request.server.app.database;
-  if (!database) throw apiError(503, 'DATABASE_UNAVAILABLE', 'The service is temporarily unavailable.');
-  return database.db;
-}
-
 function secret(request: Request): string {
   const value = request.server.app.env.AUTH_TOKEN_SECRET;
   if (!value) throw apiError(503, 'AUTH_UNAVAILABLE', 'Sign-in is temporarily unavailable.');

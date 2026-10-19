@@ -76,3 +76,20 @@ describe('api server', () => {
     assert.throws(() => loadEnv({ NODE_ENV: 'staging' }), /Invalid environment configuration/);
   });
 });
+
+describe('browser access', () => {
+  it('lets allowed origins send If-Match and Idempotency-Key and read the ETag', async () => {
+    const env = loadEnv({ NODE_ENV: 'test', PORT: '0', LOG_LEVEL: 'error', CORS_ORIGINS: 'https://admin.example.com' });
+    const s = await createServer({ env, logger: createLogger('error') });
+    const res = await s.inject({
+      method: 'OPTIONS',
+      url: '/api/v1/admin/products/00000000-0000-4000-8000-000000000000',
+      headers: { origin: 'https://admin.example.com', 'access-control-request-method': 'PATCH', 'access-control-request-headers': 'authorization,if-match,idempotency-key,content-type' },
+    });
+    assert.equal(res.statusCode, 200);
+    assert.match(String(res.headers['access-control-allow-headers']), /if-match/i);
+    assert.match(String(res.headers['access-control-allow-headers']), /idempotency-key/i);
+    assert.match(String(res.headers['access-control-expose-headers']), /etag/i);
+    assert.equal(res.headers['access-control-allow-origin'], 'https://admin.example.com');
+  });
+});

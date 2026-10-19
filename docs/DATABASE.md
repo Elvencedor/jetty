@@ -75,14 +75,14 @@ The list below defines the required logical shape. Names are snake_case.
 | `customer_preferences` | `customer_id` PK/FK, `email_marketing`, `whatsapp_marketing`, `sms_marketing`, `updated_at`; record consent timestamp and source for each granted consent | P1 |
 | `addresses` | `id`, `customer_id` nullable, `recipient_name`, `phone_e164`, `address_line1`, `address_line2`, `landmark`, `area`, `city`, `state`, `postal_code`, `country_code` default `NG`, `rider_note`, `is_default`; index `(customer_id, is_default)` | P0 checkout; P1 address book |
 | `admin_users` | `id`, unique `email`, `password_hash`, `status`, `two_factor_secret_encrypted`, `two_factor_enabled_at`, timestamps | P0 |
-| `admin_sessions` | `id`, `admin_user_id`, `refresh_token_hash`, `expires_at`, `revoked_at`, `created_at`, `last_used_at`; issue only after 2FA succeeds | P0 |
+| `admin_sessions` | `id`, `admin_user_id`, `refresh_token_hash`, `expires_at`, `revoked_at`, `created_at`, `last_used_at` | P0 |
 | `admin_roles` | `id`, unique `name` (`owner`, `manager`, `fulfilment`, `content_editor`, `support`), `permissions` JSONB | P1; P0 bootstrap owner |
 | `admin_user_roles` | `(admin_user_id, admin_role_id)` PK/FKs | P1 |
 | `admin_audit_log` | `id`, `admin_user_id`, `action`, `resource_type`, `resource_id`, `before_json`, `after_json`, `request_id`, `created_at`; append-only | P1 |
 
 Do not store OTPs or password-reset tokens in plaintext. Persist only a
 cryptographic hash, purpose, expiry, attempt count, and consumed timestamp;
-expire records promptly. 2FA recovery codes are single-use hashes. Codes are
+expire records promptly. (2FA columns and `admin_recovery_codes` exist for later but are unused while admin sign-in is password-only.) Codes are
 HMAC-keyed (not plain hashes), because a six-digit code is otherwise trivially
 brute-forced from a leaked table. A code must also reach the worker, so it sits in the
 `notification_outbox` payload until the message is sent or has failed, then is
@@ -166,8 +166,7 @@ reloads or its local cart changes.
 |---|---|---|
 | `orders` | `id`, unique public `order_number`, nullable `customer_id`, nullable `guest_checkout_token_hash` and `guest_checkout_token_expires_at`, `status` (`pending_payment`, `placed`, `packed`, `out_for_delivery`, `delivered`, `cancelled`, `refunded`, `payment_exception`), `payment_status` (`pending`, `paid`, `failed`, `refunded`), `email`, `phone_e164`, `currency`, `subtotal_minor`, `discount_minor`, `delivery_fee_minor`, `tax_minor`, `total_minor`, `delivery_address_snapshot` JSONB, `delivery_method`, `applied_promotions` JSONB (immutable snapshot of promotions and code IDs applied at checkout; redemptions are written from it when payment is confirmed), `terms_accepted_at`, `placed_at`, timestamps | P0 |
 | `order_items` | `id`, `order_id`, nullable `product_id`/`variant_id` (retain snapshot after catalog deletion), `sku_snapshot`, `title_snapshot`, `options_snapshot` JSONB, `quantity`, `unit_price_minor`, `discount_minor`, `line_total_minor`; check quantity > 0 | P0 |
-| `payment_attempts` | `id`, `order_id`, `provider` (P0 `paystack`), `provider_reference` (unique), nullable `provider_transaction_id` (unique per provider when present), `method` (`card`, `bank_transfer`, `ussd`, `pay_on_delivery`, `other`), `status` (`initializing`, `pending`, `succeeded`, `failed`, `expired`, `refunded`), `amount_minor`, `currency`, `initialized_at`, `paid_at`, `metadata_redacted` JSONB; index `(order_id, created_at)` and unique `(provider, provider_reference)`; at most one active attempt per order | P0 card/transfer; P1 USSD/POD |
-| `payment_webhook_events` | `id`, `provider`, non-null `provider_event_key`, `received_at`, `processed_at`, `processing_status`, `payload_redacted` JSONB; unique `(provider, provider_event_key)`; for Paystack derive the stable key from event type, reference, and transaction ID | P0 |
+| `payment_attempts` | `id`, `webhook_event_key` and `webhook_received_at` (the last provider event applied, replacing a separate events table), `order_id`, `provider` (P0 `paystack`), `provider_reference` (unique), nullable `provider_transaction_id` (unique per provider when present), `method` (`card`, `bank_transfer`, `ussd`, `pay_on_delivery`, `other`), `status` (`initializing`, `pending`, `succeeded`, `failed`, `expired`, `refunded`), `amount_minor`, `currency`, `initialized_at`, `paid_at`, `metadata_redacted` JSONB; index `(order_id, created_at)` and unique `(provider, provider_reference)`; at most one active attempt per order | P0 card/transfer; P1 USSD/POD |
 | `order_status_events` | `id`, `order_id`, `from_status`, `to_status`, `actor_type`, nullable `actor_id`, `note`, `created_at`; append-only | P0 |
 | `deliveries` | `id`, `order_id` unique, `method`, `zone`, `status`, `carrier`, `rider_name`, `rider_phone_e164`, `tracking_reference`, `estimated_delivery_at`, `delivered_at` | P0 method/zone; P1 rider |
 | `refunds` | `id`, `payment_attempt_id`, `order_id`, `amount_minor`, `reason`, `provider_reference`, `status`, `created_by_admin_id`, timestamps | P1 |

@@ -62,6 +62,6 @@ describe('idempotency key cleanup', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE
     await start('old');
     await t.db.update(idempotencyKeys).set({ expiresAt: new Date(Date.now() - 1000) });
     const result = await runMaintenance(t.db, createLogger('error'));
-    assert.deepEqual(result, { reservationsReleased: 0, idempotencyKeysRemoved: 1, authChallengesRemoved: 0, staleCodesScrubbed: 0, failed: [] });
+    assert.deepEqual(result, { reservationsReleased: 0, idempotencyKeysRemoved: 1, authChallengesRemoved: 0, staleCodesScrubbed: 0, promotionsExpired: 0, sessionsRemoved: 0, messagesRemoved: 0, analyticsEventsRemoved: 0, failed: [] });
   });
 });

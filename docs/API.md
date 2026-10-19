@@ -38,7 +38,7 @@ post-launch/later features. The authoritative data model is in
   `Secure`, `HttpOnly`, `SameSite=Lax` cookie for guest status polling.
 - Use bearer access tokens for authenticated customer/admin APIs, with
   short-lived access tokens and revocable refresh sessions in secure cookies.
-  Admin access requires 2FA. Apply CSRF protection to cookie-authenticated
+  Admin sign-in is email and password for now (2FA is deferred; the schema keeps its columns). Apply CSRF protection to cookie-authenticated
   state changes.
 - Paystack webhooks authenticate the raw request body with
   `x-paystack-signature`; verify transaction, amount, currency, and reference
@@ -170,10 +170,9 @@ example above, the response includes:
   `EXPIRED`, `USAGE_LIMIT_REACHED`, `NOT_ELIGIBLE`, `MIN_SPEND_NOT_MET`,
   `NOT_APPLICABLE`). A bad code never fails the quote.
 - `warnings`: `OUT_OF_STOCK` / `INSUFFICIENT_STOCK` per variant, and
-  `CUSTOMER_ELIGIBILITY_VERIFIED_AT_CHECKOUT` when a first-order
-  promotion cannot be checked for an anonymous buyer. Promotions with a
-  per-customer limit are never applied to guests; a submitted code for one is
-  rejected as `NOT_ELIGIBLE`.
+  `SIGN_IN_FOR_OFFERS` when an offer was withheld because the buyer is a guest.
+  First-order-only promotions and promotions with a per-customer limit are never
+  applied to guests; a submitted code for one is rejected as `NOT_ELIGIBLE`.
 - `delivery` (`method`, `zoneName`, `baseFeeMinor`, `feeMinor`,
   `freeDeliveryPromotionId`, `estimate`) when a destination was supplied.
 
@@ -248,7 +247,7 @@ when audit logging is enabled.
 
 | Method and path | Purpose | Phase |
 |---|---|---|
-| `POST /admin/auth/login`, `POST /admin/auth/2fa/verify`, `POST /admin/auth/logout` | Admin session and mandatory 2FA | P0 |
+| `POST /admin/auth/login`, `POST /admin/auth/refresh`, `POST /admin/auth/logout` | Admin session (email and password) | P0 |
 | `GET /admin/dashboard?from=&to=` | Revenue, orders, AOV, prior-period comparison, top products/categories, action counts | P0 |
 | `GET /admin/products`, `POST /admin/products` | Search/filter products; create draft | P0 |
 | `GET /admin/products/{id}`, `PATCH /admin/products/{id}` | Edit catalog fields; require `If-Match` for concurrent edits | P0 |
@@ -270,7 +269,7 @@ when audit logging is enabled.
 | `GET /admin/analytics/promotions?from=&to=` | Redemptions, attributed orders, revenue | P1 |
 | `GET, PATCH /admin/settings/{key}` | Read/update allow-listed store settings, delivery zones, policies, and payment methods | P0 |
 | `GET /admin/audit-log` | Search admin actions | P1 |
-| `POST /admin/orders/{id}/refunds` | Full/partial provider refund; idempotent; role-gated | P1 |
+| `POST /admin/orders/{id}/refunds` | Full/partial provider refund; idempotent; role-gated | P0 (pulled forward to resolve duplicate and late charges) |
 | `PATCH /admin/orders/{id}/delivery` | Assign rider/carrier and tracking data | P1 |
 | `GET /admin/analytics/export` | Create/download authorized CSV export | P1 |
 | `POST /admin/team/invitations`, `GET /admin/team`, `PATCH /admin/team/{id}` | Invite and manage role-assigned staff | P1 |
@@ -470,3 +469,143 @@ provider rejections fail at once. Failed rows stay in `notification_outbox` with
 waited over 5 minutes. Providers are Termii (SMS) and Resend (email); `log`
 prints messages for development and is refused in production.
 
+
+## Storefront content, reviews and bank transfer (implemented)
+
+`GET /storefront/home` returns `{ announcements, banners, featured: { heading, products } }`
+from published content inside its schedule window (`draft`, `archived`, not-yet-started and ended entries never
+appear). The featured row is a `featured_products` content entry whose `productIds` order is kept; products that
+are no longer visible drop out. With no such entry it falls back to products flagged `featured`.
+`GET /content/pages/{slug}` serves a published `page` (`{ slug, title, markdown, updatedAt }`; the storefront renders
+the markdown, so it must sanitise it). `GET /storefront/settings` exposes the public store details, policies and
+enabled payment methods. `GET /products/suggestions?q=` (2+ chars, `limit` 1-10, 120/min/IP) matches word prefixes of
+visible product titles.
+
+`GET /products/{productId}/reviews` (`sort` newest|highest|lowest, `rating`, `limit`, `cursor`) returns only approved
+reviews, a `summary` (`average`, `count`, `breakdown` 1-5) and the usual `page.nextCursor`. `POST /reviews`
+(bearer) takes `{ orderItemId, rating, title?, body?, location? }`: the item must be on the caller's own paid and
+**delivered** order, once per item (`409 REVIEW_EXISTS`, `422 REVIEW_NOT_ELIGIBLE`, 404 for someone else's item).
+New reviews are `pending` until moderated. 10/hour/customer.
+
+`POST /analytics/events` takes `{ events: [{ name, anonymousId, sessionId, occurredAt?, properties }] }` (1-20) for
+`session_start`, `product_view`, `add_to_bag`, `checkout_start`, with `properties` limited to `productId`,
+`variantId`, `quantity`, `source`. There is no `purchase` event: sales are counted from paid orders. Conversion rate
+on the dashboard is paid orders divided by distinct sessions, and is `null` when no events were recorded.
+
+`POST /checkout` accepts `paymentMethod: "bank_transfer"` as well as `"card"`. The provider is initialised with the
+`bank_transfer` channel, stock is held for the configured transfer window (default 45 minutes), and a retry keeps the method. A method can be
+switched off in settings (`422 PAYMENT_METHOD_UNAVAILABLE`). The transfer is settled by the same verified webhook /
+verify path as a card; an admin can also confirm it (below).
+
+## Admin API (implemented)
+
+**Authentication.** `POST /admin/auth/login` (`{ email, password }`) returns a 15-minute bearer `accessToken` with the
+admin's roles and permissions, and sets an HttpOnly `jh_admin_refresh` cookie (path `/api/v1/admin/auth`, 12 hours,
+rotated on `POST /admin/auth/refresh`; replaying a rotated token revokes the session). `POST /admin/auth/logout`,
+`GET /admin/me`. Admin and customer tokens use different signing keys and are not interchangeable. Unknown email, wrong
+password and disabled account are indistinguishable in response and timing. Limits: 20/15m/IP, and 8/15m per
+email-and-IP pair, so an outsider cannot exhaust the real admin's attempts from another address. These two checks
+**fail closed**: if Redis cannot be reached, sign-in returns `503` rather than allowing unlimited guessing. There is
+no 2FA, invitation or admin password-reset flow yet: the first owner comes from `npm run db:seed`, and a forgotten
+password is reset in the database.
+
+**Authorization.** Each route declares the permission it needs and is refused otherwise; a route with none declared is
+refused too. `*` grants everything and `x:write` implies `x:read`. Roles are seeded (`npm run db:seed`):
+
+| Role | Permissions |
+|---|---|
+| owner | `*` |
+| manager | `catalog:write`, `orders:write`, `promotions:write`, `content:write`, `customers:read`, `analytics:read`, `inventory:write`, `reviews:moderate`, `settings:read`, `orders:refund` |
+| fulfilment | `orders:read`, `orders:fulfil`, `inventory:read` |
+| content_editor | `content:write`, `catalog:read` |
+| support | `orders:read`, `customers:read`, `reviews:moderate` |
+
+Permissions are read on every request, so disabling an admin or changing a role takes effect immediately. Every
+mutation appends to `admin_audit_log` (actor, action, before/after, request id).
+
+**Catalog.** Lists use `limit`/`cursor`. `GET/POST /admin/products`, `GET/PATCH /admin/products/{id}` (PATCH needs
+`If-Match`: `428` if missing, `412` if stale; every response carries the new `ETag`), `POST .../publish` (needs an
+active variant; optional `publishAt`) and `.../archive`. `PUT /admin/products/{id}/variants` (needs `If-Match`) replaces the option and
+variant matrix: variants are matched by `id`, then option combination, then SKU; ones left out are deactivated, never
+deleted (orders and reservations point at them); `stock` only seeds new variants. `/admin/categories` and
+`/admin/collections` (GET, POST, PATCH; category cycles are refused), `PUT /admin/collections/{id}/products`.
+`GET /admin/inventory` (`filter=low|out`), `PATCH /admin/inventory/{variantId}` (`mode` adjust|set, `reason`;
+appends to `inventory_movements`; `409 STOCK_BELOW_RESERVED`).
+
+**Media.** `POST /admin/media/upload-intents` returns a server-chosen `objectKey` under `products/{id}/` and a
+presigned `PUT` (5 minutes; content type and length are part of the signature; JPEG/PNG/WebP/AVIF, 10 MB). After the
+browser uploads, `POST /admin/products/{id}/media` verifies the object exists, then registers it (first image becomes
+the cover). `PATCH`/`DELETE .../media/{mediaId}`. Configure `MEDIA_S3_*`; without them intents return `503`.
+
+**Orders.** `GET /admin/orders` (`q`, `status`, `paymentStatus`, `from`, `to`), `GET /admin/orders/{id}` (items,
+payments, timeline, delivery, notes, `allowedTransitions`). `PATCH /admin/orders/{id}/status` moves a **paid** order one
+step: `placed -> packed -> out_for_delivery -> delivered` (pickup orders go `packed -> delivered`), under a row lock,
+appending a timeline event and queuing SMS (and email, if given) in the same transaction (`409 INVALID_TRANSITION`,
+`409 ORDER_NOT_PAID`). `POST .../notes` records an internal note, never shown to the customer. `POST
+.../confirm-transfer` asks the provider first and settles through the normal path; if the provider has nothing, a
+`manualReason` (10+ chars) settles it by hand, audited. Repeating it on a paid order is a no-op.
+
+**Promotions.** `GET/POST /admin/promotions`, `GET/PATCH /admin/promotions/{id}`, `POST .../activate|deactivate`.
+Rules are validated with the pricing engine's own versioned schemas (unknown keys are refused); `free_gift` is not
+creatable until it is supported. Codes are normalised and unique; they are upserted by PATCH and deactivated, never
+deleted. A live automatic promotion cannot gain its first code. Listed status is derived: `draft`, `inactive`,
+`scheduled`, `live`, `ended`; the worker marks ended ones `expired`. Editing an ended promotion requires moving its end date.
+
+**Content, customers, reviews, settings.** `GET/POST /admin/content`, `GET/PATCH /admin/content/{id}` for
+`announcement`, `banner`, `page` and `featured_products` (body validated per type; only `http(s)` or site-relative
+URLs). `GET /admin/customers` (`q`, `sort` newest|spend; order count and lifetime value over paid orders),
+`GET /admin/customers/{id}`. `GET /admin/reviews` (`status`, `productId`), `PATCH /admin/reviews/{id}`
+(`approved|rejected|hidden`). `GET/PATCH /admin/settings/{key}` for `store`, `policies`, `payments` and
+`delivery-zones` only (PATCH merges fields; `delivery-zones` takes `{ zones: [...] }`, creating or updating; zones are
+retired with `active: false`, never deleted). Settings writes are owner-only.
+
+**Analytics.** `GET /admin/dashboard`, `GET /admin/analytics/revenue` (`interval` day|week|month) and
+`GET /admin/analytics/products`, with `from` (inclusive) and `to` (exclusive), default the last 30 days, at most 366
+days. The previous period is the same length immediately before. Sales are paid, non-refunded orders by the time
+payment was confirmed; series are bucketed in `Africa/Lagos` and gap-filled. `GET /admin/orders-to-action` gives
+counts to pack, dispatch, deliver, awaiting transfer and payment exceptions.
+
+## Changes after the first review (implemented)
+
+**Refunds.** `POST /admin/orders/{id}/refunds` (`orders:refund`: owner and manager; `Idempotency-Key` required) takes
+`{ reason, amountMinor?, paymentAttemptId? }`. It refunds a *successful* payment through Paystack, fully or in part
+(`amountMinor` defaults to what is left of that payment). The refund row reserves its amount before the provider is
+called, under the order lock, so repeats and concurrent requests cannot refund the same money twice. A refusal
+(`422 REFUND_REJECTED`) releases the amount; a timeout returns `502 REFUND_STATUS_UNKNOWN` and keeps it reserved until
+someone checks the provider dashboard. When an order has two successful payments (a duplicate charge) `paymentAttemptId`
+is required (`422 PAYMENT_ATTEMPT_REQUIRED` lists them); refunding the extra charge leaves the order intact. The order
+becomes `refunded` only when what the customer paid, net of refunds, reaches zero; a partial refund adds an internal
+`PARTIAL_REFUND` annotation, which the customer's timeline does not show. A payment confirmed by hand has no provider
+charge (`409 MANUAL_PAYMENT_NOT_REFUNDABLE`) until the provider reports one. Stock is not returned automatically. The
+status Paystack reports (`pending`, `processing`, ...) is stored as given; refund webhooks are not processed yet.
+
+**Double payments.** If an admin confirms a transfer by hand and the provider later reports a real charge for the same
+reference, settlement records the provider's transaction id, adds a timeline annotation and raises a
+`payment.exception` alert (`PROVIDER_CHARGE_AFTER_MANUAL_CONFIRMATION`). This may be the same money arriving late or a
+genuine second payment; a person decides, and refunds the extra charge if the customer shows it. Alerts are logged, and
+emailed to `OPS_ALERT_EMAIL` when set.
+
+**Guests and offers.** First-order-only promotions and promotions with a per-customer limit are never applied to
+guests. A submitted code for one is rejected `NOT_ELIGIBLE`, and the quote carries a `SIGN_IN_FOR_OFFERS` warning.
+Guest `POST /checkout` requires an `Idempotency-Key` of at least 32 characters (use a UUID): the key is what protects a
+replay, and the guest checkout token is derived from it with the server secret, so a replayed request hands back the
+same `jh_checkout` cookie.
+
+**Images.** Admins upload straight to the bucket with a presigned `PUT`; the API stores only object keys. Storefront and
+admin responses add a `url`, a presigned `GET` for the private bucket (also `imageUrl` on banners and `coverUrl` in the
+admin product list). URLs are signed at the start of the hour and valid for two, so a given image has the same URL for
+an hour and can be cached. There is no image scanning or resizing; the client uploads what it wants displayed.
+
+**Contract.** `GET /me/orders` now returns `{ data, page: { nextCursor } }` and accepts `limit` up to 100.
+`PUT /admin/products/{id}/variants` requires `If-Match` like the product PATCH. Every response carries HSTS,
+`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` and `Referrer-Policy: no-referrer`. `payments` settings gain
+`cardHoldMinutes` (default 30) and `transferHoldMinutes` (default 45), each 15 to 480; Paystack documents a 30 minute
+life for transfer account numbers in one place and up to 8 hours in another, so confirm the figure for your account.
+Admin mutations are written in the same transaction as their audit record: if the audit write fails, the change does not
+happen. The API refuses to start on Railway unless `NODE_ENV` is set.
+
+**Data retention.** The worker deletes sessions 7 days after they expire or are revoked, delivered notifications after
+14 days, failed ones after 30, and analytics events after 90. Pending messages are never deleted. The notification outbox
+is kept (not replaced by inline sending) because it is what guarantees a one-time code or order message survives a crash
+or a provider outage. There is no `payment_webhook_events` table: a payment attempt records the last event key it
+applied (`webhook_event_key`, `webhook_received_at`), settlement is idempotent, and events matching no attempt are logged.

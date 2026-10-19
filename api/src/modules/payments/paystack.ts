@@ -4,6 +4,8 @@ import {
   type InitializeInput,
   type InitializeResult,
   type PaymentProvider,
+  type RefundInput,
+  type RefundResult,
   type VerifiedTransaction,
 } from './provider.js';
 
@@ -84,5 +86,34 @@ export class PaystackProvider implements PaymentProvider {
       transactionId: String(d.id),
       paidAt: d.paid_at ? new Date(d.paid_at) : null,
     };
+  }
+
+  /** Paystack Create Refund. The refund id it returns is the reference we keep. */
+  async refund(input: RefundInput): Promise<RefundResult> {
+    let res: Response;
+    try {
+      res = await this.fetchImpl(`${this.options.baseUrl}/refund`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${this.options.secretKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transaction: input.reference,
+          amount: input.amountMinor,
+          currency: input.currency,
+          ...(input.customerNote ? { customer_note: input.customerNote } : {}),
+          ...(input.merchantNote ? { merchant_note: input.merchantNote } : {}),
+        }),
+        signal: AbortSignal.timeout(this.options.timeoutMs ?? 10_000),
+      });
+    } catch {
+      throw new PaymentIndeterminateError('Paystack did not respond');
+    }
+    if (res.status >= 500 || res.status === 429) throw new PaymentIndeterminateError(`Paystack responded ${res.status}`);
+
+    const body = (await res.json().catch(() => null)) as { status?: boolean; message?: string; data?: { id?: number | string; status?: string } } | null;
+    if (res.ok && body?.status && body.data?.id !== undefined && typeof body.data.status === 'string') {
+      return { providerReference: String(body.data.id), status: body.data.status };
+    }
+    if (res.ok) throw new PaymentIndeterminateError('Unexpected Paystack response');
+    throw new PaymentRejectedError(`Paystack rejected the refund (${res.status}): ${String(body?.message ?? '').slice(0, 200)}`);
   }
 }

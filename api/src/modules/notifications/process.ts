@@ -20,7 +20,7 @@ export type OutboxResult = { sent: number; retried: number; failed: number };
  * leads to one more send rather than a lost message. Rows are claimed with
  * SKIP LOCKED, so any number of workers can run this safely.
  */
-export async function processOutbox(db: Db, senders: Senders, logger: Logger, now: Date = new Date()): Promise<OutboxResult> {
+export async function processOutbox(db: Db, senders: Senders, logger: Logger, now: Date = new Date(), options: { opsEmail?: string | undefined } = {}): Promise<OutboxResult> {
   const at = now.toISOString();
   const claimed = [
     ...(await db.execute<Claimed>(sql`
@@ -34,11 +34,11 @@ export async function processOutbox(db: Db, senders: Senders, logger: Logger, no
   ];
 
   const result: OutboxResult = { sent: 0, retried: 0, failed: 0 };
-  for (const row of claimed) result[await deliver(db, senders, logger, row, at)]++;
+  for (const row of claimed) result[await deliver(db, senders, logger, row, at, options.opsEmail)]++;
   return result;
 }
 
-async function deliver(db: Db, senders: Senders, logger: Logger, row: Claimed, at: string): Promise<keyof OutboxResult> {
+async function deliver(db: Db, senders: Senders, logger: Logger, row: Claimed, at: string, opsEmail?: string): Promise<keyof OutboxResult> {
   // One-time codes live in the payload only until the message reaches a terminal state.
   const scrub = SECRET_EVENT_TYPES.includes(row.event_type) ? sql`payload = payload - 'code',` : sql``;
   const fail = async (error: string) => {
@@ -49,6 +49,18 @@ async function deliver(db: Db, senders: Senders, logger: Logger, row: Claimed, a
 
   if (row.channel === 'internal') {
     logger.warn('operations alert', { eventType: row.event_type, ...row.payload });
+    if (opsEmail) {
+      const { orderNumber, reason } = row.payload as { orderNumber?: string; reason?: string };
+      try {
+        await senders.email.send({ to: opsEmail, subject: `Payment needs attention: ${reason ?? row.event_type} (${orderNumber ?? 'unknown order'})`, text: `${reason ?? row.event_type} on order ${orderNumber ?? 'unknown'}.\n\nOpen the order in the admin to review its payments and, if the customer was charged twice, refund the extra charge.` });
+      } catch (err) {
+        if (err instanceof PermanentSendError) return fail(err.message.slice(0, 500));
+        const error = (err instanceof Error ? err.message : String(err)).slice(0, 500);
+        if (row.attempt_count >= MAX_ATTEMPTS) return fail(`${error} (attempt ${row.attempt_count})`);
+        await db.execute(sql`update notification_outbox set status = 'pending', last_error = ${error}, next_attempt_at = ${at}::timestamptz + make_interval(secs => ${backoffSeconds(row.attempt_count)}) where id = ${row.id}`);
+        return 'retried';
+      }
+    }
     await db.execute(sql`update notification_outbox set status = 'sent', sent_at = ${at}::timestamptz where id = ${row.id}`);
     return 'sent';
   }

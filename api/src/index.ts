@@ -3,6 +3,7 @@ import { createLogger } from './lib/logger.js';
 import { createDatabase } from './db/client.js';
 import { PaystackProvider } from './modules/payments/paystack.js';
 import { createRedisRateLimiter } from './lib/rate-limit.js';
+import { S3Storage } from './modules/media/storage.js';
 import { createServer } from './server.js';
 
 async function main(): Promise<void> {
@@ -13,7 +14,11 @@ async function main(): Promise<void> {
     ? new PaystackProvider({ secretKey: env.PAYSTACK_SECRET_KEY, baseUrl: env.PAYSTACK_BASE_URL })
     : undefined;
   const rateLimiter = env.RATE_LIMIT_ENABLED && env.REDIS_URL ? await createRedisRateLimiter(env.REDIS_URL) : undefined;
-  const server = await createServer({ env, logger, database, payments, rateLimiter });
+  const storage =
+    env.MEDIA_S3_ENDPOINT && env.MEDIA_S3_BUCKET && env.MEDIA_S3_ACCESS_KEY_ID && env.MEDIA_S3_SECRET_ACCESS_KEY
+      ? new S3Storage({ endpoint: env.MEDIA_S3_ENDPOINT, bucket: env.MEDIA_S3_BUCKET, accessKeyId: env.MEDIA_S3_ACCESS_KEY_ID, secretAccessKey: env.MEDIA_S3_SECRET_ACCESS_KEY, region: env.MEDIA_S3_REGION })
+      : undefined;
+  const server = await createServer({ env, logger, database, payments, rateLimiter, storage });
 
   // Railway replaces instances at will, so shut down cleanly rather than
   // dropping in-flight requests.

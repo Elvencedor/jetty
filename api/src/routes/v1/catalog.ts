@@ -1,9 +1,11 @@
 import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
-import type { Db } from '../../db/client.js';
 import { apiError, notFound } from '../../lib/errors.js';
+import { withUrl, withUrls } from '../../modules/media/urls.js';
+import { LIMITS } from '../../lib/rate-policies.js';
 import { collectionExists, getCategoryTree, getProductBySlug } from '../../modules/catalog/detail.js';
-import { listProducts, PRODUCT_SORTS, type ProductFilters, type ProductSort } from '../../modules/catalog/listing.js';
+import { listProducts, PRODUCT_SORTS, suggestProducts, type ProductFilters, type ProductPage, type ProductSort } from '../../modules/catalog/listing.js';
+import { db } from './shared.js';
 
 const OPTION_FILTERS = ['texture', 'lace', 'length', 'density', 'colour'] as const;
 
@@ -33,12 +35,6 @@ type ListQuery = {
   onOffer?: boolean;
 } & Partial<Record<(typeof OPTION_FILTERS)[number], string[]>>;
 
-function db(request: Request): Db {
-  const database = request.server.app.database;
-  if (!database) throw apiError(503, 'DATABASE_UNAVAILABLE', 'The service is temporarily unavailable.');
-  return database.db;
-}
-
 // "a,b" and repeated params are both accepted.
 const splitValues = (values: string[]) => [...new Set(values.flatMap((v) => v.split(',')).map((v) => v.trim()).filter(Boolean))];
 
@@ -64,6 +60,11 @@ function toFilters(query: ListQuery, extra: Pick<ProductFilters, 'collectionSlug
     ...extra,
   };
 }
+
+const withCardImages = (request: Request, page: ProductPage): ProductPage => ({
+  ...page,
+  data: page.data.map((card) => ({ ...card, image: withUrl(request.server.app.storage, card.image) })),
+});
 
 const publicCache = (h: ResponseToolkit, body: object) =>
   h.response(body).header('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
@@ -95,7 +96,7 @@ export const catalogRoutes: ServerRoute[] = [
         limit: query.limit,
         ...(query.cursor ? { cursor: query.cursor } : {}),
       });
-      return publicCache(h, page);
+      return publicCache(h, withCardImages(request, page));
     },
   },
   {
@@ -121,7 +122,23 @@ export const catalogRoutes: ServerRoute[] = [
         limit: query.limit,
         ...(query.cursor ? { cursor: query.cursor } : {}),
       });
-      return publicCache(h, page);
+      return publicCache(h, withCardImages(request, page));
+    },
+  },
+  {
+    method: 'GET',
+    path: '/products/suggestions',
+    options: {
+      auth: false,
+      plugins: { rateLimit: { ip: [LIMITS.suggest] } },
+      description: 'Type-ahead product suggestions',
+      tags: ['api', 'catalog'],
+      validate: { query: Joi.object({ q: Joi.string().trim().min(2).max(60).required(), limit: Joi.number().integer().min(1).max(10).default(6) }) },
+    },
+    handler: async (request, h) => {
+      const { q, limit } = request.query as { q: string; limit: number };
+      const suggestions = await suggestProducts(db(request), q, limit);
+      return publicCache(h, { data: suggestions.map((x) => ({ ...x, image: withUrl(request.server.app.storage, x.image) })) });
     },
   },
   {
@@ -136,7 +153,7 @@ export const catalogRoutes: ServerRoute[] = [
     handler: async (request, h) => {
       const product = await getProductBySlug(db(request), (request.params as { slug: string }).slug);
       if (!product) throw notFound('Product not found.');
-      return publicCache(h, { data: product });
+      return publicCache(h, { data: { ...product, media: withUrls(request.server.app.storage, product.media) } });
     },
   },
 ];

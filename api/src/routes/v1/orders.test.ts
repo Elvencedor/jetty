@@ -51,7 +51,7 @@ describe('order history, tracking, optional email and rate limits', { skip: (!TE
       method: 'POST',
       url: '/api/v1/checkout',
       payload: body(phone, over),
-      headers: { 'idempotency-key': `orders-key-${String(++n).padStart(8, '0')}-abcdef`, ...headers },
+      headers: { 'idempotency-key': `orders-key-${String(++n).padStart(8, '0')}-abcdef-0123456789abcdefghijklmnopqrstuv`, ...headers },
     });
     assert.equal(res.statusCode, 201, JSON.stringify(res.result));
     return res.result as Json;
@@ -144,20 +144,20 @@ describe('order history, tracking, optional email and rate limits', { skip: (!TE
       assert.equal(first.statusCode, 200);
       assert.equal(first.headers['cache-control'], 'no-store');
       const page1 = first.result as Json;
-      assert.deepEqual(page1.items.map((i: Json) => i.id), [mine[4], mine[3]]);
-      assert.ok(page1.nextCursor);
-      assert.equal(page1.items[0].itemCount, 2);
-      assert.equal(page1.items[0].status, 'pending_payment');
+      assert.deepEqual(page1.data.map((i: Json) => i.id), [mine[4], mine[3]]);
+      assert.ok(page1.page.nextCursor);
+      assert.equal(page1.data[0].itemCount, 2);
+      assert.equal(page1.data[0].status, 'pending_payment');
 
-      const page2 = (await get(`/me/orders?limit=2&cursor=${page1.nextCursor}`, bearer(a.token))).result as Json;
-      assert.deepEqual(page2.items.map((i: Json) => i.id), [mine[2], mine[1]]);
-      const page3 = (await get(`/me/orders?limit=2&cursor=${page2.nextCursor}`, bearer(a.token))).result as Json;
-      assert.deepEqual(page3.items.map((i: Json) => i.id), [mine[0]]);
-      assert.equal(page3.nextCursor, null);
+      const page2 = (await get(`/me/orders?limit=2&cursor=${page1.page.nextCursor}`, bearer(a.token))).result as Json;
+      assert.deepEqual(page2.data.map((i: Json) => i.id), [mine[2], mine[1]]);
+      const page3 = (await get(`/me/orders?limit=2&cursor=${page2.page.nextCursor}`, bearer(a.token))).result as Json;
+      assert.deepEqual(page3.data.map((i: Json) => i.id), [mine[0]]);
+      assert.equal(page3.page.nextCursor, null);
 
       assert.equal((await get('/me/orders?cursor=garbage', bearer(a.token))).statusCode, 400);
       assert.equal((await get('/me/orders?limit=500', bearer(a.token))).statusCode, 422);
-      assert.equal(((await get('/me/orders', bearer(b.token))).result as Json).items.length, 1);
+      assert.equal(((await get('/me/orders', bearer(b.token))).result as Json).data.length, 1);
     });
 
     it('returns order detail with items, totals and a timeline that hides internal notes', async () => {

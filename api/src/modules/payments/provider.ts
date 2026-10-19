@@ -34,9 +34,27 @@ export type VerifiedTransaction =
       paidAt: Date | null;
     };
 
+export type RefundInput = {
+  /** Reference of the successful charge being refunded. */
+  reference: string;
+  amountMinor: number;
+  currency: string;
+  /** Shown to the customer by the provider. */
+  customerNote?: string | undefined;
+  merchantNote?: string | undefined;
+};
+
+export type RefundResult = {
+  providerReference: string;
+  /** Provider status, e.g. 'pending', 'processing', 'processed'. */
+  status: string;
+};
+
 export interface PaymentProvider {
   readonly name: string;
   initialize(input: InitializeInput): Promise<InitializeResult>;
   /** Server-to-server lookup by reference; throws PaymentIndeterminateError when the outcome is unknown. */
   verify(reference: string): Promise<VerifiedTransaction>;
+  /** Throws PaymentRejectedError when refused outright, PaymentIndeterminateError when the outcome is unknown. */
+  refund(input: RefundInput): Promise<RefundResult>;
 }

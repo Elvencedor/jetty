@@ -22,6 +22,7 @@ npm run db:migrate           # needs DATABASE_URL (PostgreSQL 16+)
 npm run db:seed              # idempotent; set SEED_OWNER_EMAIL/SEED_OWNER_PASSWORD for the first owner
 npm run start:worker         # sends the notification outbox and runs maintenance (needs SMS_PROVIDER/EMAIL_PROVIDER)
 npm test                     # integration tests skip unless TEST_DATABASE_URL (and TEST_REDIS_URL for rate limits) is set
+npm run lint                 # ESLint (typescript-eslint recommended)
 
 docker compose up -d --wait  # disposable Postgres on :55432 and Redis on :56379 for integration tests
 TEST_DATABASE_URL=postgres://postgres:postgres@localhost:55432/postgres TEST_REDIS_URL=redis://localhost:56379 npm test
@@ -47,6 +48,12 @@ src/
   modules/checkout/            atomic order + reservation + payment attempt creation
   modules/payments/            payment provider interface, Paystack client, settlement transaction
   modules/auth/                customer register, login, refresh rotation, logout
+  modules/admin/               admin auth, catalog, refunds, inventory, media, orders, promotions, content, analytics
+  modules/content/             storefront home and static pages
+  modules/reviews/             review listing and verified-purchase submission
+  modules/media/               S3-compatible object storage (presigned uploads)
+  modules/settings/            allow-listed store settings
+  routes/v1/admin/             admin endpoints (declare their permission with guard())
   worker/                      background worker: releases expired reservations and holds, cleans idempotency keys (npm run start:worker)
   webhook/                     standalone Paystack webhook server (own process: npm run start:webhook)
   db/                          Drizzle schema, client, migrate and seed
@@ -78,8 +85,17 @@ src/
 See [.env.example](./.env.example). `config/env.ts` validates on boot and the
 process exits on invalid configuration rather than starting in a broken state.
 
-## Not built yet
+## Still to build (post-launch)
 
-Phone/OTP and password-reset auth, admin auth, the transactional outbox processor and the remaining worker
-jobs. `/readyz` reports the process only; add
-dependency checks there as they are wired up.
+P1/P2 endpoints from [../docs/API.md](../docs/API.md): saved addresses and payment methods, wishlist, returns, rider assignment, refund webhooks, audit-log search, CSV export, team invitations and role management, USSD and
+pay-on-delivery checkout, WhatsApp, back-in-stock alerts, and promotion reporting. The admin API, storefront content,
+reviews, bank transfer and analytics for launch (P0) are done.
+
+## Deployment notes
+
+- Set `NODE_ENV=production` explicitly; the API refuses to start on Railway without it.
+- Run three services from the one build: `npm start` (API), `npm run start:webhook` and `npm run start:worker`.
+- Set `TRUSTED_PROXY_HOPS=1` behind Railway's proxy so rate limits see client addresses.
+- The frontend and API must share a registrable domain (e.g. `shop.example.com` and `api.example.com`): the refresh and
+  checkout cookies are `SameSite=Strict` / `Lax` and are not sent across sites.
+- Optional `OPS_ALERT_EMAIL` receives payment-exception alerts from the worker.

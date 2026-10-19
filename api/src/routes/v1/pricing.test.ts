@@ -146,9 +146,11 @@ describe('pricing and delivery quotes', { skip: !TEST_DATABASE_URL && 'TEST_DATA
     assert.deepEqual(reasons, { OLD: 'EXPIRED', GONE: 'USAGE_LIMIT_REACHED', NOPE: 'INVALID_CODE' });
   });
 
-  it('flags first-order promotions as verified at checkout when the buyer is anonymous', async () => {
+  it('does not apply first-order promotions to guests and tells the client to sign in', async () => {
     const { body } = await post('/api/v1/pricing/quote', { items: [{ variantId: v.wig, quantity: 1 }], promotionCodes: ['FIRST'] });
-    assert.ok(body.warnings.some((w: Json) => w.code === 'CUSTOMER_ELIGIBILITY_VERIFIED_AT_CHECKOUT'));
+    assert.deepEqual(body.promotions.rejectedCodes, [{ code: 'FIRST', reason: 'NOT_ELIGIBLE' }]);
+    assert.ok(body.promotions.applied.every((p: Json) => p.code !== 'FIRST'));
+    assert.ok(body.warnings.some((w: Json) => w.code === 'SIGN_IN_FOR_OFFERS'));
   });
 
   it('does not apply per-customer-limited codes to guests', async () => {

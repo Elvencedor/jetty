@@ -20,9 +20,9 @@ import { priceCart, type CartItem } from '../pricing/cart.js';
 import { normaliseCode } from '../pricing/load-promotions.js';
 import { PaymentIndeterminateError, PaymentRejectedError, type InitializeResult, type PaymentProvider } from '../payments/provider.js';
 import type { AppliedPromotionSnapshot } from '../payments/settle.js';
+import { getSetting } from '../settings/settings.js';
 
 /** How long unpaid stock is held while the buyer pays. */
-export const RESERVATION_TTL_MS = 30 * 60 * 1000;
 export const GUEST_TOKEN_TTL_MS = 6 * 60 * 60 * 1000;
 
 export type DeliveryAddress = {
@@ -37,13 +37,15 @@ export type DeliveryAddress = {
   riderNote?: string | undefined;
 };
 
+export type PaymentMethod = 'card' | 'bank_transfer';
+
 export type CheckoutInput = {
   items: CartItem[];
   promotionCodes: string[];
   contact: { phone: string; email?: string | undefined };
   deliveryAddress: DeliveryAddress;
   deliveryMethod: DeliveryMethod;
-  paymentMethod: 'card';
+  paymentMethod: PaymentMethod;
 };
 
 export type CheckoutResult =
@@ -51,7 +53,6 @@ export type CheckoutResult =
   | { status: 502; error: { code: string; message: string; details: unknown[] }; guestToken: string | null };
 
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
-export const hashCheckoutToken = hashToken;
 
 const lagosDate = (now: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(now).replaceAll('-', '');
 
@@ -67,7 +68,7 @@ async function nextOrderNumber(tx: Parameters<Parameters<Db['transaction']>[0]>[
   return `${prefix}${String(next).padStart(4, '0')}`;
 }
 
-const channelsFor = (method: CheckoutInput['paymentMethod']) => (method === 'card' ? ['card'] : []);
+const channelsFor = (method: PaymentMethod) => [method];
 
 /**
  * Recalculates the cart from PostgreSQL, then atomically creates the
@@ -82,9 +83,14 @@ export async function checkout(
   db: Db,
   provider: PaymentProvider,
   input: CheckoutInput,
-  options: { callbackUrl?: string | undefined; emailDomain: string; customerId?: string | undefined; now?: Date },
+  options: { callbackUrl?: string | undefined; emailDomain: string; customerId?: string | undefined; guestToken?: string | undefined; now?: Date },
 ): Promise<CheckoutResult> {
   const now = options.now ?? new Date();
+
+  const { enabledMethods, cardHoldMinutes, transferHoldMinutes } = await getSetting(db, 'payments');
+  if (!enabledMethods.includes(input.paymentMethod)) {
+    throw unprocessable('PAYMENT_METHOD_UNAVAILABLE', 'That payment method is not available right now.', [{ method: input.paymentMethod, enabledMethods }]);
+  }
 
   const zone = await resolveZone(db, input.deliveryAddress);
   if (!zone) throw unprocessable('DELIVERY_UNAVAILABLE', 'We do not deliver to this location yet.');
@@ -132,9 +138,10 @@ export async function checkout(
     discountMinor: a.discountMinor,
   }));
 
-  const guestToken = options.customerId ? null : randomBytes(32).toString('base64url');
+  // A guest token derived from the idempotency key lets a replayed request re-issue the same cookie.
+  const guestToken = options.customerId ? null : (options.guestToken ?? randomBytes(32).toString('base64url'));
   const reference = newPaymentReference();
-  const reservationExpiresAt = new Date(now.getTime() + RESERVATION_TTL_MS);
+  const reservationExpiresAt = new Date(now.getTime() + (input.paymentMethod === 'bank_transfer' ? transferHoldMinutes : cardHoldMinutes) * 60_000);
   const email = input.contact.email?.trim().toLowerCase() || null;
 
   let created: { orderId: string; orderNumber: string; attemptId: string };

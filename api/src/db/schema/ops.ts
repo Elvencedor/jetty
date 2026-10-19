@@ -140,7 +140,7 @@ export const analyticsEvents = pgTable(
     properties: jsonb('properties').notNull().default(sql`'{}'::jsonb`),
     occurredAt: tstz('occurred_at').notNull().defaultNow(),
   },
-  (t) => [index('analytics_events_name_time_idx').on(t.eventName, t.occurredAt)],
+  (t) => [index('analytics_events_name_time_idx').on(t.eventName, t.occurredAt), index('analytics_events_time_idx').on(t.occurredAt)],
 );
 
 export const idempotencyKeys = pgTable(

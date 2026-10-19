@@ -8,14 +8,13 @@ import {
   categories,
   collections,
   deliveryZones,
-  storeSettings,
 } from './schema/index.js';
 
 const ALL = ['*'];
 
 export const ROLE_PERMISSIONS = {
   owner: ALL,
-  manager: ['catalog:write', 'orders:write', 'promotions:write', 'content:write', 'customers:read', 'analytics:read', 'inventory:write'],
+  manager: ['catalog:write', 'orders:write', 'promotions:write', 'content:write', 'customers:read', 'analytics:read', 'inventory:write', 'reviews:moderate', 'settings:read', 'orders:refund'],
   fulfilment: ['orders:read', 'orders:fulfil', 'inventory:read'],
   content_editor: ['content:write', 'catalog:read'],
   support: ['orders:read', 'customers:read', 'reviews:moderate'],
@@ -37,12 +36,6 @@ export const COLLECTION_SEEDS = [
   ['on-offer', 'On offer'],
 ] as const;
 
-// Allow-listed keys only; secrets never belong here.
-export const SETTING_SEEDS: Record<string, unknown> = {
-  'store.currency': 'NGN',
-  'policies.return_window_days': 7,
-  'checkout.reservation_minutes': 60,
-};
 
 export type SeedOptions = { ownerEmail?: string; ownerPassword?: string };
 
@@ -61,10 +54,6 @@ export async function seed(db: Db, { ownerEmail, ownerPassword }: SeedOptions = 
     }
     for (const [i, [slug, name]] of COLLECTION_SEEDS.entries()) {
       await tx.insert(collections).values({ slug, name, sortOrder: i }).onConflictDoNothing();
-    }
-
-    for (const [key, value] of Object.entries(SETTING_SEEDS)) {
-      await tx.insert(storeSettings).values({ key, value }).onConflictDoNothing();
     }
 
     // Fees are business data: seed the zone inactive so the owner must set rates before enabling it.

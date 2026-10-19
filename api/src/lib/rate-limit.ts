@@ -11,6 +11,8 @@ export interface RateLimiter {
   consume(policy: Policy, subject: string): Promise<Decision>;
   /** Clears a counter, e.g. an account's failed-login count after a successful login. */
   reset(policy: Policy, subject: string): Promise<void>;
+  /** Liveness check for readiness reporting; rejects if Redis cannot be reached. */
+  ping?(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -59,6 +61,9 @@ export async function createRedisRateLimiter(url: string, { prefix = 'rl:', comm
     },
     async reset(policy, subject) {
       await redis.del(bucketKey(prefix, policy, subject));
+    },
+    async ping() {
+      await redis.ping();
     },
     async close() {
       redis.disconnect();

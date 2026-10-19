@@ -129,6 +129,7 @@ export const orders = pgTable(
     index('orders_created_idx').on(t.createdAt.desc()),
     index('orders_status_created_idx').on(t.status, t.createdAt.desc()),
     index('orders_customer_created_idx').on(t.customerId, t.createdAt.desc()),
+    index('orders_paid_placed_idx').on(t.placedAt).where(sql`${t.paymentStatus} = 'paid'`),
     index('orders_pending_expiry_idx').on(t.reservationExpiresAt).where(sql`${t.status} = 'pending_payment'`),
   ],
 );
@@ -158,6 +159,7 @@ export const orderItems = pgTable(
     ),
     index('order_items_order_idx').on(t.orderId),
     index('order_items_variant_idx').on(t.variantId),
+    index('order_items_product_idx').on(t.productId),
   ],
 );
 
@@ -303,6 +305,9 @@ export const paymentAttempts = pgTable(
     initializedAt: tstz('initialized_at'),
     paidAt: tstz('paid_at'),
     metadataRedacted: jsonb('metadata_redacted').notNull().default(sql`'{}'::jsonb`),
+    // Last provider event applied to this attempt (`event:reference:transactionId`); lets a redelivery be recognised without a separate events table.
+    webhookEventKey: text('webhook_event_key'),
+    webhookReceivedAt: tstz('webhook_received_at'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -318,20 +323,6 @@ export const paymentAttempts = pgTable(
     index('payment_attempts_order_created_idx').on(t.orderId, t.createdAt),
     index('payment_attempts_order_status_idx').on(t.orderId, t.status),
   ],
-);
-
-export const paymentWebhookEvents = pgTable(
-  'payment_webhook_events',
-  {
-    id: id(),
-    provider: text('provider').notNull(),
-    providerEventKey: text('provider_event_key').notNull(),
-    receivedAt: tstz('received_at').notNull().defaultNow(),
-    processedAt: tstz('processed_at'),
-    processingStatus: text('processing_status').notNull().default('received'),
-    payloadRedacted: jsonb('payload_redacted').notNull().default(sql`'{}'::jsonb`),
-  },
-  (t) => [uniqueIndex('payment_webhook_events_key_uq').on(t.provider, t.providerEventKey)],
 );
 
 export const orderStatusEvents = pgTable(

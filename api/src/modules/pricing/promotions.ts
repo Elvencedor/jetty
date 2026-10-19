@@ -29,6 +29,9 @@ export const SCOPE_SCHEMA = Joi.object({
 
 export type PromotionKind = keyof typeof CONFIG_SCHEMAS;
 
+/** Union of every kind's fields; which ones exist is guaranteed by the Joi schema chosen for `promo.kind` just before use. */
+type RuleConfig = { percent: number; maxDiscountMinor?: number; amountMinor: number; buy: number; get: number; percentOff: number; zoneIds?: string[] };
+
 export type EnginePromotion = {
   id: string;
   name: string;
@@ -124,7 +127,7 @@ export function applyPromotions(input: {
 
   for (const promo of ordered) {
     const schema = CONFIG_SCHEMAS[promo.kind];
-    const config = validated<Record<string, any>>(schema, promo.configuration);
+    const config = validated<RuleConfig>(schema, promo.configuration);
     const eligible = eligibleIndexes(promo.scope, lines);
     if (!config || !eligible || promo.kind === 'free_gift') {
       reject(promo, 'NOT_APPLICABLE');

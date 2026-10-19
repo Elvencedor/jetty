@@ -47,7 +47,7 @@ describe('customer auth', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not s
     ...over,
   });
   const place = (headers: Record<string, string>, over: Json = {}) =>
-    api.inject({ method: 'POST', url: '/api/v1/checkout', payload: checkoutBody(over), headers: { 'idempotency-key': `auth-key-${String(++n).padStart(8, '0')}-abcdef`, ...headers } });
+    api.inject({ method: 'POST', url: '/api/v1/checkout', payload: checkoutBody(over), headers: { 'idempotency-key': `auth-key-${String(++n).padStart(8, '0')}-abcdef-0123456789abcdefghijklmnopqrstuv`, ...headers } });
 
   before(async () => {
     t = await createTestDatabase();
@@ -226,7 +226,7 @@ describe('customer auth', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not s
     it('scopes idempotency keys per customer', async () => {
       const a = await register();
       const b = await register();
-      const key = 'shared-key-0000000000000001';
+      const key = 'shared-key-0000000000000001-0123456789abcdefghijklmnopqrstuv';
       const first = await api.inject({ method: 'POST', url: '/api/v1/checkout', payload: checkoutBody(), headers: { 'idempotency-key': key, ...bearer(a.body.accessToken) } });
       const second = await api.inject({ method: 'POST', url: '/api/v1/checkout', payload: checkoutBody(), headers: { 'idempotency-key': key, ...bearer(b.body.accessToken) } });
       assert.equal(first.statusCode, 201);

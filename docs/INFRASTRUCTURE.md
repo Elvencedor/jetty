@@ -62,7 +62,7 @@ and `media`; all clients use the same versioned API contract.
 | Database | Railway managed PostgreSQL | Same region as API; TLS; least-privilege credentials; enable provider backups; verify retention and point-in-time restore limits on the selected plan |
 | Background jobs | Railway worker using PostgreSQL transactional outbox | Persist jobs/outbox rows in the same transaction as commerce changes; bounded retries, backoff, deduplication, and failed-job visibility |
 | Scheduled work | Railway cron/scheduled service or worker scheduler | Expire stock reservations, process scheduled promotions, and run review requests/exports; make every scheduled action idempotent |
-| Media storage | Cloudflare R2 private bucket | Short-lived presigned upload intents; validate type/size; scan uploads; create WebP/AVIF derivatives in worker; immutable object keys and lifecycle rules |
+| Media storage | Cloudflare R2 private bucket | Short-lived presigned upload intents (type and size are signed in); the API stores object keys and serves presigned read URLs; no scanning or derivatives for now; immutable object keys and lifecycle rules |
 | DNS/CDN/WAF | Cloudflare | TLS, WAF/rate limits, static asset caching; cache only public read-only catalog responses, never customer/cart/checkout/admin responses |
 | Rate limiting | Railway Redis (limiter counters only) | App-level per-IP/account limits behind Cloudflare WAF; counters are disposable with TTLs, keys hold only hashed subjects, and the limiter fails open if Redis is down. Redis is not used for carts or jobs |
 | Cart | Client-side storefront state/storage | No server-side cart table, Redis service, or cart persistence API; client submits variant IDs/quantities and checkout inputs, which the API revalidates |
@@ -105,7 +105,7 @@ payment-provider environments. Never copy production customer data to staging.
 - Use Railway private networking between API, worker, and database where
   available on the selected plan. Restrict database credentials to the
   required services.
-- Protect the admin app with mandatory 2FA and application-level permissions;
+- Protect the admin app with application-level permissions (2FA is deferred; sign-in is email and password and fails closed when the rate limiter is down);
   edge access rules are additional protection, not authorization.
 - The worker (`npm run start:worker`) runs a one-minute maintenance pass:
   release expired stock reservations and promotion holds, and delete expired or
@@ -113,7 +113,7 @@ payment-provider environments. Never copy production customer data to staging.
 - Paystack calls a dedicated webhook service, a separate process and Railway
   service from the public API (`npm run start:webhook`, own `PORT`, no CORS or
   browser routes). It verifies `x-paystack-signature` over the raw body,
-  persists/deduplicates the event, then verifies transaction state and amount
+  verifies transaction state and amount (redeliveries are recognised from the attempt's own last event key)
   server-to-server and applies the shared settlement transaction. It needs
   `DATABASE_URL` and `PAYSTACK_SECRET_KEY` (and `PAYSTACK_WEBHOOK_SECRET` only
   if a separate signing secret exists). It answers `503` when verification is
@@ -151,7 +151,7 @@ environment secrets and rotate them.
 
 - Prefer hosted checkout or provider-hosted tokenization. Never collect or
   store PAN/CVV; store only provider tokens/references and redacted metadata.
-- Require 2FA for all admin users. Hash passwords and OTP/reset tokens; keep
+- Hash passwords and OTP/reset tokens; keep
   provider secrets in provider secret stores, not source code or images.
 - Enforce HTTPS; verify encryption-at-rest and backup encryption for selected
   provider plans. Use separate credentials for application, migrations, and

@@ -11,11 +11,12 @@ const normaliseOrderNumber = (value: string) => value.trim().toUpperCase();
 /** Timeline entries expose only the status and time; internal notes and actors stay private. */
 async function timeline(db: Db, orderId: string) {
   const events = await db
-    .select({ status: orderStatusEvents.toStatus, at: orderStatusEvents.createdAt })
+    .select({ status: orderStatusEvents.toStatus, from: orderStatusEvents.fromStatus, at: orderStatusEvents.createdAt })
     .from(orderStatusEvents)
     .where(eq(orderStatusEvents.orderId, orderId))
     .orderBy(asc(orderStatusEvents.createdAt), asc(orderStatusEvents.id));
-  return events.map((e) => ({ status: e.status, at: e.at }));
+  // Same-status rows are internal annotations (refunds, payment flags), not steps the customer should see.
+  return events.filter((e) => e.from !== e.status).map((e) => ({ status: e.status, at: e.at }));
 }
 
 const summary = (o: Order, itemCount: number) => ({
@@ -62,8 +63,8 @@ export async function listCustomerOrders(db: Db, customerId: string, input: { li
   const page = rows.slice(0, input.limit);
   const last = page[page.length - 1];
   return {
-    items: page.map((r) => summary(r.order, r.itemCount)),
-    nextCursor: rows.length > input.limit && last ? encodeCursor({ sort: 'orders', values: [last.cursorCreatedAt, last.order.id] }) : null,
+    data: page.map((r) => summary(r.order, r.itemCount)),
+    page: { nextCursor: rows.length > input.limit && last ? encodeCursor({ sort: 'orders', values: [last.cursorCreatedAt, last.order.id] }) : null },
   };
 }
 type SQLCursor = { createdAt: string; id: string };

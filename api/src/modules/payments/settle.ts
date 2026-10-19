@@ -22,6 +22,9 @@ export type AppliedPromotionSnapshot = {
   discountMinor: number;
 };
 
+/** Placeholder transaction id recorded when an admin confirms a payment by hand. */
+export const MANUAL_TRANSACTION_PREFIX = 'manual:';
+
 export type SettlementOutcome =
   | 'unknown_reference'
   | 'paid'
@@ -103,7 +106,22 @@ export async function settleTransaction(
       return { outcome: 'amount_mismatch', orderId };
     }
 
-    if (attempt.status === 'succeeded') return { outcome: 'already_settled', orderId };
+    if (attempt.status === 'succeeded') {
+      // An admin confirmed this payment by hand, and now the provider reports a real charge for the same reference.
+      // It may be the same money arriving late, or the customer may have paid twice: either way a person must look.
+      const confirmedByHand = attempt.providerTransactionId?.startsWith(MANUAL_TRANSACTION_PREFIX) ?? false;
+      const alreadyNoted = (attempt.metadataRedacted as { realTransactionId?: string }).realTransactionId === verified.transactionId;
+      if (confirmedByHand && !alreadyNoted) {
+        await tx
+          .update(paymentAttempts)
+          .set({ metadataRedacted: sql`${paymentAttempts.metadataRedacted} || ${JSON.stringify({ realTransactionId: verified.transactionId, realPaidAt: verified.paidAt })}::jsonb` })
+          .where(eq(paymentAttempts.id, attempt.id));
+        await recordEvent(tx, orderId, order.status, order.status, 'PROVIDER_CHARGE_AFTER_MANUAL_CONFIRMATION');
+        await alertOperations(tx, orderId, order.orderNumber, 'PROVIDER_CHARGE_AFTER_MANUAL_CONFIRMATION');
+        return { outcome: 'duplicate_charge', orderId };
+      }
+      return { outcome: 'already_settled', orderId };
+    }
 
     await tx
       .update(paymentAttempts)
