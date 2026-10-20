@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { browserStorage, registerPersisted, useStoreHydrated } from "./persisted";
+import { useStoreHydrated } from "./hydrated";
+import { browserStorage, registerPersisted } from "./persisted";
 
 /**
  * The client owns the cart, and it holds nothing the server must trust: variant ids, quantities and promotion

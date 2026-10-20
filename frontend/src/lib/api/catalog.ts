@@ -33,3 +33,19 @@ export const getSuggestions = (q: string, init: Init = {}) => apiFetch<{ data: S
 
 export const getReviews = (productId: string, params: { sort?: ReviewSort; rating?: number; limit?: number; cursor?: string } = {}, init: Init = {}) =>
   apiFetch<ReviewList>(`/products/${encodeURIComponent(productId)}/reviews`, { query: params, ...init });
+
+/** What a listing is scoped to: a category (`/shop/frontal`) or a curated collection (`/shop/new-arrivals`). */
+export type ListScope = { kind: "category" | "collection"; slug: string };
+
+// Collections list their products as they are curated, so text search and category do not apply to them.
+const withoutSearch = ({ q: _q, category: _category, ...rest }: ListParams) => rest;
+
+/** One page of a listing, in whichever scope it lives in. */
+export const getListing = (scope: ListScope | undefined, params: ListParams = {}, init: Init = {}) =>
+  scope?.kind === "collection"
+    ? getCollectionProducts(scope.slug, withoutSearch(params), init)
+    : getProducts({ ...params, ...(scope ? { category: scope.slug } : {}) }, init);
+
+/** Facets for a listing in its scope. */
+export const getScopedFacets = (scope: ListScope | undefined, params: Omit<ListParams, "sort" | "limit" | "cursor"> = {}, init: Init = {}) =>
+  getFacets({ ...params, ...(scope?.kind === "collection" ? { collection: scope.slug } : scope ? { category: scope.slug } : {}) }, init);

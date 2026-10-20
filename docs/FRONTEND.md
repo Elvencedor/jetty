@@ -212,6 +212,17 @@ Checks at the end of the phase: 116 unit/component tests, typecheck, lint and pr
 4. **Product detail (3d):** gallery with angle chips, keyboard/swipe, full-screen zoom; the "Build your wig" accordion (one step open, auto-advance, summary card); variant resolution from `variants[].optionValueIds` and availability (disabled/struck-through unavailable combinations); price via `POST /pricing/quote`; info tabs (markdown, sanitised); reviews summary, breakdown, rating filter and "see all"; delivery estimate with a state picker; sticky bar (quantity + Add to bag → CartStore + inline status row); local wishlist heart; Share via the Web Share API.
 - **Done when:** home, listing, search and PDP pass Lighthouse mobile budgets, filters survive reload and back/forward, and an e2e test adds a variant to the bag.
 
+**Status: built; Lighthouse budgets are measured in phase 4's performance pass.** Differences from the plan:
+- **`/shop/[[...slug]]` resolves the slug against `GET /categories`** and lists it as a category (`?category=`) or a collection (`/collections/{slug}/products`); an unknown slug is a not-found page.
+- **Pages call `await connection()` before `'use cache'` reads** (`lib/catalog/data.ts`, 1–60 minute lifetimes, tagged for later revalidation), so a build never needs the API and the shell survives an API outage (footer and announcements fall back to nothing).
+- **A missing product still answers 200.** The page streams, so the status is sent before the lookup finishes; Next adds `noindex` to the not-found content. Moving the check before the first byte would make the whole page uncacheable, so this is accepted.
+- **Native `<dialog>`** powers the filter sheet/drawer and the photo zoom; no dialog library.
+- **Stories, flash strip and the home "picks" tabs are built** (A5 landed); quiz and UGC sections are skipped when the API sends them.
+- **Wishlist is a persisted zustand store of slugs** (`/saved` reads each product fresh); list/grid choice is remembered in `ui-prefs`.
+- **Late-loading stores:** a persisted store whose module loads after the app-wide hydration pass (code-split behind a streamed section) now hydrates the moment it registers. Found by the browser tests: hearts did nothing on streamed pages.
+- **Browser tests run against a fixture API** (`e2e/mock-api.mjs`), so they need no database; 21 pass on phone and desktop profiles, axe-clean on home, listing and product pages.
+
+
 ### Phase 2 — Bag, checkout, confirmation (9 days)
 **Goal:** a guest can pay by card or bank transfer and see their order. *Depends on A1; A6 and A10 optional.*
 1. **CartStore + `useQuote` (1d)** with tests (merge duplicates, cross-tab sync, stale-quote refresh).

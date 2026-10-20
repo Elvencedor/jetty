@@ -1,4 +1,3 @@
-import { useSyncExternalStore } from "react";
 import { createJSONStorage } from "zustand/middleware";
 
 /** JSON storage over the browser's localStorage or sessionStorage. Safe on the server and when storage is blocked. */
@@ -6,7 +5,7 @@ export function browserStorage<S>(kind: "local" | "session") {
   return createJSONStorage<S>(() => (kind === "local" ? window.localStorage : window.sessionStorage));
 }
 
-type Persistable = {
+export type Persistable = {
   persist: {
     rehydrate: () => Promise<void> | void;
     hasHydrated: () => boolean;
@@ -15,6 +14,7 @@ type Persistable = {
 };
 
 const registry = new Set<Persistable>();
+let started = false;
 
 /**
  * UI-bound persisted stores start from their defaults on both the server and the first client render (so markup
@@ -22,17 +22,11 @@ const registry = new Set<Persistable>();
  */
 export function registerPersisted(store: Persistable): void {
   registry.add(store);
+  // A store whose module loads late (code split behind a streamed section) missed the app-wide pass: fill it now.
+  if (started) void store.persist.rehydrate();
 }
 
 export function rehydrateAll(): void {
+  started = true;
   for (const store of registry) void store.persist.rehydrate();
-}
-
-/** False on the server and on the first client render; true once the store has been filled from storage. */
-export function useStoreHydrated(store: Persistable): boolean {
-  return useSyncExternalStore(
-    (notify) => store.persist.onFinishHydration(notify),
-    () => store.persist.hasHydrated(),
-    () => false,
-  );
 }

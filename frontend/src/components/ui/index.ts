@@ -6,6 +6,7 @@ export * from "./Field";
 export * from "./IconButton";
 export * from "./Media";
 export * from "./Segmented";
+export * from "./Sheet";
 export * from "./Skeleton";
 export * from "./Spinner";
 export * from "./StatusPill";
