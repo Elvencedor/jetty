@@ -5,6 +5,7 @@ export * from "./EmptyState";
 export * from "./Field";
 export * from "./IconButton";
 export * from "./Media";
+export * from "./QuantityStepper";
 export * from "./Segmented";
 export * from "./Sheet";
 export * from "./Skeleton";

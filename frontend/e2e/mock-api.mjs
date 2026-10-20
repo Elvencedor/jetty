@@ -66,14 +66,17 @@ function listing(url, onlyOffer) {
   return { data: page, page: { nextCursor: next, ...(start === 0 ? { total: items.length } : {}) } };
 }
 
-function quote(items) {
+function quote(items, codes = []) {
   const lines = items.flatMap((i) => {
     const v = PRODUCTS.flatMap((p) => p.variants.map((x) => ({ p, x }))).find((r) => r.x.id === i.variantId);
     if (!v) return [];
     return [{ variantId: v.x.id, productId: v.p.id, slug: v.p.slug, title: v.p.title, image: null, options: [], optionSummary: "", compareAtPriceMinor: v.x.compareAtPrice?.amountMinor ?? null, availableQuantity: v.x.availability.availableQuantity, quantity: i.quantity, unitPriceMinor: v.x.price.amountMinor, lineSubtotalMinor: v.x.price.amountMinor * i.quantity, discountMinor: 0, lineTotalMinor: v.x.price.amountMinor * i.quantity, promotionAllocations: [] }];
   });
   const subtotal = lines.reduce((n, l) => n + l.lineTotalMinor, 0);
-  return { currency: "NGN", lines, promotions: { applied: [], rejectedCodes: [] }, warnings: [], subtotalMinor: subtotal, discountMinor: 0, delivery: null, deliveryFeeMinor: 0, taxMinor: 0, totalMinor: subtotal, quoteId: "q", quoteExpiresAt: "2099-01-01T00:00:00Z" };
+  const applied = codes.filter((c) => c === "SAVE10").map(() => ({ promotionId: "promo", name: "10% off", kind: "percentage", code: "SAVE10", discountMinor: Math.round(subtotal / 10) }));
+  const discount = applied.reduce((n, p) => n + p.discountMinor, 0);
+  const rejectedCodes = codes.filter((c) => c !== "SAVE10").map((code) => ({ code, reason: "INVALID_CODE" }));
+  return { currency: "NGN", lines, promotions: { applied, rejectedCodes }, warnings: [], subtotalMinor: subtotal, discountMinor: discount, delivery: null, deliveryFeeMinor: 0, taxMinor: 0, totalMinor: subtotal - discount, quoteId: "q", quoteExpiresAt: "2099-01-01T00:00:00Z" };
 }
 
 const server = createServer(async (req, res) => {
@@ -113,7 +116,7 @@ const server = createServer(async (req, res) => {
   }
   if (req.method === "POST") {
     const json = body ? JSON.parse(body) : {};
-    if (path === "/pricing/quote") return send(200, quote(json.items ?? []));
+    if (path === "/pricing/quote") return send(200, quote(json.items ?? [], json.promotionCodes ?? []));
     if (path === "/delivery/quotes") {
       return send(200, { currency: "NGN", zone: { id: "z", name: "Lagos", state: json.deliveryAddress?.state ?? "Lagos" }, warnings: [], options: [{ method: "same_day", available: true, baseFeeMinor: 300000, feeMinor: 300000, freeDeliveryPromotionId: null, estimate: { earliestDate: "2026-10-21", latestDate: "2026-10-21" } }] });
     }

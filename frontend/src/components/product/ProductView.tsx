@@ -1,10 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Check, Heart, Minus, Plus, Share2 } from "lucide-react";
+import { Check, Heart, Share2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Button } from "@/components/ui";
+import { Button, QuantityStepper } from "@/components/ui";
 import { getQuote } from "@/lib/api/pricing";
 import type { ProductDetail } from "@/lib/api/types";
 import { track } from "@/lib/analytics";
@@ -120,11 +120,7 @@ export function ProductView({ product, children }: Props) {
             </p>
           ) : null}
           <div className="flex items-center gap-3">
-            <div role="group" aria-label="Quantity" className="flex items-center rounded-pill bg-surface-tint">
-              <button type="button" aria-label="Decrease quantity" disabled={quantity <= 1} onClick={() => setQty(quantity - 1)} className="inline-flex size-11 items-center justify-center disabled:opacity-40"><Minus aria-hidden="true" size={16} /></button>
-              <output aria-live="polite" className="w-6 text-center text-body-sm font-bold">{quantity}</output>
-              <button type="button" aria-label="Increase quantity" disabled={!buyable || quantity >= max} onClick={() => setQty(quantity + 1)} className="inline-flex size-11 items-center justify-center disabled:opacity-40"><Plus aria-hidden="true" size={16} /></button>
-            </div>
+            <QuantityStepper value={quantity} onChange={setQty} max={buyable ? max : 1} disabled={!buyable} />
             <Button size="lg" fullWidth disabled={!buyable} onClick={onAdd}>
               {!variant ? "Choose options" : !buyable ? "Sold out" : total !== undefined ? `Add to bag · ${formatNaira(total)}` : "Add to bag"}
             </Button>
