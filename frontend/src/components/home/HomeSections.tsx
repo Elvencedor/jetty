@@ -18,15 +18,13 @@ const ICONS: Record<string, LucideIcon> = { lock: Lock, shield: Lock, return: Ro
 /** Only same-site paths from the CMS become links; anything else is dropped rather than trusted. */
 const safePath = (url: string | undefined) => (url && /^\/(?!\/)/.test(url) ? url : undefined);
 
-function Section({ title, href, children, label }: { title?: string; href?: string; children: React.ReactNode; label?: string }) {
+function Section({ title, href, children }: { title: string; href?: string; children: React.ReactNode }) {
   return (
-    <section aria-label={title ? undefined : label} aria-labelledby={undefined} className="flex flex-col gap-3">
-      {title ? (
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 className="font-display text-heading-md font-extrabold">{title}</h2>
-          {href ? <Link href={href} className="text-label font-semibold text-primary-strong">See all</Link> : null}
-        </div>
-      ) : null}
+    <section aria-label={title} className="flex flex-col gap-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="font-display text-heading-md font-extrabold">{title}</h2>
+        {href ? <Link href={href} className="text-label font-semibold text-primary-strong">See all</Link> : null}
+      </div>
       {children}
     </section>
   );

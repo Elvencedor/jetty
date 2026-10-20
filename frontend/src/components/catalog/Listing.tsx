@@ -2,7 +2,7 @@
 
 import { LayoutGrid, List, SlidersHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ProductCard, ProductCardSkeleton } from "@/components/commerce/ProductCard";
 import { Button, Chip, EmptyState } from "@/components/ui";
 import { getListing, type ListScope } from "@/lib/api/catalog";
@@ -75,7 +75,7 @@ export function Listing({ path, scope, state, initial, facets }: Props) {
     }
   }
 
-  const labels = facets ? Object.fromEntries(Object.entries(facets.options).map(([name, values]) => [name, Object.fromEntries(values.map((v) => [v.valueKey, name === "length" ? `${v.label}"` : v.label]))])) : {};
+  const labels = useMemo(() => (facets ? Object.fromEntries(Object.entries(facets.options).map(([name, values]) => [name, Object.fromEntries(values.map((v) => [v.valueKey, name === "length" ? `${v.label}"` : v.label]))])) : {}), [facets]);
   const chips = activeFilters(state, labels);
   const filterCount = countActiveFilters(state);
   const total = initial.total;

@@ -21,10 +21,10 @@ type Props = {
 
 /** Filters in a sheet (phone) or drawer (wider). Facet counts and the "Show N" total follow the draft selection. */
 export function FilterSheet({ open, onClose, state, scope, facets: initial, onApply }: Props) {
-  // Re-keyed on open, so the draft starts from the applied filters each time.
+  // The sheet renders its content only while open, so each opening starts from the applied filters.
   return (
     <Sheet open={open} onClose={onClose} title="Filters">
-      <Body key={String(open)} state={state} scope={scope} initial={initial} onClose={onClose} onApply={onApply} />
+      <Body state={state} scope={scope} initial={initial} onClose={onClose} onApply={onApply} />
     </Sheet>
   );
 }
@@ -36,10 +36,13 @@ function Body({ state, scope, initial, onClose, onApply }: { state: ListState; s
 
   const filters = toApiParams(draft);
   const { sort: _sort, ...facetParams } = filters;
+  // Until the draft changes, the server's facets already answer the question: no request on opening.
+  const untouched = draft === state;
   const { data: facets = initial } = useQuery({
     queryKey: ["facets", scope ?? null, facetParams],
     queryFn: ({ signal }) => getScopedFacets(scope, facetParams, { signal }),
     placeholderData: keepPreviousData,
+    ...(untouched && initial ? { initialData: initial } : {}),
     staleTime: 30_000,
   });
   const { data: count } = useQuery({

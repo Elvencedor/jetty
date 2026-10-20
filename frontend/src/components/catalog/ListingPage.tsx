@@ -25,6 +25,8 @@ export async function ListingPage({ path, scope, state }: { path: string; scope?
       </EmptyState>
     );
   }
-  // A new query is a new component, so appended pages from the old one are discarded.
-  return <Listing key={toSearchParams(state).toString()} path={path} scope={scope} state={state} initial={{ items: page.data, nextCursor: page.page.nextCursor, total: page.page.total ?? null }} facets={facets} />;
+  // A new query is a new component, so appended pages from the old one are discarded. The layout does not change
+  // which products match, so switching it keeps the pages already loaded.
+  const key = toSearchParams({ ...state, view: "grid" }).toString();
+  return <Listing key={key} path={path} scope={scope} state={state} initial={{ items: page.data, nextCursor: page.page.nextCursor, total: page.page.total ?? null }} facets={facets} />;
 }

@@ -28,7 +28,8 @@ export function SearchBox({ className, initial = "" }: { className?: string; ini
     enabled: term.length >= MIN_CHARS,
     staleTime: 60_000,
   });
-  const showList = open && text.trim().length >= MIN_CHARS && suggestions.length > 0;
+  // Only while the suggestions belong to what is typed now (the query lags typing by the debounce).
+  const showList = open && text.trim().length >= MIN_CHARS && term === text.trim() && suggestions.length > 0;
 
   const go = (href: string) => {
     setOpen(false);
