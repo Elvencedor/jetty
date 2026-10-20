@@ -52,9 +52,12 @@ export function Bag() {
   if (!hydrated) return <Skeleton className="h-64 w-full" />;
   if (!lines.length && !removed.length) {
     return (
-      <EmptyState title="Your bag is empty" action={<Button href="/shop">Shop wigs</Button>}>
-        Add a wig you love and it will wait for you here.
-      </EmptyState>
+      <>
+        <h1 className="sr-only">My bag</h1>
+        <EmptyState title="Your bag is empty" action={<Button href="/shop">Shop wigs</Button>}>
+          Add a wig you love and it will wait for you here.
+        </EmptyState>
+      </>
     );
   }
 

@@ -15,6 +15,8 @@ const TABS: { href: string; label: string; icon: LucideIcon; match: (path: strin
 /** Phone navigation, fixed to the bottom edge. Hidden from 1024px, where the header carries it. */
 export function BottomTabBar() {
   const pathname = usePathname();
+  // Checkout is a focused flow with its own bar at the bottom of the screen.
+  if (pathname.startsWith("/checkout")) return null;
   return (
     <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden">
       <ul className="mx-auto flex max-w-xl">

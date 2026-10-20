@@ -232,6 +232,15 @@ Checks at the end of the phase: 116 unit/component tests, typecheck, lint and pr
 5. **Confirmation + tracking (1d):** `OrderTracker`, status-driven hero, pending-transfer and cancelled/refunded variants, 30s polling while non-final; `/track` form (order number + phone, 404 handled as "not found"); copy on pickup orders.
 - **Done when:** the Playwright purchase flow (browse → bag → code → checkout → mocked Paystack success → confirmation) passes, plus failure and reservation-expiry paths; a real Paystack test-mode payment succeeds on a phone.
 
+**Status: built, except what needs a real Paystack account.** Differences from the plan:
+- **Confirmation lives at `/order/[orderId]/confirmed`** (the status endpoint is keyed by order id, and a guest's cookie is bound to it), and payment at `/checkout/pay?order=` with `/checkout/return?reference=` for redirect-style returns.
+- **Validation is hand-written** (`lib/checkout/validation.ts`, mirrors the API's Joi rules, 13 tests) rather than zod: the rules are a dozen lines and it keeps a schema library out of the bundle.
+- **The Paystack window is exercised only by the library itself.** The browser tests cover everything around it (steps, submit, return-and-verify, failure and retry, confirmation) against the fixture API; opening the real popup needs a Paystack test key, so that last check is the one remaining item for "done when".
+- **Safety nets:** an identical resubmit reuses its idempotency key (a changed request gets a new one); the order id, reference and access code are kept in sessionStorage so a reload resumes the same payment; if the server's total differs from the one reviewed, the shopper must confirm the new amount before the window opens; the bag is emptied only when the server says paid.
+- **Left out because the API does not provide it yet:** the DealTracker and coupon tickets (A6), "price changed since added" on bag lines (the quote carries no earlier price), USSD and pay-on-delivery (P1).
+- Bottom tab bar is hidden during checkout (it shares the bottom edge with the step bar).
+
+
 ### Phase 3 — Accounts (4 days)
 - Sign-in page with three paths: password, phone + OTP (resend cooldown 60s, 6-digit input with auto-submit), password reset by phone or email. Register inline at checkout/Me. Handle `INVALID_CREDENTIALS`, `INVALID_CODE`, `429` with `Retry-After`.
 - Me tab and `/account`: profile, sign out. Order history (cursor paging) and detail with the same `OrderTracker`; guests get a prompt to track.

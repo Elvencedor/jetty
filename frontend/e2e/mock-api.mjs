@@ -79,6 +79,16 @@ function quote(items, codes = []) {
   return { currency: "NGN", lines, promotions: { applied, rejectedCodes }, warnings: [], subtotalMinor: subtotal, discountMinor: discount, delivery: null, deliveryFeeMinor: 0, taxMinor: 0, totalMinor: subtotal - discount, quoteId: "q", quoteExpiresAt: "2099-01-01T00:00:00Z" };
 }
 
+// Orders placed during a test run, keyed by id. A recipient named "Fail Test" gets a payment that has already failed.
+const orders = new Map();
+let counter = 0;
+const orderStatus = (o) => ({
+  orderId: o.id, orderNumber: o.number, status: o.paid ? "placed" : "pending_payment", paymentStatus: o.paid ? "paid" : "pending", amountMinor: o.amount, currency: "NGN",
+  reservationExpiresAt: "2099-01-01T00:00:00Z", deliveryMethod: o.deliveryMethod, estimate: { earliestDate: "2026-10-21", latestDate: "2026-10-21" }, itemCount: o.items,
+  recipientFirstName: o.firstName, paymentAttempt: { id: "a" + o.attempt, status: o.paid ? "succeeded" : o.failed ? "failed" : "pending" },
+});
+const paymentStart = (o) => ({ orderId: o.id, orderNumber: o.number, paymentAttemptId: "a" + o.attempt, provider: "paystack", reference: `ref-${o.id}-${o.attempt}`, accessCode: "code" + o.attempt, authorizationUrl: "https://checkout.paystack.com/x", amountMinor: o.amount, currency: "NGN", reservationExpiresAt: "2099-01-01T00:00:00Z" });
+
 const server = createServer(async (req, res) => {
   const origin = req.headers.origin ?? "*";
   res.setHeader("Access-Control-Allow-Origin", origin);
@@ -104,6 +114,8 @@ const server = createServer(async (req, res) => {
       const q = (url.searchParams.get("q") ?? "").toLowerCase();
       return send(200, { data: PRODUCTS.filter((p) => p.title.toLowerCase().includes(q)).map((p) => ({ id: p.id, slug: p.slug, title: p.title, image: null })) });
     }
+    const status = path.match(/^\/checkout\/([^/]+)\/status$/);
+    if (status) return orders.has(status[1]) ? send(200, orderStatus(orders.get(status[1]))) : send(404, { error: { code: "NOT_FOUND", message: "Not found", requestId: "r" } });
     const reviews = path.match(/^\/products\/([^/]+)\/reviews$/);
     if (reviews) return send(200, { summary: { average: 4.8, count: 3, breakdown: { 1: 0, 2: 0, 3: 0, 4: 1, 5: 2 } }, data: [{ id: "r1", rating: 5, title: "Love it", body: "Lies flat.", location: "Lagos", verifiedBuyer: true, variant: null, createdAt: "2026-02-01T00:00:00Z" }], page: { nextCursor: null } });
     const collection = path.match(/^\/collections\/([^/]+)\/products$/);
@@ -119,6 +131,30 @@ const server = createServer(async (req, res) => {
     if (path === "/pricing/quote") return send(200, quote(json.items ?? [], json.promotionCodes ?? []));
     if (path === "/delivery/quotes") {
       return send(200, { currency: "NGN", zone: { id: "z", name: "Lagos", state: json.deliveryAddress?.state ?? "Lagos" }, warnings: [], options: [{ method: "same_day", available: true, baseFeeMinor: 300000, feeMinor: 300000, freeDeliveryPromotionId: null, estimate: { earliestDate: "2026-10-21", latestDate: "2026-10-21" } }] });
+    }
+    if (path === "/checkout") {
+      const q = quote(json.items ?? [], json.promotionCodes ?? []);
+      const n = ++counter;
+      const o = { id: id(900 + n), number: `JH-${10000 + n}`, amount: q.totalMinor + 300000, paid: false, failed: json.deliveryAddress?.recipientName === "Fail Test", attempt: 1, items: (json.items ?? []).length, deliveryMethod: json.deliveryMethod, firstName: String(json.deliveryAddress?.recipientName ?? "").split(" ")[0], phone: json.contact?.phone };
+      orders.set(o.id, o);
+      return send(201, { ...paymentStart(o), quote: q });
+    }
+    if (path === "/checkout/paystack/verify") {
+      const o = [...orders.values()].find((x) => json.reference === `ref-${x.id}-${x.attempt}`);
+      if (!o) return send(404, { error: { code: "NOT_FOUND", message: "Unknown reference", requestId: "r" } });
+      o.paid = true;
+      return send(200, orderStatus(o));
+    }
+    const retry = path.match(/^\/checkout\/([^/]+)\/payment-attempts$/);
+    if (retry && orders.has(retry[1])) {
+      const o = orders.get(retry[1]);
+      o.attempt += 1;
+      o.failed = false;
+      return send(201, paymentStart(o));
+    }
+    if (path === "/orders/track") {
+      const o = [...orders.values()].find((x) => x.number === json.orderNumber && x.phone === json.phone);
+      return o ? send(200, { orderNumber: o.number, status: o.paid ? "placed" : "pending_payment", paymentStatus: o.paid ? "paid" : "pending", deliveryMethod: o.deliveryMethod, placedAt: "2026-10-20T10:00:00Z", timeline: [] }) : send(404, { error: { code: "NOT_FOUND", message: "Not found", requestId: "r" } });
     }
     return send(204);
   }
