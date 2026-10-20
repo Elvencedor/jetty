@@ -4,7 +4,7 @@ import { apiError, notFound } from '../../lib/errors.js';
 import { withUrl, withUrls } from '../../modules/media/urls.js';
 import { LIMITS } from '../../lib/rate-policies.js';
 import { collectionExists, getCategoryTree, getProductBySlug } from '../../modules/catalog/detail.js';
-import { listProducts, PRODUCT_SORTS, suggestProducts, type ProductFilters, type ProductPage, type ProductSort } from '../../modules/catalog/listing.js';
+import { getFacets, listProducts, PRODUCT_SORTS, suggestProducts, type ProductFilters, type ProductPage, type ProductSort } from '../../modules/catalog/listing.js';
 import { db } from './shared.js';
 
 const OPTION_FILTERS = ['texture', 'lace', 'length', 'density', 'colour'] as const;
@@ -123,6 +123,29 @@ export const catalogRoutes: ServerRoute[] = [
         ...(query.cursor ? { cursor: query.cursor } : {}),
       });
       return publicCache(h, withCardImages(request, page));
+    },
+  },
+  {
+    method: 'GET',
+    path: '/products/facets',
+    options: {
+      auth: false,
+      plugins: { rateLimit: { ip: [LIMITS.facets] } },
+      description: 'Filter options, counts and price range for the current selection',
+      tags: ['api', 'catalog'],
+      validate: {
+        query: Joi.object({
+          ...Object.fromEntries(Object.entries(listQuery).filter(([k]) => !['limit', 'cursor', 'sort'].includes(k))),
+          q: Joi.string().trim().min(1).max(100),
+          category: slug,
+          collection: slug,
+        }),
+      },
+    },
+    handler: async (request, h) => {
+      const query = request.query as unknown as ListQuery & { collection?: string };
+      const facets = await getFacets(db(request), toFilters(query, query.collection ? { collectionSlug: query.collection } : {}));
+      return publicCache(h, { data: facets });
     },
   },
   {

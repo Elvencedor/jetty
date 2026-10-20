@@ -16,7 +16,7 @@ async function main(): Promise<void> {
   const rateLimiter = env.RATE_LIMIT_ENABLED && env.REDIS_URL ? await createRedisRateLimiter(env.REDIS_URL) : undefined;
   const storage =
     env.MEDIA_S3_ENDPOINT && env.MEDIA_S3_BUCKET && env.MEDIA_S3_ACCESS_KEY_ID && env.MEDIA_S3_SECRET_ACCESS_KEY
-      ? new S3Storage({ endpoint: env.MEDIA_S3_ENDPOINT, bucket: env.MEDIA_S3_BUCKET, accessKeyId: env.MEDIA_S3_ACCESS_KEY_ID, secretAccessKey: env.MEDIA_S3_SECRET_ACCESS_KEY, region: env.MEDIA_S3_REGION })
+      ? new S3Storage({ endpoint: env.MEDIA_S3_ENDPOINT, bucket: env.MEDIA_S3_BUCKET, accessKeyId: env.MEDIA_S3_ACCESS_KEY_ID, secretAccessKey: env.MEDIA_S3_SECRET_ACCESS_KEY, region: env.MEDIA_S3_REGION, publicBaseUrl: env.MEDIA_PUBLIC_BASE_URL })
       : undefined;
   const server = await createServer({ env, logger, database, payments, rateLimiter, storage });
 

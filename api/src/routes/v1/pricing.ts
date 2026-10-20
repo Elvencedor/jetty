@@ -2,6 +2,7 @@ import { LIMITS } from '../../lib/rate-policies.js';
 import type { ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
 import { DELIVERY_METHODS, type DeliveryMethod } from '../../modules/delivery/zones.js';
+import { withLineImages } from '../../modules/media/urls.js';
 import { deliveryQuote, quote } from '../../modules/pricing/quote.js';
 import { db, NO_STORE } from './shared.js';
 
@@ -38,8 +39,9 @@ export const pricingRoutes: ServerRoute[] = [
     method: 'POST',
     path: '/pricing/quote',
     options: {
-      auth: false,
+      auth: { strategy: 'customer', mode: 'try' },
       plugins: { rateLimit: { ip: [LIMITS.quote] } },
+      // A signed-in customer gets the same offers at quote time that checkout will apply; a bad token is just a guest.
       description: 'Stateless server-calculated quote for submitted variants, promotion codes and delivery',
       tags: ['api', 'pricing'],
       validate: {
@@ -58,15 +60,16 @@ export const pricingRoutes: ServerRoute[] = [
         promotionCodes: body.promotionCodes,
         ...(body.deliveryAddress ? { deliveryAddress: body.deliveryAddress } : {}),
         ...(body.deliveryMethod ? { deliveryMethod: body.deliveryMethod } : {}),
+        customerId: request.auth.credentials?.customerId,
       });
-      return h.response(result).header('Cache-Control', NO_STORE);
+      return h.response(withLineImages(request.server.app.storage, result)).header('Cache-Control', NO_STORE);
     },
   },
   {
     method: 'POST',
     path: '/delivery/quotes',
     options: {
-      auth: false,
+      auth: { strategy: 'customer', mode: 'try' },
       plugins: { rateLimit: { ip: [LIMITS.quote] } },
       description: 'Delivery zone, methods, fees, ETAs and same-day eligibility for a destination and cart',
       tags: ['api', 'delivery'],
@@ -78,6 +81,7 @@ export const pricingRoutes: ServerRoute[] = [
         items: body.items,
         promotionCodes: body.promotionCodes,
         deliveryAddress: body.deliveryAddress,
+        customerId: request.auth.credentials?.customerId,
       });
       return h.response(result).header('Cache-Control', NO_STORE);
     },

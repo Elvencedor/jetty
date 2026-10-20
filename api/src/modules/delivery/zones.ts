@@ -115,3 +115,16 @@ export function deliveryOptions(zone: DeliveryZone, now: Date = new Date()): Del
   if (zone.pickupEnabled) options.push({ method: 'pickup', available: true, baseFeeMinor: 0, estimate: null });
   return options;
 }
+
+export type DeliveryEstimate = { earliestDate: string; latestDate: string };
+
+/**
+ * Delivery window for an order that was placed at `placedAt`: the method's transit days counted from the local
+ * date it was placed. Pickup has no window.
+ */
+export function estimateFor(method: string, placedAt: Date, timeZone = 'Africa/Lagos'): DeliveryEstimate | null {
+  if (method === 'pickup' || !(method in TRANSIT_DAYS)) return null;
+  const [from, to] = TRANSIT_DAYS[method as keyof typeof TRANSIT_DAYS];
+  const today = localClock(placedAt, timeZone).date;
+  return { earliestDate: addDays(today, from), latestDate: addDays(today, to) };
+}

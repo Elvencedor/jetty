@@ -32,6 +32,11 @@ export function render(eventType: string, channel: Channel, recipient: string, p
       const subject = eventType === 'order.delivered' ? `Order ${orderNumber} ${pickup ? 'collected' : 'delivered'}` : eventType === 'order.packed' ? `Order ${orderNumber} packed` : `Order ${orderNumber} out for delivery`;
       return channel === 'sms' ? { to: recipient, text: `${STORE}: your order ${orderNumber} ${line}.` } : { to: recipient, subject, text: `Hello from ${STORE},\n\nYour order ${orderNumber} ${line}.` };
     }
+    case 'order.cancelled': {
+      if (!orderNumber) return null;
+      const line = `Your order ${orderNumber} has been cancelled.${payload.refundDue === true ? ' Your payment will be refunded; we will message you when it starts.' : ''}`;
+      return channel === 'sms' ? { to: recipient, text: `${STORE}: ${line}` } : { to: recipient, subject: `Order ${orderNumber} cancelled`, text: `Hello from ${STORE},\n\n${line}` };
+    }
     case 'order.refunded': {
       if (!orderNumber || typeof payload.amount !== 'string') return null;
       const line = `A refund of ₦${payload.amount} for order ${orderNumber} has been started. Your bank may take a few days to show it.`;

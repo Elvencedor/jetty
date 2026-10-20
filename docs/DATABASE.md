@@ -94,7 +94,7 @@ removed; anything undelivered after ten minutes is expired and scrubbed.
 |---|---|---|
 | `products` | `id`, unique `slug`, `title`, `description`, `status` (`draft`, `active`, `archived`), `featured`, `badge_override`, `seo_title`, `seo_description`, `details_json`, `published_at`; index active products by `published_at` | P0 |
 | `product_options` | `id`, `product_id`, `name` (e.g. length, lace, density, colour, cap size), `sort_order`, unique `(product_id, name)` | P0 |
-| `product_option_values` | `id`, `option_id`, `label`, `value_key`, `price_delta_minor`, `sort_order`, `active`, unique `(option_id, value_key)` | P0 |
+| `product_option_values` | `id`, `option_id`, `label`, `swatch` (nullable `#rrggbb`, for colour options), `value_key`, `price_delta_minor`, `sort_order`, `active`, unique `(option_id, value_key)` | P0 |
 | `product_variants` | `id`, `product_id`, unique `sku`, `option_signature` (canonical JSONB), `price_minor`, nullable `compare_at_price_minor`, `currency`, `active`; unique `(product_id, option_signature)` | P0 |
 | `variant_option_values` | `(variant_id, option_value_id)` PK/FKs; ensure each value belongs to an option on the same product in application validation or a database trigger | P0 |
 | `product_media` | `id`, `product_id`, nullable `variant_id`, `object_key`, `alt_text`, `media_type`, `angle`, `sort_order`, `is_cover`, `width`, `height`; object contents live in object storage | P0 |

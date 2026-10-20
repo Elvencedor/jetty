@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, lt, or, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
-import { orderItems, orderStatusEvents, orders } from '../../db/schema/index.js';
+import { deliveries, orderItems, orderStatusEvents, orders, productMedia, products, reviews } from '../../db/schema/index.js';
+import { estimateFor } from '../delivery/zones.js';
 import { decodeCursor, encodeCursor } from '../../lib/cursor.js';
 import { notFound } from '../../lib/errors.js';
 
@@ -81,12 +82,40 @@ export async function getCustomerOrder(db: Db, customerId: string, orderId: stri
     .orderBy(asc(orderItems.titleSnapshot), asc(orderItems.id));
   const applied = (order.appliedPromotions as { code: string | null; discountMinor: number }[]) ?? [];
 
+  // Product page link and photo for each line, and whether the customer can still review it.
+  const productIds = [...new Set(items.map((i) => i.productId).filter((id): id is string => id !== null))];
+  const [slugRows, mediaRows, reviewed] = await Promise.all([
+    productIds.length ? db.select({ id: products.id, slug: products.slug }).from(products).where(inArray(products.id, productIds)) : [],
+    productIds.length
+      ? db
+          .select({ productId: productMedia.productId, objectKey: productMedia.objectKey, altText: productMedia.altText, width: productMedia.width, height: productMedia.height })
+          .from(productMedia)
+          .where(inArray(productMedia.productId, productIds))
+          .orderBy(desc(productMedia.isCover), asc(productMedia.sortOrder), asc(productMedia.createdAt))
+      : [],
+    items.length ? db.select({ orderItemId: reviews.orderItemId }).from(reviews).where(and(eq(reviews.customerId, customerId), inArray(reviews.orderItemId, items.map((i) => i.id)))) : [],
+  ]);
+  const slugById = new Map(slugRows.map((r) => [r.id, r.slug]));
+  const imageById = new Map<string, { objectKey: string; altText: string | null; width: number | null; height: number | null }>();
+  for (const m of mediaRows) if (!imageById.has(m.productId)) imageById.set(m.productId, { objectKey: m.objectKey, altText: m.altText, width: m.width, height: m.height });
+  const reviewedIds = new Set(reviewed.map((r) => r.orderItemId));
+  const canReview = order.status === 'delivered' && order.paymentStatus === 'paid';
+  const [delivery] = order.status === 'out_for_delivery' ? await db.select().from(deliveries).where(eq(deliveries.orderId, order.id)) : [];
+
   return {
     ...summary(order, items.reduce((n, i) => n + i.quantity, 0)),
     contact: { phone: order.phoneE164, email: order.email },
     deliveryMethod: order.deliveryMethod,
     deliveryAddress: order.deliveryAddressSnapshot,
+    estimate: estimateFor(order.deliveryMethod, order.placedAt ?? order.createdAt),
+    /** Rider details, only while the order is out for delivery. */
+    rider: delivery && (delivery.riderName || delivery.riderPhoneE164) ? { name: delivery.riderName, phone: delivery.riderPhoneE164, carrier: delivery.carrier, trackingReference: delivery.trackingReference } : null,
     items: items.map((i) => ({
+      id: i.id,
+      slug: i.productId ? (slugById.get(i.productId) ?? null) : null,
+      image: i.productId ? (imageById.get(i.productId) ?? null) : null,
+      /** True once the order is delivered and this line has no review from the customer yet. */
+      reviewable: canReview && i.productId !== null && !reviewedIds.has(i.id),
       productId: i.productId,
       variantId: i.variantId,
       sku: i.skuSnapshot,

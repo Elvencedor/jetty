@@ -62,7 +62,11 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
       const banner = await call('POST', '/admin/content', { contentType: 'banner', title: 'Summer', body: { headline: 'Summer drop', ctaLabel: 'Shop', ctaUrl: '/shop' } }, editor);
       assert.equal(banner.status, 201, JSON.stringify(banner.body));
       assert.equal(banner.body.status, 'draft');
-      const home = async () => ((await api.inject({ url: '/api/v1/storefront/home' })).result as Json).data;
+      const home = async () => {
+        const data = ((await api.inject({ url: '/api/v1/storefront/home' })).result as Json).data;
+        const section = (type: string) => data.sections.find((x: Json) => x.type === type);
+        return { banners: section('hero')?.cards ?? [], featured: { products: section('products')?.tabs.find((t: Json) => t.key === 'featured')?.products ?? [] } };
+      };
       assert.equal((await home()).banners.length, 0);
 
       await call('PATCH', `/admin/content/${banner.body.id}`, { status: 'published' }, editor);

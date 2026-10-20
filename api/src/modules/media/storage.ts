@@ -13,15 +13,16 @@ export type StoredObject = { sizeBytes: number; contentType: string | null };
 export interface ObjectStorage {
   presignUpload(input: { key: string; contentType: string; sizeBytes: number; expiresInSeconds: number; now?: Date }): UploadIntent;
   /**
-   * Time-limited read URL for a private object. Signed at the start of the current hour and valid for two, so the
-   * URL for a given key is identical for an hour at a time and browsers and CDNs can cache it.
+   * URL a browser can read an object from. With a CDN configured (`publicBaseUrl`) this is a stable public URL.
+   * Otherwise it is a presigned read URL signed at the start of the current hour and valid for two, so the URL for
+   * a key is identical for an hour at a time and can still be cached.
    */
-  presignDownload(key: string, now?: Date): string;
+  urlFor(key: string, now?: Date): string;
   /** Server-side existence/size check used to finalise an upload; null when the object is not there. */
   head(key: string): Promise<StoredObject | null>;
 }
 
-export type S3Options = { endpoint: string; bucket: string; accessKeyId: string; secretAccessKey: string; region: string; fetch?: typeof fetch };
+export type S3Options = { /** CDN (or public bucket) origin that serves the bucket, e.g. https://media.example.com */ publicBaseUrl?: string | undefined; endpoint: string; bucket: string; accessKeyId: string; secretAccessKey: string; region: string; fetch?: typeof fetch };
 
 const hmac = (key: Buffer | string, data: string) => createHmac('sha256', key).update(data).digest();
 const sha = (data: string) => createHash('sha256').update(data).digest('hex');
@@ -74,7 +75,8 @@ export class S3Storage implements ObjectStorage {
     };
   }
 
-  presignDownload(key: string, now: Date = new Date()): string {
+  urlFor(key: string, now: Date = new Date()): string {
+    if (this.o.publicBaseUrl) return `${this.o.publicBaseUrl.replace(/\/+$/, '')}/${encodePath(key)}`;
     const hour = new Date(Math.floor(now.getTime() / 3_600_000) * 3_600_000);
     return this.sign('GET', key, {}, 2 * 3600, hour);
   }

@@ -14,7 +14,7 @@ const ALL = ['*'];
 
 export const ROLE_PERMISSIONS = {
   owner: ALL,
-  manager: ['catalog:write', 'orders:write', 'promotions:write', 'content:write', 'customers:read', 'analytics:read', 'inventory:write', 'reviews:moderate', 'settings:read', 'orders:refund'],
+  manager: ['catalog:write', 'orders:write', 'promotions:write', 'content:write', 'customers:read', 'analytics:read', 'inventory:write', 'reviews:moderate', 'settings:read', 'orders:refund', 'orders:cancel'],
   fulfilment: ['orders:read', 'orders:fulfil', 'inventory:read'],
   content_editor: ['content:write', 'catalog:read'],
   support: ['orders:read', 'customers:read', 'reviews:moderate'],

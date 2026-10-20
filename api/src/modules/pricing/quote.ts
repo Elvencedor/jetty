@@ -6,7 +6,7 @@ import { priceCart, type CartItem, type PricedCart } from './cart.js';
 
 export const QUOTE_TTL_MS = 15 * 60 * 1000;
 
-type Common = { items: CartItem[]; promotionCodes: string[]; now?: Date };
+type Common = { items: CartItem[]; promotionCodes: string[]; customerId?: string | undefined; now?: Date };
 
 async function requireZone(db: Db, destination: Destination): Promise<DeliveryZone> {
   const zone = await resolveZone(db, destination);
@@ -32,7 +32,7 @@ export async function quote(db: Db, input: Common & { deliveryAddress?: Destinat
     }
   }
 
-  const cart = await priceCart(db, { items: input.items, promotionCodes: input.promotionCodes, zoneId: zone?.id, now });
+  const cart = await priceCart(db, { items: input.items, promotionCodes: input.promotionCodes, zoneId: zone?.id, customerId: input.customerId, now });
   const deliveryFeeMinor = option ? feeFor(option, cart) : 0;
   const taxMinor = 0; // Tax/VAT settings are P1 (SET-06).
 
@@ -68,7 +68,7 @@ export async function quote(db: Db, input: Common & { deliveryAddress?: Destinat
 export async function deliveryQuote(db: Db, input: Common & { deliveryAddress: Destination }) {
   const now = input.now ?? new Date();
   const zone = await requireZone(db, input.deliveryAddress);
-  const cart = await priceCart(db, { items: input.items, promotionCodes: input.promotionCodes, zoneId: zone.id, now });
+  const cart = await priceCart(db, { items: input.items, promotionCodes: input.promotionCodes, zoneId: zone.id, customerId: input.customerId, now });
 
   return {
     currency: cart.currency,

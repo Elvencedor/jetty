@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
-import { adminAuditLog, deliveries, notificationOutbox, orderItems, orders, orderStatusEvents, paymentAttempts, refunds, customers } from '../../db/schema/index.js';
+import { adminAuditLog, customers, deliveries, inventory, inventoryMovements, notificationOutbox, orderItems, orders, orderStatusEvents, paymentAttempts, refunds, stockReservations } from '../../db/schema/index.js';
+import { releasePromotionHolds } from '../promotions/holds.js';
 import { decodeCursor, encodeCursor } from '../../lib/cursor.js';
 import { apiError, conflict, notFound } from '../../lib/errors.js';
 import { PaymentIndeterminateError, type PaymentProvider } from '../payments/provider.js';
@@ -39,7 +40,11 @@ export async function listAdminOrders(db: Db, input: OrderListInput) {
     select o.id, o.order_number, o.status, o.payment_status, o.total_minor, o.currency, o.delivery_method, o.phone_e164, o.email,
       o.delivery_address_snapshot->>'recipientName' as recipient, o.customer_id is not null as has_account,
       o.placed_at, o.created_at, o.created_at::text as cur_at,
-      (select coalesce(sum(quantity), 0)::int from order_items oi where oi.order_id = o.id) as item_count
+      (select coalesce(sum(quantity), 0)::int from order_items oi where oi.order_id = o.id) as item_count,
+      (select coalesce(json_agg(x), '[]'::json) from (
+         select oi.title_snapshot as title, oi.quantity,
+           (select pm.object_key from product_media pm where pm.product_id = oi.product_id order by pm.is_cover desc, pm.sort_order, pm.created_at limit 1) as object_key
+         from order_items oi where oi.order_id = o.id order by oi.title_snapshot limit 3) x) as preview
     from orders o where ${sql.join(where, sql` and `)} ${after}
     order by o.created_at desc, o.id desc limit ${input.limit + 1}`)) as unknown as Record<string, unknown>[];
   const hasMore = rows.length > input.limit;
@@ -59,6 +64,8 @@ export async function listAdminOrders(db: Db, input: OrderListInput) {
       recipientName: (r.recipient as string | null) ?? null,
       hasAccount: r.has_account as boolean,
       itemCount: r.item_count as number,
+      /** Up to three lines for the thumbnails column; `image` carries only the stored key until the route adds a URL. */
+      items: (r.preview as { title: string; quantity: number; object_key: string | null }[]).map((i) => ({ title: i.title, quantity: i.quantity, image: i.object_key ? { objectKey: i.object_key } : null })),
       placedAt: r.placed_at ? new Date(r.placed_at as string).toISOString() : null,
       createdAt: new Date(r.created_at as string).toISOString(),
     })),
@@ -189,4 +196,90 @@ export async function confirmTransfer(db: Db, provider: PaymentProvider | undefi
     now,
   );
   return done(settled.outcome, 'manual', await reload());
+}
+
+// ------------------------------------------------------------- cancellation
+
+export type CancelRequest = { reason: string; /** Put the goods back on the shelf. Defaults to true; pass false if they were damaged or lost. */ restock?: boolean | undefined };
+
+/**
+ * Cancels an order that has not left the building. An unpaid order simply stops holding stock and promotion slots;
+ * a paid one is cancelled and (by default) its stock goes back on the shelf. Refunding is a separate step, so a
+ * cancelled-but-paid order is exactly what the refund endpoint expects to find. Anything out for delivery or
+ * delivered is not cancelled here (that is a return).
+ */
+export async function cancelOrder(db: Db, adminId: string, orderId: string, input: CancelRequest, now: Date = new Date()) {
+  return db.transaction(async (tx) => {
+    const [order] = await tx.select().from(orders).where(eq(orders.id, orderId)).for('update');
+    if (!order) throw notFound('Order not found.');
+    if (!(['pending_payment', 'placed', 'packed'] as OrderStatus[]).includes(order.status)) {
+      throw conflict('INVALID_TRANSITION', `An order that is ${order.status.replaceAll('_', ' ')} cannot be cancelled.`, [{ from: order.status, to: 'cancelled' }]);
+    }
+    const paid = order.paymentStatus === 'paid';
+
+    if (!paid) {
+      // Stop holding the stock and promotion slots, and close any payment still open on it.
+      const released = await tx
+        .update(stockReservations)
+        .set({ releasedAt: now })
+        .where(and(eq(stockReservations.orderId, orderId), isNull(stockReservations.releasedAt), isNull(stockReservations.consumedAt)))
+        .returning({ variantId: stockReservations.variantId, quantity: stockReservations.quantity });
+      for (const r of released.sort((a, b) => a.variantId.localeCompare(b.variantId))) {
+        await tx.update(inventory).set({ reservedQuantity: sql`${inventory.reservedQuantity} - ${r.quantity}` }).where(eq(inventory.variantId, r.variantId));
+      }
+      await releasePromotionHolds(tx, [orderId]);
+      await tx.update(paymentAttempts).set({ status: 'expired' }).where(and(eq(paymentAttempts.orderId, orderId), inArray(paymentAttempts.status, ['initializing', 'pending'])));
+    } else if (input.restock !== false) {
+      const lines = await tx.select({ variantId: orderItems.variantId, quantity: orderItems.quantity }).from(orderItems).where(eq(orderItems.orderId, orderId));
+      const perVariant = new Map<string, number>();
+      for (const l of lines) if (l.variantId) perVariant.set(l.variantId, (perVariant.get(l.variantId) ?? 0) + l.quantity);
+      for (const [variantId, quantity] of [...perVariant].sort(([a], [b]) => a.localeCompare(b))) {
+        await tx.update(inventory).set({ onHandQuantity: sql`${inventory.onHandQuantity} + ${quantity}` }).where(eq(inventory.variantId, variantId));
+        await tx.insert(inventoryMovements).values({ variantId, quantityDelta: quantity, reason: 'cancellation', orderId, adminUserId: adminId, reference: order.orderNumber });
+      }
+    }
+
+    await tx.update(orders).set({ status: 'cancelled', ...(paid ? {} : { paymentStatus: 'failed' as const }) }).where(eq(orders.id, orderId));
+    await tx.insert(orderStatusEvents).values({ orderId, fromStatus: order.status, toStatus: 'cancelled', actorType: 'admin', actorId: adminId, note: input.reason });
+
+    const payload = { orderId, orderNumber: order.orderNumber, refundDue: paid };
+    await tx.insert(notificationOutbox).values([
+      { eventType: 'order.cancelled', recipient: order.phoneE164, channel: 'sms', payload },
+      ...(order.email ? [{ eventType: 'order.cancelled', recipient: order.email, channel: 'email', payload }] : []),
+    ]);
+    return { orderId, from: order.status, paid, restocked: paid && input.restock !== false };
+  });
+}
+
+// ------------------------------------------------------------------ delivery
+
+export type DeliveryDetails = {
+  carrier?: string | null | undefined;
+  riderName?: string | null | undefined;
+  riderPhoneE164?: string | null | undefined;
+  trackingReference?: string | null | undefined;
+  estimatedDeliveryAt?: Date | null | undefined;
+};
+
+/** Who is delivering and how to follow it. Only the fields sent change; a closed order's delivery can no longer be edited. */
+export async function updateDelivery(db: Db, orderId: string, details: DeliveryDetails) {
+  return db.transaction(async (tx) => {
+    const [order] = await tx.select().from(orders).where(eq(orders.id, orderId)).for('update');
+    if (!order) throw notFound('Order not found.');
+    if (['cancelled', 'refunded', 'delivered'].includes(order.status)) throw conflict('ORDER_CLOSED', `An order that is ${order.status} can no longer have its delivery changed.`);
+    const [before] = await tx.select().from(deliveries).where(eq(deliveries.orderId, orderId));
+    const set = {
+      ...(details.carrier !== undefined ? { carrier: details.carrier } : {}),
+      ...(details.riderName !== undefined ? { riderName: details.riderName } : {}),
+      ...(details.riderPhoneE164 !== undefined ? { riderPhoneE164: details.riderPhoneE164 } : {}),
+      ...(details.trackingReference !== undefined ? { trackingReference: details.trackingReference } : {}),
+      ...(details.estimatedDeliveryAt !== undefined ? { estimatedDeliveryAt: details.estimatedDeliveryAt } : {}),
+    };
+    const [after] = await tx
+      .insert(deliveries)
+      .values({ orderId, method: order.deliveryMethod, status: order.status, ...set })
+      .onConflictDoUpdate({ target: deliveries.orderId, set: { ...set, updatedAt: new Date() } })
+      .returning();
+    return { before: before ?? null, after: after! };
+  });
 }

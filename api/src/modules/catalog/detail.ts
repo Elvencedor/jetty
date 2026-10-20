@@ -52,6 +52,14 @@ export async function collectionExists(db: Db, slug: string): Promise<boolean> {
 
 const DEFAULT_LOW_STOCK_THRESHOLD = 3;
 
+export const DETAIL_SECTIONS = ['details', 'fit', 'care', 'delivery'] as const;
+
+/** The four info tabs on the product page, always present (null when staff left one blank). */
+function normaliseDetails(raw: unknown): Record<(typeof DETAIL_SECTIONS)[number], string | null> {
+  const source = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  return Object.fromEntries(DETAIL_SECTIONS.map((k) => [k, typeof source[k] === 'string' && source[k] ? source[k] : null])) as Record<(typeof DETAIL_SECTIONS)[number], string | null>;
+}
+
 export async function getProductBySlug(db: Db, slug: string) {
   const [product] = await db
     .select()
@@ -65,7 +73,7 @@ export async function getProductBySlug(db: Db, slug: string) {
     );
   if (!product) return undefined;
 
-  const [options, variants, media, cats, cols, rating] = await Promise.all([
+  const [options, variants, media, cats, cols, rating, soldRows] = await Promise.all([
     db
       .select({
         optionId: productOptions.id,
@@ -75,6 +83,7 @@ export async function getProductBySlug(db: Db, slug: string) {
         label: productOptionValues.label,
         valueKey: productOptionValues.valueKey,
         valueOrder: productOptionValues.sortOrder,
+        swatch: productOptionValues.swatch,
       })
       .from(productOptions)
       .innerJoin(productOptionValues, and(eq(productOptionValues.optionId, productOptions.id), eq(productOptionValues.active, true)))
@@ -125,7 +134,14 @@ export async function getProductBySlug(db: Db, slug: string) {
     db.execute(sql`
       select round(avg(rating), 2)::float8 as average, count(*)::int as count
       from reviews where product_id = ${product.id} and status = 'approved'`),
+    // Units sold per variant (paid orders only); drives the default selection and the "sold" figure.
+    db.execute(sql`
+      select oi.variant_id, sum(oi.quantity)::int as sold
+      from order_items oi join orders o on o.id = oi.order_id
+      where oi.product_id = ${product.id} and o.payment_status = 'paid' and oi.variant_id is not null
+      group by oi.variant_id`),
   ]);
+  const soldByVariant = new Map((soldRows as unknown as { variant_id: string; sold: number }[]).map((r) => [r.variant_id, r.sold]));
 
   const variantIds = variants.map((v) => v.id);
   const links = variantIds.length
@@ -137,12 +153,18 @@ export async function getProductBySlug(db: Db, slug: string) {
   const valuesByVariant = new Map<string, string[]>();
   for (const l of links) valuesByVariant.set(l.variantId, [...(valuesByVariant.get(l.variantId) ?? []), l.optionValueId]);
 
-  const optionList: { id: string; name: string; values: { id: string; label: string; valueKey: string }[] }[] = [];
+  const optionList: { id: string; name: string; values: { id: string; label: string; valueKey: string; swatch: string | null }[] }[] = [];
   for (const o of options) {
     let entry = optionList.find((x) => x.id === o.optionId);
     if (!entry) optionList.push((entry = { id: o.optionId, name: o.name, values: [] }));
-    entry.values.push({ id: o.valueId, label: o.label, valueKey: o.valueKey });
+    entry.values.push({ id: o.valueId, label: o.label, valueKey: o.valueKey, swatch: o.swatch });
   }
+
+  // Best seller that can be bought right now; otherwise the best seller overall; ties go to the cheaper variant.
+  const availableOf = (v: (typeof variants)[number]) => Math.max((v.onHand ?? 0) - (v.reserved ?? 0), 0);
+  const ranked = [...variants].sort((a, b) => (soldByVariant.get(b.id) ?? 0) - (soldByVariant.get(a.id) ?? 0) || a.priceMinor - b.priceMinor);
+  const defaultVariant = ranked.find((v) => availableOf(v) > 0) ?? ranked[0];
+  const soldCount = [...soldByVariant.values()].reduce((a, b) => a + b, 0);
 
   const ratingRow = (rating as unknown as { average: number | null; count: number }[])[0];
 
@@ -154,7 +176,9 @@ export async function getProductBySlug(db: Db, slug: string) {
     badge: product.badgeOverride,
     featured: product.featured,
     seo: { title: product.seoTitle, description: product.seoDescription },
-    details: product.detailsJson,
+    details: normaliseDetails(product.detailsJson),
+    defaultVariantId: defaultVariant?.id ?? null,
+    soldCount,
     publishedAt: product.publishedAt,
     categories: cats,
     collections: cols,

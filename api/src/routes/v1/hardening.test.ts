@@ -95,6 +95,28 @@ describe('review hardening', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL no
     });
   });
 
+  describe('quotes for signed-in customers', () => {
+    it('apply the same customer-only offers that checkout will, so the bag and checkout totals agree', async () => {
+      const quote = (headers: Record<string, string> = {}) =>
+        api.inject({ method: 'POST', url: '/api/v1/pricing/quote', payload: { items: [{ variantId, quantity: 1 }], promotionCodes: ['WELCOME50'] }, headers });
+      const guest = (await quote()).result as Json;
+      assert.equal(guest.discountMinor, 0);
+      assert.deepEqual(guest.promotions.rejectedCodes, [{ code: 'WELCOME50', reason: 'NOT_ELIGIBLE' }]);
+
+      const reg = await api.inject({ method: 'POST', url: '/api/v1/auth/register', payload: { phone: phone(), password: 'correct horse battery' } });
+      const auth = { authorization: `Bearer ${(reg.result as Json).accessToken}` };
+      const mine = (await quote(auth)).result as Json;
+      assert.equal(mine.discountMinor, 50000);
+      assert.equal(mine.promotions.rejectedCodes.length, 0);
+
+      const checkoutQuote = await api.inject({ method: 'POST', url: '/api/v1/checkout', payload: body(phone(), { promotionCodes: ['WELCOME50'] }), headers: { 'idempotency-key': KEY('qa-agree'), ...auth } });
+      assert.equal((checkoutQuote.result as Json).quote.discountMinor, mine.discountMinor);
+
+      // A rubbish token is treated as a guest, not an error.
+      assert.equal(((await quote({ authorization: 'Bearer not.a.token' })).result as Json).discountMinor, 0);
+    });
+  });
+
   describe('responses', () => {
     it('carries security headers', async () => {
       const res = await api.inject('/api/v1/meta');
@@ -115,7 +137,7 @@ describe('review hardening', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL no
 
       await t.db.insert(contentEntries).values({ contentType: 'banner', slug: 'hero', title: 'hero', body: { headline: 'Hi', imageObjectKey: 'banners/hero.webp' }, status: 'published' });
       const home = ((await api.inject('/api/v1/storefront/home')).result as Json).data;
-      assert.match(home.banners[0].imageUrl, /banners\/hero\.webp/);
+      assert.match(home.sections.find((x: Json) => x.type === 'hero').cards[0].imageUrl, /banners\/hero\.webp/);
 
       const bare = await createServer({ env: adminTestEnv(), logger: createLogger('error'), database: t });
       await bare.initialize();

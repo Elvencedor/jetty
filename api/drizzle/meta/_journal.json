@@ -15,6 +15,13 @@
       "when": 1792449296126,
       "tag": "0001_webhook_columns_and_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792523682843,
+      "tag": "0002_option_value_swatch",
+      "breakpoints": true
     }
   ]
 }

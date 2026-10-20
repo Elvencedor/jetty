@@ -1,6 +1,6 @@
 import { eq, inArray, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
-import { contentEntries, products } from '../../db/schema/index.js';
+import { contentEntries, products, promotions } from '../../db/schema/index.js';
 import { decodeCursor, encodeCursor } from '../../lib/cursor.js';
 import { conflict, notFound, unprocessable } from '../../lib/errors.js';
 import { BODY_SCHEMAS, type ContentType } from '../content/content.js';
@@ -25,12 +25,18 @@ function checkBody(type: ContentType, body: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-async function checkProducts(db: Db, type: ContentType, body: Record<string, unknown>) {
-  if (type !== 'featured_products') return;
-  const ids = body.productIds as string[];
-  if (ids.length === 0) return;
-  const found = await db.select({ id: products.id }).from(products).where(inArray(products.id, ids));
-  if (found.length !== ids.length) throw unprocessable('VALIDATION_FAILED', 'One or more featured products do not exist.', [{ path: 'body.productIds', code: 'any.invalid' }]);
+/** References inside a body must point at something that exists, so a typo is caught when saving, not on the storefront. */
+async function checkReferences(db: Db, type: ContentType, body: Record<string, unknown>) {
+  if (type === 'featured_products') {
+    const ids = body.productIds as string[];
+    if (ids.length === 0) return;
+    const found = await db.select({ id: products.id }).from(products).where(inArray(products.id, ids));
+    if (found.length !== ids.length) throw unprocessable('VALIDATION_FAILED', 'One or more featured products do not exist.', [{ path: 'body.productIds', code: 'any.invalid' }]);
+  }
+  if (type === 'flash') {
+    const [promo] = await db.select({ id: promotions.id }).from(promotions).where(eq(promotions.id, body.promotionId as string));
+    if (!promo) throw unprocessable('VALIDATION_FAILED', 'That promotion does not exist.', [{ path: 'body.promotionId', code: 'any.invalid' }]);
+  }
 }
 
 function checkWindow(startsAt: Date | null | undefined, endsAt: Date | null | undefined) {
@@ -39,11 +45,13 @@ function checkWindow(startsAt: Date | null | undefined, endsAt: Date | null | un
 
 export async function createContent(db: Db, adminId: string, input: ContentInput) {
   const body = checkBody(input.contentType, input.body);
-  await checkProducts(db, input.contentType, body);
+  await checkReferences(db, input.contentType, body);
   checkWindow(input.startsAt, input.endsAt);
   // Pages are addressed by slug, so an explicit clash is the caller's to fix; other types only need a unique internal slug.
-  const explicit = Boolean(input.slug);
-  const base = input.slug ?? slugify(input.title);
+  // The home layout is a singleton: one fixed slug, so a second one is a conflict rather than a silent duplicate.
+  const singleton = input.contentType === 'home_layout';
+  const explicit = singleton || Boolean(input.slug);
+  const base = singleton ? 'home' : (input.slug ?? slugify(input.title));
   for (let attempt = 0; attempt < 8; attempt++) {
     const slug = attempt === 0 ? base : `${base}-${attempt + 1}`;
     try {
@@ -68,7 +76,7 @@ export async function updateContent(db: Db, id: string, patch: Partial<Omit<Cont
   if (!before) throw notFound('Content entry not found.');
   const type = before.contentType as ContentType;
   const body = patch.body ? checkBody(type, patch.body) : undefined;
-  if (body) await checkProducts(db, type, body);
+  if (body) await checkReferences(db, type, body);
   const startsAt = patch.startsAt === undefined ? before.startsAt : patch.startsAt;
   const endsAt = patch.endsAt === undefined ? before.endsAt : patch.endsAt;
   checkWindow(startsAt, endsAt);

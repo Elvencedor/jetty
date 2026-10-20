@@ -69,10 +69,12 @@ export const productOptionValues = pgTable(
     label: text('label').notNull(),
     valueKey: text('value_key').notNull(),
     priceDeltaMinor: money('price_delta_minor').notNull().default(0),
+    // Display colour (#rrggbb) for colour options; null for everything else.
+    swatch: text('swatch'),
     sortOrder: integer('sort_order').notNull().default(0),
     active: boolean('active').notNull().default(true),
   },
-  (t) => [uniqueIndex('product_option_values_option_key_uq').on(t.optionId, t.valueKey)],
+  (t) => [check('product_option_values_swatch_hex', sql`${t.swatch} is null or ${t.swatch} ~ '^#[0-9a-fA-F]{6}$'`), uniqueIndex('product_option_values_option_key_uq').on(t.optionId, t.valueKey)],
 );
 
 export const productVariants = pgTable(

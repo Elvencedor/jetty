@@ -21,6 +21,7 @@ export const LIMITS = {
   quote: policy('quote:ip', 60, minutes(1)),
   checkout: policy('checkout:ip', 20, minutes(10)),
   payment: policy('payment:ip', 30, minutes(10)),
+  facets: policy('facets:ip', 120, minutes(1)),
   suggest: policy('suggest:ip', 120, minutes(1)),
   reviewSubmit: policy('review:customer', 10, minutes(60)),
   adminLogin: policy('admin-login:ip', 20, minutes(15)),

@@ -1,10 +1,11 @@
 import type { ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
-import { advanceOrder, allowedNext, confirmTransfer, FULFILMENT_STATUSES, getAdminOrder, listAdminOrders, type OrderListInput } from '../../../modules/admin/orders.js';
+import { advanceOrder, allowedNext, cancelOrder, confirmTransfer, updateDelivery, type CancelRequest, type DeliveryDetails, FULFILMENT_STATUSES, getAdminOrder, listAdminOrders, type OrderListInput } from '../../../modules/admin/orders.js';
 import { runIdempotent } from '../../../lib/idempotency.js';
 import { audit } from '../../../modules/admin/audit.js';
 import { refundOrder, type RefundRequest } from '../../../modules/admin/refunds.js';
 import { apiError } from '../../../lib/errors.js';
+import { withUrl } from '../../../modules/media/urls.js';
 import { audited, db, guard, NO_STORE, pageQuery, uuidParam } from './shared.js';
 
 const note = Joi.string().trim().min(1).max(1000);
@@ -28,7 +29,11 @@ export const adminOrderRoutes: ServerRoute[] = [
         }),
       },
     },
-    handler: async (request, h) => h.response(await listAdminOrders(db(request), request.query as unknown as OrderListInput)).header('Cache-Control', NO_STORE),
+    handler: async (request, h) => {
+      const page = await listAdminOrders(db(request), request.query as unknown as OrderListInput);
+      const storage = request.server.app.storage;
+      return h.response({ ...page, data: page.data.map((o) => ({ ...o, items: o.items.map((i) => ({ ...i, image: withUrl(storage, i.image) })) })) }).header('Cache-Control', NO_STORE);
+    },
   },
   {
     method: 'GET',
@@ -125,6 +130,49 @@ export const adminOrderRoutes: ServerRoute[] = [
         };
       });
       return h.response(result.body as object).code(result.status).header('Cache-Control', NO_STORE);
+    },
+  },
+  {
+    method: 'POST',
+    path: '/admin/orders/{id}/cancel',
+    options: {
+      ...guard('orders:cancel'),
+      description: 'Cancel an order that has not been dispatched; releases or restocks its goods. Refund separately',
+      tags: ['api', 'admin'],
+      validate: { params: uuidParam('id'), payload: Joi.object({ reason: Joi.string().trim().min(5).max(300).required(), restock: Joi.boolean() }) },
+    },
+    handler: async (request, h) => {
+      const { id } = request.params as { id: string };
+      const body = request.payload as CancelRequest;
+      await audited(request, (tx) => cancelOrder(tx, request.auth.credentials.adminId!, id, body), (r) => ({ action: 'order.cancel', resourceType: 'order', resourceId: id, before: { status: r.from }, after: { status: 'cancelled', reason: body.reason, paid: r.paid, restocked: r.restocked } }));
+      const detail = await getAdminOrder(db(request), id);
+      return h.response({ ...detail, allowedTransitions: detail.order.paymentStatus === 'paid' ? allowedNext(detail.order.status, detail.order.deliveryMethod) : [] }).header('Cache-Control', NO_STORE);
+    },
+  },
+  {
+    method: 'PATCH',
+    path: '/admin/orders/{id}/delivery',
+    options: {
+      ...guard('orders:fulfil', 'orders:write'),
+      description: 'Assign a rider or carrier and tracking details',
+      tags: ['api', 'admin'],
+      validate: {
+        params: uuidParam('id'),
+        payload: Joi.object({
+          carrier: Joi.string().trim().max(80).allow(null, ''),
+          riderName: Joi.string().trim().max(120).allow(null, ''),
+          riderPhoneE164: Joi.string().trim().pattern(/^\+[1-9]\d{7,14}$/).allow(null, '').messages({ 'string.pattern.base': 'must be in E.164 format, e.g. +2348012345678' }),
+          trackingReference: Joi.string().trim().max(120).allow(null, ''),
+          estimatedDeliveryAt: Joi.date().iso().allow(null),
+        }).min(1),
+      },
+    },
+    handler: async (request, h) => {
+      const { id } = request.params as { id: string };
+      const blank = (v: unknown) => (v === '' ? null : v);
+      const body = Object.fromEntries(Object.entries(request.payload as DeliveryDetails).map(([k, v]) => [k, blank(v)])) as DeliveryDetails;
+      const { after } = await audited(request, (tx) => updateDelivery(tx, id, body), ({ before, after }) => ({ action: 'order.delivery', resourceType: 'order', resourceId: id, before: before && { riderName: before.riderName, carrier: before.carrier }, after: { riderName: after.riderName, carrier: after.carrier, trackingReference: after.trackingReference } }));
+      return h.response(after).header('Cache-Control', NO_STORE);
     },
   },
 ];

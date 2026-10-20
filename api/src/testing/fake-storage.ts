@@ -9,7 +9,7 @@ export class FakeStorage implements ObjectStorage {
     this.presigned.push({ key: input.key, contentType: input.contentType, sizeBytes: input.sizeBytes });
     return { method: 'PUT', url: `https://storage.test/${input.key}?sig=x`, headers: { 'Content-Type': input.contentType, 'Content-Length': String(input.sizeBytes) }, expiresAt: new Date(Date.now() + input.expiresInSeconds * 1000).toISOString() };
   }
-  presignDownload(key: string): string {
+  urlFor(key: string): string {
     return `https://storage.test/${key}?download=1`;
   }
   async head(key: string) {

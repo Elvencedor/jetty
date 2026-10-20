@@ -24,6 +24,8 @@ const schema = Joi.object({
   MEDIA_S3_ACCESS_KEY_ID: Joi.string().optional(),
   MEDIA_S3_SECRET_ACCESS_KEY: Joi.string().optional(),
   MEDIA_S3_REGION: Joi.string().default('auto'),
+  // CDN origin that serves the bucket. When set, image URLs are stable public URLs instead of presigned ones.
+  MEDIA_PUBLIC_BASE_URL: Joi.string().uri({ scheme: ['https', 'http'] }).optional(),
   // Where payment exceptions (duplicate or late charges) are emailed for a person to act on.
   OPS_ALERT_EMAIL: Joi.string().email().optional(),
   // Per-IP/account request limits (Redis-backed, so REDIS_URL is required when on). Off by default under NODE_ENV=test.
@@ -61,6 +63,7 @@ export type Env = {
   MEDIA_S3_ACCESS_KEY_ID: string | undefined;
   MEDIA_S3_SECRET_ACCESS_KEY: string | undefined;
   MEDIA_S3_REGION: string;
+  MEDIA_PUBLIC_BASE_URL: string | undefined;
   OPS_ALERT_EMAIL: string | undefined;
   REDIS_URL: string | undefined;
   RATE_LIMIT_ENABLED: boolean;
@@ -111,6 +114,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     MEDIA_S3_ACCESS_KEY_ID: value.MEDIA_S3_ACCESS_KEY_ID,
     MEDIA_S3_SECRET_ACCESS_KEY: value.MEDIA_S3_SECRET_ACCESS_KEY,
     MEDIA_S3_REGION: value.MEDIA_S3_REGION,
+    MEDIA_PUBLIC_BASE_URL: value.MEDIA_PUBLIC_BASE_URL,
     OPS_ALERT_EMAIL: value.OPS_ALERT_EMAIL,
     REDIS_URL: value.REDIS_URL,
     RATE_LIMIT_ENABLED: value.RATE_LIMIT_ENABLED,

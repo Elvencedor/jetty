@@ -151,7 +151,7 @@ describe('payment confirmation, retry and webhook', { skip: !TEST_DATABASE_URL &
       assert.equal(res.body.status, 'placed');
       assert.equal(res.body.paymentStatus, 'paid');
       assert.equal(res.body.paymentAttempt.status, 'succeeded');
-      assert.deepEqual(Object.keys(res.body).sort(), ['amountMinor', 'currency', 'orderId', 'orderNumber', 'paymentAttempt', 'paymentStatus', 'reservationExpiresAt', 'status']);
+      assert.deepEqual(Object.keys(res.body).sort(), ['amountMinor', 'currency', 'deliveryMethod', 'estimate', 'itemCount', 'orderId', 'orderNumber', 'paymentAttempt', 'paymentStatus', 'recipientFirstName', 'reservationExpiresAt', 'status']);
 
       const o = await order(placed.orderId);
       assert.ok(o.placedAt);

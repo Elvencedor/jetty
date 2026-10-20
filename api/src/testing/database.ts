@@ -18,7 +18,8 @@ export async function createTestDatabase(): Promise<TestDatabase> {
 
   const url = new URL(TEST_DATABASE_URL);
   url.pathname = `/${name}`;
-  const database = createDatabase(url.toString(), { max: 20 });
+  // Test files run in parallel against one server (default limit: 100 connections), so each gets a small pool.
+  const database = createDatabase(url.toString(), { max: 8 });
   await migrate(database.db, { migrationsFolder: new URL('../../drizzle', import.meta.url).pathname });
 
   return {

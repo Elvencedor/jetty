@@ -21,15 +21,21 @@ export const storefrontRoutes: ServerRoute[] = [
     handler: async (request, h) => {
       const home = await getHome(db(request));
       const storage = request.server.app.storage;
-      const data = {
-        ...home,
-        banners: home.banners.map((b) => {
-          const key = (b as { imageObjectKey?: string }).imageObjectKey;
-          return key ? { ...b, imageUrl: withUrl(storage, { objectKey: key })!.url } : b;
-        }),
-        featured: { ...home.featured, products: home.featured.products.map((c) => ({ ...c, image: withUrl(storage, c.image) })) },
-      };
-      return h.response({ data }).header('Cache-Control', shortCache);
+      const keyed = <T extends { imageObjectKey?: string }>(item: T) => (item.imageObjectKey ? { ...item, imageUrl: withUrl(storage, { objectKey: item.imageObjectKey })!.url } : item);
+      const sections = home.sections.map((section) => {
+        switch (section.type) {
+          case 'stories':
+          case 'tiles':
+            return { ...section, items: (section.items as { imageObjectKey?: string }[]).map(keyed) };
+          case 'hero':
+            return { ...section, cards: (section.cards as { imageObjectKey?: string }[]).map(keyed) };
+          case 'products':
+            return { ...section, tabs: (section.tabs as { products: { image: { objectKey: string } | null }[] }[]).map((t) => ({ ...t, products: t.products.map((c) => ({ ...c, image: withUrl(storage, c.image) })) })) };
+          default:
+            return section;
+        }
+      });
+      return h.response({ data: { ...home, sections } }).header('Cache-Control', shortCache);
     },
   },
   {

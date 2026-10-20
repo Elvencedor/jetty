@@ -1,7 +1,7 @@
 import type { ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
 import { createContent, getContent, listContent, updateContent, type ContentInput } from '../../../modules/admin/content.js';
-import { getAdminCustomer, listAdminCustomers, listAdminReviews, moderateReview } from '../../../modules/admin/people.js';
+import { customerSegments, getAdminCustomer, listAdminCustomers, SEGMENTS, listAdminReviews, moderateReview } from '../../../modules/admin/people.js';
 import { listZones, upsertZones, zoneSchema, type ZoneInput } from '../../../modules/admin/zones.js';
 import { CONTENT_STATUSES, CONTENT_TYPES } from '../../../modules/content/content.js';
 import { getSetting, isSettingKey, SETTING_KEYS, SETTINGS, updateSetting } from '../../../modules/settings/settings.js';
@@ -70,9 +70,15 @@ export const adminManagementRoutes: ServerRoute[] = [
       ...guard('customers:read'),
       description: 'Search customers with order count and lifetime value',
       tags: ['api', 'admin'],
-      validate: { query: Joi.object({ ...pageQuery, q: Joi.string().trim().min(2).max(100), sort: Joi.string().valid('newest', 'spend').default('newest') }) },
+      validate: { query: Joi.object({ ...pageQuery, q: Joi.string().trim().min(2).max(100), segment: Joi.string().valid(...SEGMENTS.map((g) => g.key)), sort: Joi.string().valid('newest', 'spend').default('newest') }) },
     },
     handler: async (request, h) => h.response(await listAdminCustomers(db(request), request.query as never)).header('Cache-Control', NO_STORE),
+  },
+  {
+    method: 'GET',
+    path: '/admin/customers/segments',
+    options: { ...guard('customers:read'), description: 'Customer segment sizes and the rule behind each', tags: ['api', 'admin'] },
+    handler: async (request, h) => h.response(await customerSegments(db(request))).header('Cache-Control', NO_STORE),
   },
   {
     method: 'GET',

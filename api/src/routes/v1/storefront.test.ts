@@ -70,9 +70,11 @@ describe('storefront content, suggestions, reviews and bank transfer', { skip: !
       const { status, body } = await get('/storefront/home');
       assert.equal(status, 200);
       assert.deepEqual(body.data.announcements.map((a: Json) => a.text), ['Free delivery']);
-      assert.equal(body.data.banners[0].headline, 'New in');
-      assert.equal(body.data.featured.heading, 'Picks');
-      assert.deepEqual(body.data.featured.products.map((p: Json) => p.slug), ['silky-bob', 'body-wave'], 'curated order; the draft drops out');
+      const section = (type: string) => body.data.sections.find((x: Json) => x.type === type);
+      assert.equal(section('hero').cards[0].headline, 'New in');
+      assert.equal(section('products').title, 'Picks');
+      const featured = section('products').tabs.find((t: Json) => t.key === 'featured');
+      assert.deepEqual(featured.products.map((p: Json) => p.slug), ['silky-bob', 'body-wave'], 'curated order; the draft drops out');
     });
 
     it('serves a published page by slug and hides drafts', async () => {

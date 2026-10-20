@@ -123,7 +123,7 @@ export async function getAdminProduct(db: Db, id: string, storage?: ObjectStorag
     options: options.map((o) => ({
       id: o.id,
       name: o.name,
-      values: values.filter((v) => v.optionId === o.id).map((v) => ({ id: v.id, label: v.label, valueKey: v.valueKey, priceDeltaMinor: v.priceDeltaMinor, active: v.active })),
+      values: values.filter((v) => v.optionId === o.id).map((v) => ({ id: v.id, label: v.label, valueKey: v.valueKey, priceDeltaMinor: v.priceDeltaMinor, swatch: v.swatch, active: v.active })),
     })),
     variants: variants.map((v) => ({
       id: v.id, sku: v.sku, optionValues: '__retired' in (v.optionSignature as object) ? {} : v.optionSignature, priceMinor: v.priceMinor, compareAtPriceMinor: v.compareAtPriceMinor, currency: v.currency, active: v.active,
@@ -143,7 +143,7 @@ export type ProductFields = {
   badgeOverride?: string | null | undefined;
   seoTitle?: string | null | undefined;
   seoDescription?: string | null | undefined;
-  details?: Record<string, unknown> | undefined;
+  details?: { details?: string; fit?: string; care?: string; delivery?: string } | undefined;
   categoryIds?: string[] | undefined;
   collectionIds?: string[] | undefined;
 };
@@ -247,7 +247,7 @@ export async function setProductStatus(db: Db, id: string, status: 'active' | 'a
 // -------------------------------------------------------------- variant matrix
 
 export type MatrixInput = {
-  options: { name: string; values: { label: string; valueKey: string; priceDeltaMinor?: number | undefined }[] }[];
+  options: { name: string; values: { label: string; valueKey: string; priceDeltaMinor?: number | undefined; swatch?: string | null | undefined }[] }[];
   variants: {
     id?: string | undefined;
     sku: string;
@@ -259,6 +259,12 @@ export type MatrixInput = {
     stock?: number | undefined;
   }[];
 };
+
+const BATCH = 500;
+
+function* chunks<T>(items: T[], size: number): Generator<T[]> {
+  for (let i = 0; i < items.length; i += size) yield items.slice(i, i + size);
+}
 
 const bad = (path: string, message: string) => unprocessable('VALIDATION_FAILED', message, [{ path, code: 'any.invalid' }]);
 
@@ -302,8 +308,8 @@ export async function replaceMatrix(db: Db, adminId: string | null, productId: s
         for (const [vi, v] of o.values.entries()) {
           const [row] = await tx
             .insert(productOptionValues)
-            .values({ optionId, label: v.label, valueKey: v.valueKey, priceDeltaMinor: v.priceDeltaMinor ?? 0, sortOrder: vi, active: true })
-            .onConflictDoUpdate({ target: [productOptionValues.optionId, productOptionValues.valueKey], set: { label: v.label, priceDeltaMinor: v.priceDeltaMinor ?? 0, sortOrder: vi, active: true } })
+            .values({ optionId, label: v.label, valueKey: v.valueKey, priceDeltaMinor: v.priceDeltaMinor ?? 0, swatch: v.swatch ?? null, sortOrder: vi, active: true })
+            .onConflictDoUpdate({ target: [productOptionValues.optionId, productOptionValues.valueKey], set: { label: v.label, priceDeltaMinor: v.priceDeltaMinor ?? 0, swatch: v.swatch ?? null, sortOrder: vi, active: true } })
             .returning({ id: productOptionValues.id });
           valueId.set(`${o.name}\u0000${v.valueKey}`, row!.id);
           liveValueIds.push(row!.id);
@@ -317,7 +323,6 @@ export async function replaceMatrix(db: Db, adminId: string | null, productId: s
           .where(and(inArray(productOptionValues.optionId, allOptionIds), liveValueIds.length ? sql`${productOptionValues.id} not in (${sql.join(liveValueIds.map((x) => sql`${x}`), sql`, `)})` : sql`true`));
       }
 
-      const touched = new Set<string>();
       const priorById = new Map(priorVariants.map((v) => [v.id, v]));
       const priorBySignature = new Map(priorVariants.map((v) => [JSON.stringify(Object.entries(v.optionSignature as object).sort()), v]));
       const priorBySku = new Map(priorVariants.map((v) => [v.sku.toUpperCase(), v]));
@@ -335,39 +340,58 @@ export async function replaceMatrix(db: Db, adminId: string | null, productId: s
         return { v, signature: signatures[i]!, prior };
       });
       // Park every existing variant on a placeholder signature first, so reshuffling combinations cannot trip the unique index.
-      for (const prior of priorVariants) await tx.update(productVariants).set({ optionSignature: { __retired: prior.id } }).where(eq(productVariants.id, prior.id));
-      for (const p of plan) {
-        const { v } = p;
-        const active = v.active ?? true;
-        let variantId: string;
-        if (p.prior) {
-          variantId = p.prior.id;
-          await tx
-            .update(productVariants)
-            .set({ sku: v.sku, optionSignature: p.signature, priceMinor: v.priceMinor, compareAtPriceMinor: v.compareAtPriceMinor ?? null, active, updatedAt: new Date() })
-            .where(eq(productVariants.id, variantId));
-          await tx.delete(variantOptionValues).where(eq(variantOptionValues.variantId, variantId));
-          if (p.prior.priceMinor !== v.priceMinor || p.prior.active !== active) changes.push({ sku: v.sku, before: { priceMinor: p.prior.priceMinor, active: p.prior.active }, after: { priceMinor: v.priceMinor, active } });
-        } else {
-          const [created] = await tx
-            .insert(productVariants)
-            .values({ productId, sku: v.sku, optionSignature: p.signature, priceMinor: v.priceMinor, compareAtPriceMinor: v.compareAtPriceMinor ?? null, active })
-            .returning({ id: productVariants.id });
-          variantId = created!.id;
-          await tx.insert(inventory).values({ variantId, onHandQuantity: v.stock ?? 0 });
-          if (v.stock) await tx.insert(inventoryMovements).values({ variantId, quantityDelta: v.stock, reason: 'initial_stock', adminUserId: adminId });
-          changes.push({ sku: v.sku, after: { priceMinor: v.priceMinor, active } });
+      if (priorVariants.length) await tx.execute(sql`update product_variants set option_signature = jsonb_build_object('__retired', id::text) where product_id = ${productId}`);
+
+      // Set-based from here on: a product can have thousands of variants, and one query each would take minutes.
+      const matched = plan.filter((p) => p.prior);
+      const fresh = plan.filter((p) => !p.prior);
+      const variantIdOf = new Map<(typeof plan)[number], string>();
+
+      for (const batch of chunks(matched, BATCH)) {
+        const rows = batch.map(
+          (p) => sql`(${p.prior!.id}::uuid, ${p.v.sku}, ${JSON.stringify(p.signature)}::jsonb, ${p.v.priceMinor}::bigint, ${p.v.compareAtPriceMinor ?? null}::bigint, ${p.v.active ?? true}::boolean)`,
+        );
+        await tx.execute(sql`
+          update product_variants pv set sku = d.sku, option_signature = d.sig, price_minor = d.price,
+            compare_at_price_minor = d.compare, active = d.active, updated_at = now()
+          from (values ${sql.join(rows, sql`, `)}) as d(id, sku, sig, price, compare, active)
+          where pv.id = d.id`);
+        for (const p of batch) {
+          variantIdOf.set(p, p.prior!.id);
+          const active = p.v.active ?? true;
+          if (p.prior!.priceMinor !== p.v.priceMinor || p.prior!.active !== active) {
+            changes.push({ sku: p.v.sku, before: { priceMinor: p.prior!.priceMinor, active: p.prior!.active }, after: { priceMinor: p.v.priceMinor, active } });
+          }
         }
-        touched.add(variantId);
-        const links = Object.entries(p.signature).map(([name, key]) => ({ variantId, optionValueId: valueId.get(`${name}\u0000${key}`)! }));
-        if (links.length) await tx.insert(variantOptionValues).values(links);
+        await tx.delete(variantOptionValues).where(inArray(variantOptionValues.variantId, batch.map((p) => p.prior!.id)));
       }
 
-      const dropped = priorVariants.filter((v) => !touched.has(v.id) && v.active);
-      for (const v of dropped) {
-        await tx.update(productVariants).set({ active: false, updatedAt: new Date() }).where(eq(productVariants.id, v.id));
-        changes.push({ sku: v.sku, before: { priceMinor: v.priceMinor, active: true }, after: { priceMinor: v.priceMinor, active: false } });
+      for (const batch of chunks(fresh, BATCH)) {
+        const created = await tx
+          .insert(productVariants)
+          .values(batch.map((p) => ({ productId, sku: p.v.sku, optionSignature: p.signature, priceMinor: p.v.priceMinor, compareAtPriceMinor: p.v.compareAtPriceMinor ?? null, active: p.v.active ?? true })))
+          .returning({ id: productVariants.id, sku: productVariants.sku });
+        const idBySku = new Map(created.map((c) => [c.sku.toUpperCase(), c.id]));
+        await tx.insert(inventory).values(batch.map((p) => ({ variantId: idBySku.get(p.v.sku.toUpperCase())!, onHandQuantity: p.v.stock ?? 0 })));
+        const stocked = batch.filter((p) => p.v.stock);
+        if (stocked.length) {
+          await tx.insert(inventoryMovements).values(stocked.map((p) => ({ variantId: idBySku.get(p.v.sku.toUpperCase())!, quantityDelta: p.v.stock!, reason: 'initial_stock', adminUserId: adminId })));
+        }
+        for (const p of batch) {
+          variantIdOf.set(p, idBySku.get(p.v.sku.toUpperCase())!);
+          changes.push({ sku: p.v.sku, after: { priceMinor: p.v.priceMinor, active: p.v.active ?? true } });
+        }
       }
+
+      const links = plan.flatMap((p) => Object.entries(p.signature).map(([name, key]) => ({ variantId: variantIdOf.get(p)!, optionValueId: valueId.get(`${name}\u0000${key}`)! })));
+      for (const batch of chunks(links, 2000)) await tx.insert(variantOptionValues).values(batch);
+      const touched = new Set(variantIdOf.values());
+
+      const dropped = priorVariants.filter((v) => !touched.has(v.id) && v.active);
+      for (const batch of chunks(dropped, BATCH)) {
+        await tx.update(productVariants).set({ active: false, updatedAt: new Date() }).where(inArray(productVariants.id, batch.map((v) => v.id)));
+      }
+      for (const v of dropped) changes.push({ sku: v.sku, before: { priceMinor: v.priceMinor, active: true }, after: { priceMinor: v.priceMinor, active: false } });
       // Dropped variants keep a unique signature slot; moving ones were rewritten above.
       if (product.status === 'active' && !input.variants.some((v) => v.active ?? true)) {
         throw unprocessable('PRODUCT_NOT_PUBLISHABLE', 'A live product needs at least one active variant. Archive it instead.');

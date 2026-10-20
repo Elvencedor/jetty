@@ -22,12 +22,16 @@ const productBody = {
   badgeOverride: nullableText(40),
   seoTitle: nullableText(120),
   seoDescription: nullableText(300),
-  details: Joi.object().unknown(true),
+  // Markdown for the product page tabs. Only these four sections exist; anything else is refused.
+  details: Joi.object({ details: Joi.string().max(10_000).allow(''), fit: Joi.string().max(10_000).allow(''), care: Joi.string().max(10_000).allow(''), delivery: Joi.string().max(10_000).allow('') }),
   categoryIds: ids,
   collectionIds: ids,
 };
 
 const blankToNull = <T extends Record<string, unknown>>(o: T): T => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v === '' ? null : v])) as T;
+
+/** Upper bound agreed with the design handoff ("warn before exceeding 2,000"). */
+const MAX_VARIANTS = 2000;
 
 const matrixBody = Joi.object({
   options: Joi.array()
@@ -35,7 +39,7 @@ const matrixBody = Joi.object({
       Joi.object({
         name: text(40).required(),
         values: Joi.array()
-          .items(Joi.object({ label: text(60).required(), valueKey: Joi.string().trim().lowercase().pattern(/^[a-z0-9][a-z0-9._-]{0,39}$/).required(), priceDeltaMinor: Joi.number().integer().min(0).max(1_000_000_000) }))
+          .items(Joi.object({ label: text(60).required(), valueKey: Joi.string().trim().lowercase().pattern(/^[a-z0-9][a-z0-9._-]{0,39}$/).required(), priceDeltaMinor: Joi.number().integer().min(0).max(1_000_000_000), swatch: Joi.string().pattern(/^#[0-9a-fA-F]{6}$/).allow(null) }))
           .min(1)
           .max(50)
           .required(),
@@ -56,7 +60,7 @@ const matrixBody = Joi.object({
       }),
     )
     .min(1)
-    .max(300)
+    .max(MAX_VARIANTS)
     .required(),
 });
 
@@ -142,10 +146,10 @@ export const adminCatalogRoutes: ServerRoute[] = [
   {
     method: 'PUT',
     path: '/admin/products/{id}/variants',
-    options: { ...write, description: 'Replace the option and variant matrix; requires If-Match', tags: ['api', 'admin'], validate: { params: uuidParam('id'), payload: matrixBody } },
+    options: { ...write, payload: { maxBytes: 4 * 1024 * 1024 }, description: 'Replace the option and variant matrix; requires If-Match', tags: ['api', 'admin'], validate: { params: uuidParam('id'), payload: matrixBody } },
     handler: async (request, h) => {
       const id = productId(request);
-      await audited(request, (tx) => replaceMatrix(tx, request.auth.credentials.adminId!, id, request.payload as MatrixInput, (updatedAt) => assertIfMatch(request, etagFor(updatedAt))), ({ changes }) => ({ action: 'product.variants.replace', resourceType: 'product', resourceId: id, after: { changes } }));
+      await audited(request, (tx) => replaceMatrix(tx, request.auth.credentials.adminId!, id, request.payload as MatrixInput, (updatedAt) => assertIfMatch(request, etagFor(updatedAt))), ({ changes }) => ({ action: 'product.variants.replace', resourceType: 'product', resourceId: id, after: { total: changes.length, sample: changes.slice(0, 50) } }));
       const detail = await getAdminProduct(db(request), id, request.server.app.storage);
       return withEtag(h, detail, detail.product.updatedAt);
     },

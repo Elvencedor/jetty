@@ -99,3 +99,4 @@ reviews, bank transfer and analytics for launch (P0) are done.
 - The frontend and API must share a registrable domain (e.g. `shop.example.com` and `api.example.com`): the refresh and
   checkout cookies are `SameSite=Strict` / `Lax` and are not sent across sites.
 - Optional `OPS_ALERT_EMAIL` receives payment-exception alerts from the worker.
+- Put a CDN in front of the media bucket and set `MEDIA_PUBLIC_BASE_URL`; image URLs are then stable public URLs. Without it they are presigned read URLs that change hourly.

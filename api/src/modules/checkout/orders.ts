@@ -1,8 +1,9 @@
 import { paymentEmail } from './contact.js';
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
-import { orders, paymentAttempts, stockReservations } from '../../db/schema/index.js';
+import { orderItems, orders, paymentAttempts, stockReservations } from '../../db/schema/index.js';
+import { estimateFor } from '../delivery/zones.js';
 import { apiError, conflict, notFound } from '../../lib/errors.js';
 import { uniqueViolation } from '../../lib/sql.js';
 import { PaymentIndeterminateError, type PaymentProvider } from '../payments/provider.js';
@@ -61,6 +62,8 @@ export async function orderStatus(db: Db, orderId: string) {
   const [o] = await db.select().from(orders).where(eq(orders.id, orderId));
   if (!o) throw notFound('Order not found.');
   const attempt = await latestAttempt(db, o.id);
+  const [count] = await db.select({ n: sql<number>`coalesce(sum(${orderItems.quantity}), 0)::int` }).from(orderItems).where(eq(orderItems.orderId, o.id));
+  const recipient = (o.deliveryAddressSnapshot as { recipientName?: string }).recipientName ?? '';
   return {
     orderId: o.id,
     orderNumber: o.orderNumber,
@@ -69,6 +72,11 @@ export async function orderStatus(db: Db, orderId: string) {
     amountMinor: o.totalMinor,
     currency: o.currency,
     reservationExpiresAt: o.reservationExpiresAt?.toISOString() ?? null,
+    deliveryMethod: o.deliveryMethod,
+    estimate: estimateFor(o.deliveryMethod, o.placedAt ?? o.createdAt),
+    itemCount: count?.n ?? 0,
+    // Enough for "Yay, it's yours, Adaeze!" without exposing the address or contact details.
+    recipientFirstName: recipient.trim().split(/\s+/)[0] || null,
     paymentAttempt: attempt ? { id: attempt.id, status: attempt.status } : null,
   };
 }

@@ -472,10 +472,8 @@ prints messages for development and is refused in production.
 
 ## Storefront content, reviews and bank transfer (implemented)
 
-`GET /storefront/home` returns `{ announcements, banners, featured: { heading, products } }`
-from published content inside its schedule window (`draft`, `archived`, not-yet-started and ended entries never
-appear). The featured row is a `featured_products` content entry whose `productIds` order is kept; products that
-are no longer visible drop out. With no such entry it falls back to products flagged `featured`.
+`GET /storefront/home` returns `{ announcements, sections }` (see "Contract additions for the frontend" below for the
+section shapes). Content is published and inside its schedule window, or it does not appear.
 `GET /content/pages/{slug}` serves a published `page` (`{ slug, title, markdown, updatedAt }`; the storefront renders
 the markdown, so it must sanitise it). `GET /storefront/settings` exposes the public store details, policies and
 enabled payment methods. `GET /products/suggestions?q=` (2+ chars, `limit` 1-10, 120/min/IP) matches word prefixes of
@@ -594,7 +592,9 @@ same `jh_checkout` cookie.
 **Images.** Admins upload straight to the bucket with a presigned `PUT`; the API stores only object keys. Storefront and
 admin responses add a `url`, a presigned `GET` for the private bucket (also `imageUrl` on banners and `coverUrl` in the
 admin product list). URLs are signed at the start of the hour and valid for two, so a given image has the same URL for
-an hour and can be cached. There is no image scanning or resizing; the client uploads what it wants displayed.
+an hour and can be cached. With `MEDIA_PUBLIC_BASE_URL` set (a CDN in front of the bucket) `url` is instead a stable
+public URL built from the key, which is what production should use. There is no image scanning or resizing; the client
+uploads what it wants displayed.
 
 **Contract.** `GET /me/orders` now returns `{ data, page: { nextCursor } }` and accepts `limit` up to 100.
 `PUT /admin/products/{id}/variants` requires `If-Match` like the product PATCH. Every response carries HSTS,
@@ -609,3 +609,53 @@ happen. The API refuses to start on Railway unless `NODE_ENV` is set.
 is kept (not replaced by inline sending) because it is what guarantees a one-time code or order message survives a crash
 or a provider outage. There is no `payment_webhook_events` table: a payment attempt records the last event key it
 applied (`webhook_event_key`, `webhook_received_at`), settlement is idempotent, and events matching no attempt are logged.
+
+## Contract additions for the frontend (implemented)
+
+**Quote and checkout lines** (`POST /pricing/quote`, and `quote.lines` in the `POST /checkout` response) now describe
+themselves: `productId`, `slug`, `title`, `image` (`url`, `altText`, `width`, `height`), `options` (`[{ name, label }]`
+in option order), `optionSummary` (`14" · Jet black`), `compareAtPriceMinor` (the struck "was" price, or `null`) and
+`availableQuantity`. The contract refuses client-supplied prices, so there is no `priceChanged` flag: a client that
+wants "price updated from ₦X" compares the new `unitPriceMinor` with the one it showed before.
+
+**Listings** (`GET /products`, `GET /collections/{slug}/products`) return `page: { nextCursor, total }` (`total` only on
+the first page) and richer cards: `colours` (`[{ label, valueKey, swatch }]` of colours that can be bought),
+`lengthRange` (`{ min, max }` inches or `null`) and `badges` (`[{ kind, label }]`, kinds `custom`, `sale` with the
+biggest discount, `low_stock`, `new` for products published in the last 14 days, `featured`). Promotion badges such as
+"Buy 1 Get 1" are not on cards; they come from the quote. `GET /products/facets` takes the listing filters (plus `q`,
+`category`, `collection`; no `sort`/`limit`/`cursor`) and returns `{ options: { texture, lace, length, density, colour:
+[{ valueKey, label, swatch, count }] }, price: { minMinor, maxMinor }, inStockCount, onOfferCount }`. Each option's counts
+ignore that option's own selection and the price range ignores the price filter. Counts are of products having some
+buyable variant with the value, so they can slightly overstate; the listing `total` is exact. Numeric values sort as
+numbers.
+
+**Product detail** adds `swatch` on option values, `defaultVariantId` (the best-selling variant that is in stock, else the
+best seller, ties to the cheaper), `soldCount`, and `details` as exactly `{ details, fit, care, delivery }` (markdown or
+`null`). Admins can only write those four keys, and `swatch` (`#rrggbb`) is saved through the variant matrix.
+
+**Home sections.** `sections` is an ordered list; a block with nothing to show is omitted. Types: `stories` (`items`),
+`hero` (`cards` with `tag`, `headline`, `subheadline`, `tone`, `ctaLabel`, `ctaUrl`, `imageUrl`, `endsAt`), `flash`
+(`headline`, `code`, `endsAt`, `promotionId`; only while its promotion is live and has an end), `products` (`title` and
+`tabs` `featured`, `deal`, `care` of product cards), `length` (`items` with `lengths` in inches), `tiles` (up to three),
+`trust` (icons, titles, captions; returns and same-day entries appear only when configured). `quiz` and `ugc` are
+reserved and render nothing yet. Content types for admins: `announcement`, `banner`, `story`, `tile`, `flash`,
+`featured_products`, `page`, and `home_layout` (a singleton, slug `home`, `{ sections: [{ type, enabled }] }`; listed
+blocks show in that order, unlisted or disabled blocks are hidden, and with no layout every block shows in canonical order).
+
+**Orders.** `GET /me/orders/{id}` items gain `id` (the `orderItemId` for `POST /reviews`), `slug`, `image` and
+`reviewable` (delivered, paid and not yet reviewed). The order gains `estimate` (`{ earliestDate, latestDate }` counted
+from the day it was placed, or `null` for pickup) and `rider` (`{ name, phone, carrier, trackingReference }`, only while
+`out_for_delivery`). `GET /checkout/{id}/status` gains `deliveryMethod`, `estimate`, `itemCount` and
+`recipientFirstName`, and still no address or contact details.
+
+**Admin.** `PUT /admin/products/{id}/variants` accepts up to **2,000** variants (4 MB body) and saves them set-based; the
+audit record keeps a count and the first 50 changes. `GET /admin/orders` rows add `items` (up to three lines with
+`title`, `quantity`, `image`). `POST /admin/orders/{id}/cancel` (`{ reason, restock? }`, `orders:cancel`: owner and
+manager) cancels an order that is `pending_payment`, `placed` or `packed`: an unpaid order releases its stock hold,
+promotion slots and open payment attempt; a paid one is restocked unless `restock: false`, keeps `paymentStatus: paid`,
+and is then refunded through the refund endpoint. `PATCH /admin/orders/{id}/delivery` (`carrier`, `riderName`,
+`riderPhoneE164`, `trackingReference`, `estimatedDeliveryAt`; blanks clear a field; refused once the order is closed) is
+how a rider is assigned; moving to `out_for_delivery` does not require one. `GET /admin/customers/segments` returns
+`{ everyone, segments: [{ key, label, rule, count }] }` for `vip` (5+ paid orders or ₦1,000,000), `new` (first paid order
+in the last 30 days), `returning` (2+) and `lapsed` (no order in 120 days). `GET /admin/customers` accepts `segment` and
+tags every row with its `segments`.

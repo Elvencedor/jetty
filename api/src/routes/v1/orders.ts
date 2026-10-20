@@ -2,6 +2,7 @@ import type { Request, ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
 import { LIMITS } from '../../lib/rate-policies.js';
 import { getCustomerOrder, listCustomerOrders, trackOrder } from '../../modules/orders/history.js';
+import { withUrl } from '../../modules/media/urls.js';
 import { enforce } from '../../plugins/rate-limit.js';
 import { db, NO_STORE } from './shared.js';
 
@@ -31,8 +32,11 @@ export const orderRoutes: ServerRoute[] = [
       tags: ['api', 'me'],
       validate: { params: Joi.object({ orderId: Joi.string().uuid().required() }) },
     },
-    handler: async (request, h) =>
-      h.response(await getCustomerOrder(db(request), customerId(request), (request.params as { orderId: string }).orderId)).header('Cache-Control', NO_STORE),
+    handler: async (request, h) => {
+      const order = await getCustomerOrder(db(request), customerId(request), (request.params as { orderId: string }).orderId);
+      const storage = request.server.app.storage;
+      return h.response({ ...order, items: order.items.map((i) => ({ ...i, image: withUrl(storage, i.image) })) }).header('Cache-Control', NO_STORE);
+    },
   },
   {
     method: 'POST',

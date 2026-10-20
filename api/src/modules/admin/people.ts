@@ -6,17 +6,56 @@ import { notFound } from '../../lib/errors.js';
 import { likeContains } from '../../lib/sql.js';
 
 const likeOf = likeContains;
+export const SEGMENTS = [
+  { key: 'vip', label: 'VIP', rule: '5 or more orders, or ₦1,000,000 spent' },
+  { key: 'new', label: 'New', rule: 'First order in the last 30 days' },
+  { key: 'returning', label: 'Returning', rule: '2 or more orders' },
+  { key: 'lapsed', label: 'Lapsed', rule: 'No order in the last 120 days' },
+] as const;
+export type SegmentKey = (typeof SEGMENTS)[number]['key'];
+
+const VIP_SPEND_MINOR = 100_000_000;
+const DAY_MS = 86_400_000;
+
+/** The same rules twice: in SQL (to filter and count) and in JS (to tag a row), pinned together by a test. */
+const segmentSql: Record<SegmentKey, ReturnType<typeof sql>> = {
+  vip: sql`(s.order_count >= 5 or s.ltv >= ${VIP_SPEND_MINOR})`,
+  new: sql`(s.order_count >= 1 and s.first_order_at >= now() - interval '30 days')`,
+  returning: sql`(s.order_count >= 2)`,
+  lapsed: sql`(s.order_count >= 1 and s.last_order_at < now() - interval '120 days')`,
+};
+
+function segmentsOf(row: { orderCount: number; ltv: number; firstOrderAt: Date | null; lastOrderAt: Date | null }, now = Date.now()): SegmentKey[] {
+  const out: SegmentKey[] = [];
+  if (row.orderCount >= 5 || row.ltv >= VIP_SPEND_MINOR) out.push('vip');
+  if (row.orderCount >= 1 && row.firstOrderAt && row.firstOrderAt.getTime() >= now - 30 * DAY_MS) out.push('new');
+  if (row.orderCount >= 2) out.push('returning');
+  if (row.orderCount >= 1 && row.lastOrderAt && row.lastOrderAt.getTime() < now - 120 * DAY_MS) out.push('lapsed');
+  return out;
+}
+
+/** Everyone plus the size of each segment, with the rule shown to staff. */
+export async function customerSegments(db: Db) {
+  const [row] = (await db.execute(sql`
+    select count(*)::int as everyone,
+      ${sql.join(SEGMENTS.map((g) => sql`count(*) filter (where ${segmentSql[g.key]})::int as ${sql.raw(g.key)}`), sql`, `)}
+    from customers c cross join lateral (${stats}) s`)) as unknown as Record<string, number>[];
+  return { everyone: row!.everyone!, segments: SEGMENTS.map((g) => ({ ...g, count: row![g.key]! })) };
+}
+
 const iso = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
 
 /** Lifetime value counts paid orders only, net of fully refunded ones. */
 const stats = sql`
   select count(*) filter (where o.payment_status = 'paid')::int as order_count,
     coalesce(sum(o.total_minor) filter (where o.payment_status = 'paid'), 0)::bigint as ltv,
+    min(o.placed_at) filter (where o.payment_status = 'paid') as first_order_at,
     max(o.placed_at) as last_order_at
   from orders o where o.customer_id = c.id`;
 
-export async function listAdminCustomers(db: Db, input: { q?: string | undefined; sort: 'newest' | 'spend'; limit: number; cursor?: string | undefined }) {
+export async function listAdminCustomers(db: Db, input: { q?: string | undefined; segment?: SegmentKey | undefined; sort: 'newest' | 'spend'; limit: number; cursor?: string | undefined }) {
   const where = [sql`true`];
+  if (input.segment) where.push(segmentSql[input.segment]);
   if (input.q) where.push(sql`(c.phone_e164 like ${likeOf(input.q)} or c.email ilike ${likeOf(input.q)})`);
   const spend = input.sort === 'spend';
   let after = sql``;
@@ -25,7 +64,7 @@ export async function listAdminCustomers(db: Db, input: { q?: string | undefined
     after = spend ? sql`and (s.ltv, c.id) < (${values[0]}::bigint, ${values[1]}::uuid)` : sql`and (c.created_at, c.id) < (${values[0]}::timestamptz, ${values[1]}::uuid)`;
   }
   const rows = (await db.execute(sql`
-    select c.id, c.phone_e164, c.email, c.status, c.phone_verified_at, c.created_at, s.order_count, s.ltv, s.last_order_at,
+    select c.id, c.phone_e164, c.email, c.status, c.phone_verified_at, c.created_at, s.order_count, s.ltv, s.first_order_at, s.last_order_at,
       ${spend ? sql`s.ltv::text` : sql`c.created_at::text`} as cur_a
     from customers c cross join lateral (${stats}) s
     where ${sql.join(where, sql` and `)} ${after}
@@ -37,6 +76,7 @@ export async function listAdminCustomers(db: Db, input: { q?: string | undefined
     data: page.map((r) => ({
       id: r.id as string, phone: (r.phone_e164 as string | null) ?? null, email: (r.email as string | null) ?? null, status: r.status as string,
       phoneVerified: Boolean(r.phone_verified_at), orderCount: r.order_count as number, lifetimeValueMinor: Number(r.ltv), lastOrderAt: iso(r.last_order_at), createdAt: iso(r.created_at),
+      segments: segmentsOf({ orderCount: r.order_count as number, ltv: Number(r.ltv), firstOrderAt: r.first_order_at ? new Date(r.first_order_at as string) : null, lastOrderAt: r.last_order_at ? new Date(r.last_order_at as string) : null }),
     })),
     page: { nextCursor: hasMore && last ? encodeCursor({ sort: `admin-customers:${input.sort}`, values: [String(last.cur_a), String(last.id)] }) : null },
   };

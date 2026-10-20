@@ -3,6 +3,7 @@ import Joi from 'joi';
 import { apiError, unprocessable } from '../../lib/errors.js';
 import { abandonIdempotent, beginIdempotent, completeIdempotent, hashRequest } from '../../lib/idempotency.js';
 import { LIMITS } from '../../lib/rate-policies.js';
+import { withLineImages } from '../../modules/media/urls.js';
 import { deriveToken } from '../../lib/tokens.js';
 import { checkout, GUEST_TOKEN_TTL_MS, type CheckoutInput } from '../../modules/checkout/checkout.js';
 import { loadOwnedOrder, orderStatus, retryPayment, verifyByReference } from '../../modules/checkout/orders.js';
@@ -94,10 +95,16 @@ async function idempotent(
 ) {
   const database = db(request);
   const requestId = request.app.requestId ?? 'unknown';
+  const storage = request.server.app.storage;
+  // Image URLs are added on the way out (never stored), so a replayed response gets current URLs.
+  const withImages = (body: unknown): object => {
+    const quote = (body as { quote?: { lines: { image: { objectKey: string } | null }[] } }).quote;
+    return quote ? { ...(body as object), quote: withLineImages(storage, quote) } : (body as object);
+  };
   const respond = (status: number, body: unknown) =>
     status >= 400
       ? h.response({ error: { ...(body as StoredError).error, requestId } }).code(status)
-      : h.response(body as object).code(status);
+      : h.response(withImages(body)).code(status);
 
   const started = await beginIdempotent(database, { scope, key: String(request.headers['idempotency-key']), requestHash: hashRequest(requestBody) });
   if (started.kind === 'replay') {
