@@ -1,0 +1,27 @@
+import "@testing-library/jest-dom/vitest";
+import { cleanup } from "@testing-library/react";
+import { afterAll, afterEach, beforeAll } from "vitest";
+import { useAnalyticsIdentity } from "@/lib/analytics/identity";
+import { useCartStore } from "@/lib/stores/cart";
+import { useAdminSession, useCustomerSession } from "@/lib/stores/session";
+import { useSessionHints } from "@/lib/stores/session-hint";
+import { server } from "./server";
+
+beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
+
+afterEach(async () => {
+  cleanup();
+  server.resetHandlers();
+  // Imported lazily: a test file's vi.mock must be in place before this module (and the API client it uses) loads.
+  (await import("@/lib/analytics")).resetAnalyticsQueue();
+  // Every test starts signed out, with an empty bag and no stored state.
+  useCustomerSession.setState({ status: "unknown", accessToken: null, expiresAt: null, user: null });
+  useAdminSession.setState({ status: "unknown", accessToken: null, expiresAt: null, user: null });
+  useCartStore.setState({ lines: [], promotionCodes: [] });
+  useAnalyticsIdentity.setState({ anonymousId: null, session: null });
+  useSessionHints.setState({ customer: false, admin: false });
+  window.localStorage.clear();
+  window.sessionStorage.clear();
+});
+
+afterAll(() => server.close());

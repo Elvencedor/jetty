@@ -12,6 +12,7 @@ the other documents define a consistent proposed database, API, and deployment.
 | [Database schema](./DATABASE.md) | Implement PostgreSQL tables, constraints, indexes, and migrations |
 | [API contract](./API.md) | Implement storefront, customer, and admin HTTP interfaces |
 | [Infrastructure](./INFRASTRUCTURE.md) | Provision environments, deploy services, and operate production |
+| [Frontend plan](./FRONTEND.md) | Sequence the storefront and admin build, see which API changes it needs, and track feature coverage |
 
 ## Decisions shared by all documents
 

@@ -1,32 +1,29 @@
+import { Button } from "@/components/ui";
+
+/** Placeholder home until phase 1 builds the storefront shell. It exists to prove the tokens, fonts and primitives. */
 export default function Home() {
   return (
-    <main className="mx-auto flex max-w-2xl flex-1 flex-col justify-center gap-6 px-6 py-16">
-      <div>
-        <p className="font-mono text-xs uppercase tracking-widest text-neutral-500">
-          Monorepo scaffold
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Jetty&rsquo;s Hair</h1>
-        <p className="mt-3 text-neutral-600 dark:text-neutral-400">
-          Storefront placeholder. Build the catalog, cart and checkout flows described in{" "}
-          <code className="font-mono text-sm">docs/FEATURES.md</code>.
-        </p>
+    <main id="main" className="mx-auto flex w-full max-w-store flex-1 flex-col justify-center gap-8 px-4 py-16">
+      <div className="flex items-center gap-3">
+        <span aria-hidden="true" className="flex size-9 items-center justify-center rounded-sm bg-primary font-display text-heading-xs font-extrabold text-on-primary">
+          J
+        </span>
+        <span className="font-display text-heading-sm font-extrabold">Jetty&rsquo;s Hair</span>
       </div>
 
-      <dl className="grid gap-px overflow-hidden rounded-lg border border-neutral-200 bg-neutral-200 text-sm dark:border-neutral-800 dark:bg-neutral-800">
-        <div className="flex items-baseline justify-between gap-4 bg-white p-4 dark:bg-neutral-950">
-          <dt className="text-neutral-500">Storefront</dt>
-          <dd className="font-mono text-xs">localhost:3000</dd>
+      <div className="flex max-w-xl flex-col gap-4">
+        <p className="text-micro font-bold uppercase tracking-[0.08em] text-primary-strong">Storefront under construction</p>
+        <h1 className="font-display text-display-lg font-extrabold text-ink">Wigs you will love, delivered fast.</h1>
+        <p className="text-body text-muted">The catalog, bag and checkout are being built in the order a shopper needs them. Follow the plan in docs/FRONTEND.md.</p>
+        <div className="flex flex-wrap gap-3">
+          <Button size="lg" href="/shop">
+            Shop wigs
+          </Button>
+          <Button size="lg" variant="outline" href="/track">
+            Track an order
+          </Button>
         </div>
-        <div className="flex items-baseline justify-between gap-4 bg-white p-4 dark:bg-neutral-950">
-          <dt className="text-neutral-500">API</dt>
-          <dd className="font-mono text-xs">localhost:4000/api/v1</dd>
-        </div>
-      </dl>
-
-      <p className="text-sm text-neutral-500">
-        Call the API with <code className="font-mono">apiFetch</code> from{" "}
-        <code className="font-mono">src/lib/api.ts</code>.
-      </p>
+      </div>
     </main>
   );
 }
