@@ -7,7 +7,7 @@ import { toApiParams, toSearchParams, type ListState } from "@/lib/catalog/param
 import { Button, EmptyState } from "@/components/ui";
 
 /** Fetches a listing's first page and facets, then hands them to the interactive `Listing`. */
-export async function ListingPage({ path, scope, state }: { path: string; scope?: ListScope; state: ListState }) {
+export async function ListingPage({ path, title, crumbs, scope, state }: { path: string; title: string; crumbs: string[]; scope?: ListScope; state: ListState }) {
   await connection();
   const params = toApiParams(state, { limit: 20 });
   const { sort: _sort, limit: _limit, cursor: _cursor, ...facetParams } = params;
@@ -28,5 +28,5 @@ export async function ListingPage({ path, scope, state }: { path: string; scope?
   // A new query is a new component, so appended pages from the old one are discarded. The layout does not change
   // which products match, so switching it keeps the pages already loaded.
   const key = toSearchParams({ ...state, view: "grid" }).toString();
-  return <Listing key={key} path={path} scope={scope} state={state} initial={{ items: page.data, nextCursor: page.page.nextCursor, total: page.page.total ?? null }} facets={facets} />;
+  return <Listing key={key} title={title} crumbs={crumbs} path={path} scope={scope} state={state} initial={{ items: page.data, nextCursor: page.page.nextCursor, total: page.page.total ?? null }} facets={facets} />;
 }

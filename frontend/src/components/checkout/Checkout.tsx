@@ -44,8 +44,6 @@ export function Checkout() {
   const [errors, setErrors] = useState<DeliveryErrors>({});
   const [methodError, setMethodError] = useState<string>();
   const [paymentError, setPaymentError] = useState<string>();
-  const [terms, setTerms] = useState(false);
-  const [termsError, setTermsError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
   const [failure, setFailure] = useState<CheckoutFailure | null>(null);
   const started = useRef(false);
@@ -95,7 +93,7 @@ export function Checkout() {
   }
 
   function focusField(name: string) {
-    document.getElementById(name === "terms" ? "field-terms" : `field-${name}`)?.focus();
+    document.getElementById(`field-${name}`)?.focus();
   }
 
   function next() {
@@ -118,10 +116,6 @@ export function Checkout() {
   }
 
   async function submit() {
-    if (!terms) {
-      setTermsError("Please accept the terms to place your order");
-      return focusField("terms");
-    }
     if (!deliveryMethod || !paymentMethod || !quote || !quoteState.ready) return;
     const request = buildCheckoutRequest({ lines, promotionCodes: codes, details, deliveryMethod, paymentMethod });
     if (!request) return go("delivery");
@@ -195,7 +189,7 @@ export function Checkout() {
             ) : step === "payment" ? (
               <PaymentStep method={paymentMethod} error={paymentError} onMethod={(m) => { setPaymentMethod(m); setPaymentError(undefined); }} />
             ) : deliveryMethod && paymentMethod ? (
-              <ReviewStep quote={quote} busy={busy} details={details} deliveryMethod={deliveryMethod} paymentMethod={paymentMethod} terms={terms} termsError={termsError} onTerms={(v) => { setTerms(v); setTermsError(undefined); }} onEdit={(s) => go(s)} />
+              <ReviewStep quote={quote} busy={busy} details={details} deliveryMethod={deliveryMethod} paymentMethod={paymentMethod} onEdit={(s) => go(s)} />
             ) : null}
           </fieldset>
 

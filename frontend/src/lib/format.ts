@@ -132,3 +132,17 @@ export function formatDelta(pct: number | null): string | null {
   if (pct === null) return null;
   return `${pct > 0 ? "+" : pct < 0 ? "−" : ""}${Math.abs(pct)}%`;
 }
+
+/**
+ * A short "how long ago": today, 3 days ago, 2 wks ago, 5 mo ago; beyond a year, the month and year ("Feb 2025").
+ * Used where the exact time does not matter, such as review dates.
+ */
+export function timeAgo(input: string | Date, now: Date = new Date()): string {
+  const date = typeof input === "string" ? new Date(input) : input;
+  const days = Math.floor((now.getTime() - date.getTime()) / 86_400_000);
+  if (days < 1) return "today";
+  if (days < 7) return days === 1 ? "yesterday" : `${days} days ago`;
+  if (days < 30) return `${Math.floor(days / 7)} wk${Math.floor(days / 7) === 1 ? "" : "s"} ago`;
+  if (days < 365) return `${Math.floor(days / 30)} mo ago`;
+  return new Intl.DateTimeFormat("en-GB", { timeZone: LAGOS_TZ, month: "short", year: "numeric" }).format(date);
+}

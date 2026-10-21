@@ -11,8 +11,8 @@ export function InfoTabs({ tabs }: { tabs: { key: string; label: string; content
   const current = tabs.find((t) => t.key === selected) ?? tabs[0]!;
   return (
     <section aria-label="Product information" className="flex flex-col gap-4">
-      <Segmented mode="tabs" label="Product information" items={tabs.map((t) => ({ value: t.key, label: t.label }))} value={current.key} onChange={setSelected} />
-      <div role="tabpanel" id={`${id}-${current.key}`} tabIndex={0}>
+      <Segmented mode="tabs" className="flex w-full [&>button]:min-h-10 [&>button]:flex-1 [&>button]:justify-center" label="Product information" items={tabs.map((t) => ({ value: t.key, label: t.label }))} value={current.key} onChange={setSelected} />
+      <div role="tabpanel" id={`${id}-${current.key}`} tabIndex={0} className="min-h-28 px-1">
         {current.content}
       </div>
     </section>

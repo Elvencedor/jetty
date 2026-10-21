@@ -85,7 +85,8 @@ export type ProductCard = {
   /** Smallest and largest numeric length (inches) among buyable variants; null when the product has no length option. */
   lengthRange: { min: number; max: number } | null;
   featured: boolean;
-  price: { minAmountMinor: number; maxAmountMinor: number; currency: string };
+  /** `compareAtMinor` is the struck-through "was" price of the cheapest variant, when that variant is on sale. */
+  price: { minAmountMinor: number; maxAmountMinor: number; compareAtMinor: number | null; currency: string };
   inStock: boolean;
   onOffer: boolean;
   rating: { average: number; count: number };
@@ -240,6 +241,7 @@ function toCard(r: Record<string, unknown>): ProductCard {
     price: {
       minAmountMinor: Number(r.min_price),
       maxAmountMinor: Number(r.max_price),
+      compareAtMinor: null,
       currency: r.currency as string,
     },
     inStock: r.in_stock as boolean,
@@ -309,6 +311,8 @@ export async function decorateCards(db: Db, cards: ProductCard[]): Promise<Produ
       (select max(pov.value_key::numeric) from product_options po join product_option_values pov on pov.option_id = po.id and pov.active
          where po.product_id = p.id and lower(po.name) = 'length' and pov.value_key ~ '^[0-9]+([.][0-9]+)?$'
            and exists (select 1 from variant_option_values vov join product_variants v on v.id = vov.variant_id and v.active where vov.option_value_id = pov.id)) as len_max,
+      (select case when v.compare_at_price_minor > v.price_minor then v.compare_at_price_minor end
+         from product_variants v where v.product_id = p.id and v.active order by v.price_minor asc, v.compare_at_price_minor desc nulls last limit 1) as compare_at,
       (select max(round((v.compare_at_price_minor - v.price_minor) * 100.0 / v.compare_at_price_minor))::int
          from product_variants v where v.product_id = p.id and v.active and v.compare_at_price_minor > v.price_minor) as sale_pct,
       (select coalesce(bool_or(coalesce(i.on_hand_quantity - i.reserved_quantity, 0) between 1 and coalesce(i.low_stock_threshold, ${LOW_STOCK_DEFAULT})), false)
@@ -329,6 +333,7 @@ export async function decorateCards(db: Db, cards: ProductCard[]): Promise<Produ
     return {
       ...card,
       badges,
+      price: { ...card.price, compareAtMinor: r.compare_at === null || r.compare_at === undefined ? null : Number(r.compare_at) },
       colours: r.colours as ColourOption[],
       lengthRange: r.len_min === null ? null : { min: Number(r.len_min), max: Number(r.len_max) },
     };

@@ -13,7 +13,7 @@ test("a shopper can browse the listing, filter it from the URL and search", asyn
   await expect(page.getByRole("link", { name: "Deep Curly Closure Wig" })).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("status").filter({ hasText: /wigs?$/ })).toHaveText("2 wigs");
-  await expect(page.getByRole("button", { name: "Remove filter: In stock" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "All filters · 1" })).toBeVisible();
 
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
@@ -21,7 +21,7 @@ test("a shopper can browse the listing, filter it from the URL and search", asyn
 
 test("the filter sheet applies a choice and shows how many wigs match", async ({ page }) => {
   await page.goto("/shop");
-  await page.getByRole("button", { name: /^Filters/ }).click();
+  await page.getByRole("button", { name: /^All filters/ }).click();
   const sheet = page.getByRole("dialog", { name: "Filters" });
   await expect(sheet).toBeVisible();
   await sheet.getByRole("button", { name: /In stock only/ }).or(sheet.getByRole("switch", { name: "In stock only" })).first().click();
@@ -49,17 +49,19 @@ test("a product page resolves variants, disables sold-out choices and adds to th
   // The best seller is preselected, and the price comes from the server quote.
   await expect(page.getByRole("button", { name: /Add to bag · ₦180,000/ })).toBeEnabled();
 
-  // 14 inch × Swiss lace is sold out: choosing it turns the button off, with the reason.
+  // 14 inch × Swiss lace is sold out, so that chip cannot be picked and says why.
   await page.getByRole("button", { name: /Lace/ }).click();
-  await page.getByRole("button", { name: /Swiss lace/ }).click();
-  await expect(page.getByRole("button", { name: "Sold out" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Swiss lace, sold out" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /^HD lace/ })).toHaveAttribute("aria-pressed", "true");
 
-  // Back to HD lace, then add.
-  await page.getByRole("button", { name: /Lace/ }).click();
-  await page.getByRole("button", { name: "HD lace" }).click();
+  // Changing the length to one that has no Swiss lace at all keeps the choices that still make sense.
+  await page.getByRole("button", { name: /Length/ }).click();
+  await page.getByRole("button", { name: "20 inch" }).click();
+  await expect(page.getByRole("button", { name: /Add to bag · ₦240,000/ })).toBeEnabled();
+
   await page.getByRole("button", { name: /Add to bag/ }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Added to your bag" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /^Bag, 1 item/ }).first()).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Added to bag" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "View bag" })).toBeVisible();
 
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);

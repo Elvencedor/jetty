@@ -13,6 +13,7 @@ const SHOWN = 48;
 /** The card fields a product's detail can fill in; the wishlist keeps only slugs, so each product is read fresh. */
 export function cardFromDetail(p: ProductDetail): Card {
   const prices = p.variants.map((v) => v.price.amountMinor);
+  const cheapest = [...p.variants].sort((a, b) => a.price.amountMinor - b.price.amountMinor)[0];
   const cover = p.media.find((m) => m.isCover) ?? p.media[0];
   return {
     id: p.id,
@@ -23,7 +24,7 @@ export function cardFromDetail(p: ProductDetail): Card {
     colours: [],
     lengthRange: null,
     featured: p.featured,
-    price: { minAmountMinor: Math.min(...prices, Number.MAX_SAFE_INTEGER), maxAmountMinor: Math.max(...prices, 0), currency: "NGN" },
+    price: { minAmountMinor: Math.min(...prices, Number.MAX_SAFE_INTEGER), maxAmountMinor: Math.max(...prices, 0), compareAtMinor: cheapest?.compareAtPrice && cheapest.compareAtPrice.amountMinor > cheapest.price.amountMinor ? cheapest.compareAtPrice.amountMinor : null, currency: "NGN" },
     inStock: p.variants.some((v) => v.availability.inStock),
     onOffer: p.variants.some((v) => v.compareAtPrice && v.compareAtPrice.amountMinor > v.price.amountMinor),
     rating: p.rating,

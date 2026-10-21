@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ProductDetail, Variant } from "@/lib/api/types";
-import { choose, firstOpenOption, initialSelection, priceRange, resolveVariant, selectionOf, valueState } from "./variants";
+import { choose, firstOpenOption, initialSelection, priceRange, resolveVariant, selectionOf, valuePriceNote, valueState } from "./variants";
 
 const opt = (id: string, values: string[]) => ({ id, name: id, values: values.map((v) => ({ id: v, label: v, valueKey: v, swatch: null })) });
 const variant = (id: string, optionValueIds: string[], inStock = true, amount = 100_00): Variant => ({
@@ -75,5 +75,18 @@ describe("firstOpenOption and priceRange", () => {
   it("gives the lowest and highest price", () => {
     expect(priceRange(product.variants)).toEqual({ min: 150_00, max: 300_00 });
     expect(priceRange([])).toBeNull();
+  });
+});
+
+describe("valuePriceNote", () => {
+  it("shows what each value adds over the cheapest alternative, given the other choices", () => {
+    // With 14" chosen: HD lace costs 200_00, Swiss lace 150_00 (cheapest).
+    expect(valuePriceNote(product, { length: "l14" }, "lace", "swiss")).toEqual({ extraMinor: 0 });
+    expect(valuePriceNote(product, { length: "l14" }, "lace", "hd")).toEqual({ extraMinor: 50_00 });
+  });
+  it("says nothing when the choices cost the same, or when a value cannot be had", () => {
+    const flat = { ...product, variants: product.variants.map((v) => ({ ...v, price: { ...v.price, amountMinor: 100 } })) };
+    expect(valuePriceNote(flat, { length: "l14" }, "lace", "hd")).toBeNull();
+    expect(valuePriceNote(product, { length: "l20" }, "lace", "swiss")).toBeNull();
   });
 });

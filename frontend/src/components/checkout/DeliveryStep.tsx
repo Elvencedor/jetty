@@ -12,7 +12,7 @@ import { useCartStore } from "@/lib/stores/cart";
 import { RadioCards } from "./RadioCards";
 
 const METHOD_COPY: Record<DeliveryMethod, { title: string; note: string; icon: React.ReactNode }> = {
-  same_day: { title: "Same-day delivery", note: "Order before the cut-off", icon: <Bike size={20} /> },
+  same_day: { title: "Same-day delivery", note: "Order before the cut-off", icon: <Bike size={20} strokeWidth={1.9} /> },
   next_day: { title: "Next-day delivery", note: "Arrives tomorrow", icon: <Truck size={20} /> },
   nationwide: { title: "Nationwide delivery", note: "Via our courier partners", icon: <Package size={20} /> },
   pickup: { title: "Pick up at our showroom", note: "Collect when it's ready", icon: <Store size={20} /> },
@@ -62,18 +62,20 @@ export function DeliveryStep({ details, errors, method, methodError, onChange, o
     <div className="flex flex-col gap-4">
       <h2 data-step-heading tabIndex={-1} className="font-display text-heading-md font-extrabold outline-none">Where should we deliver?</h2>
       <TextField label="Full name" autoComplete="name" {...field("name")} />
-      <TextField label="Phone (for delivery updates)" type="tel" inputMode="tel" autoComplete="tel" placeholder="0803 123 4567" {...field("phone")} />
-      <TextField label="Email for your receipt (optional)" type="email" autoComplete="email" {...field("email")} />
-      <TextField label="Street address" autoComplete="address-line1" {...field("addressLine1")} />
-      <div className="grid gap-4 sm:grid-cols-2">
+      <TextField label="Phone (WhatsApp updates)" type="tel" inputMode="tel" autoComplete="tel" placeholder="0803 123 4567" {...field("phone")} />
+      <TextField label="Email for receipt (optional)" type="email" autoComplete="email" {...field("email")} />
+      <TextField label="Address" autoComplete="address-line1" {...field("addressLine1")} />
+      <div className="grid grid-cols-2 gap-2.5">
         <TextField label="Area (optional)" autoComplete="address-line2" {...field("area")} />
         <TextField label="City or town" autoComplete="address-level2" {...field("city")} />
       </div>
-      <SelectField label="State" autoComplete="address-level1" {...field("state")}>
-        <option value="">Choose your state</option>
-        {NIGERIAN_STATES.map((s) => <option key={s}>{s}</option>)}
-      </SelectField>
-      <TextField label="Landmark (optional)" {...field("landmark")} />
+      <div className="grid grid-cols-2 gap-2.5">
+        <SelectField label="State" autoComplete="address-level1" {...field("state")}>
+          <option value="">Choose</option>
+          {NIGERIAN_STATES.map((s) => <option key={s}>{s}</option>)}
+        </SelectField>
+        <TextField label="Landmark (optional)" {...field("landmark")} />
+      </div>
       <TextField label="Note for the rider (optional)" {...field("riderNote")} />
 
       <div aria-live="polite" aria-busy={isFetching}>

@@ -7,7 +7,7 @@ async function addWig(page: Page) {
   const add = page.getByRole("button", { name: /Add to bag/ });
   await expect(async () => {
     await add.click();
-    await expect(page.getByRole("status").filter({ hasText: "Added to your bag" })).toBeVisible({ timeout: 500 });
+    await expect(page.getByRole("status").filter({ hasText: "Added to bag" })).toBeVisible({ timeout: 500 });
   }).toPass();
 }
 

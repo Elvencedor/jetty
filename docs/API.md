@@ -650,3 +650,8 @@ how a rider is assigned; moving to `out_for_delivery` does not require one. `GET
 `{ everyone, segments: [{ key, label, rule, count }] }` for `vip` (5+ paid orders or ₦1,000,000), `new` (first paid order
 in the last 30 days), `returning` (2+) and `lapsed` (no order in 120 days). `GET /admin/customers` accepts `segment` and
 tags every row with its `segments`.
+
+## Product card "was" price
+
+Listing cards carry `price.compareAtMinor`: the struck-through compare-at price of the **cheapest** active variant when
+that variant is on sale, otherwise `null` (so the card's "From ₦X" and its "was" always describe the same variant).

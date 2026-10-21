@@ -223,6 +223,46 @@ Checks at the end of the phase: 116 unit/component tests, typecheck, lint and pr
 - **Browser tests run against a fixture API** (`e2e/mock-api.mjs`), so they need no database; 21 pass on phone and desktop profiles, axe-clean on home, listing and product pages.
 
 
+### Design conformance pass (after phases 1–3)
+
+Phases 1–3 were first built from the markdown specs alone and drifted from the design. This pass re-did the layouts against
+the specs **and the reference mockups in `frontend/design/reference/`** (exact copy, measurements and states), then checked
+the result in a real browser at 390px.
+
+**Now matches the design:** floating ink tab bar with five items (pink pill for the current one; hidden where a page has its
+own bottom bar); per-page phone headers (home: wordmark, bag, search with filters button; shop: pink header block with
+breadcrumb, view toggle and scoped search; product: full-bleed gallery with floating back/share/save, angle chips, content
+sheet overlapping it; bag; checkout; confirmation hero); ink footer card; hero cards with the photo cut-out and the white/ink
+tag pills; stories; flash strip; picks (framed cards with reviews and "+"); length bars; bento tiles; trust card; product card
+in grid, pick and list forms with the struck "was" price; shop filter pills that open the sheet at their group, results meta,
+"Show more (N)" and "That's everything", the empty state with best sellers; filter sheet with labelled 40px colour swatches, a
+two-thumb price slider with number fields, and a debounced "Show N wigs" with spinner; the "Build your wig" accordion (58px
+rows, numbered badges, chosen value in pink, sold-out chips disabled and announced, "+₦25k"/"Included" notes, 250ms
+auto-advance, help links); "YOUR WIG" summary card; badges row; rating pill with "sold"; dashed delivery card with Change;
+horizontal review cards and "See all"; sticky add-to-bag bar (6s "Added to bag", quantity capped at 5); bag on the tint
+background with the floating total pill; 2×2 payment tiles, "Quick check" review step and terms as plain text; confirmation
+hero, tracker with icons, courier card, WhatsApp help.
+
+**Deliberately not built, and why:**
+| Design element | Reason |
+|---|---|
+| Deal tracker, offer tickets (bag) | Need `GET /promotions/available` and quote `progress` (A6) |
+| In-feed promo card (shop) | No CMS data for it yet (CMS-05) |
+| Notifications bell (home header) | No notifications feature exists |
+| Quiz, UGC strip, install bundle, 360° | P2 in the design |
+| Review attribute chips and photo strip | The API has no such data |
+| "Notify me" on sold-out options | Needs A11 |
+| Rider map, "Edit order", "How was checkout?", install-day cards, "Save your details" | P2 or A12 |
+| Saved card / Bank app express buttons, USSD, pay on delivery | P1 |
+| "Get it today by 8pm… order within 3h 20m" | The delivery quote has dates, not cut-off times; the card shows the date |
+| Desktop (≥1024) layouts | Not designed; the recommended top header and multi-column layouts are used |
+
+**Small deviations kept:** the shop's Best selling sort (the API supports it); the promo-code box is titled "Promo code"
+because there are no tickets above it; the review breakdown bars stay (we have that data); checkout asks for city and an
+optional rider note (the API needs the city).
+
+**API change that came with it:** `price.compareAtMinor` on listing cards (see `docs/API.md`).
+
 ### Phase 2 — Bag, checkout, confirmation (9 days)
 **Goal:** a guest can pay by card or bank transfer and see their order. *Depends on A1; A6 and A10 optional.*
 1. **CartStore + `useQuote` (1d)** with tests (merge duplicates, cross-tab sync, stale-quote refresh).

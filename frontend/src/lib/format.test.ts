@@ -14,6 +14,7 @@ import {
   lagosDateKey,
   maskPhone,
   normaliseNigerianPhone,
+  timeAgo,
 } from "./format";
 
 describe("money", () => {
@@ -117,5 +118,19 @@ describe("durations and deltas", () => {
     expect(formatDelta(-3)).toBe("−3%");
     expect(formatDelta(0)).toBe("0%");
     expect(formatDelta(null)).toBeNull();
+  });
+});
+
+describe("timeAgo", () => {
+  const now = new Date("2026-10-20T12:00:00Z");
+  const ago = (days: number) => new Date(now.getTime() - days * 86_400_000);
+  it("speaks in days, weeks and months, then gives the month", () => {
+    expect(timeAgo(ago(0), now)).toBe("today");
+    expect(timeAgo(ago(1), now)).toBe("yesterday");
+    expect(timeAgo(ago(3), now)).toBe("3 days ago");
+    expect(timeAgo(ago(7), now)).toBe("1 wk ago");
+    expect(timeAgo(ago(15), now)).toBe("2 wks ago");
+    expect(timeAgo(ago(95), now)).toBe("3 mo ago");
+    expect(timeAgo(ago(500), now)).toBe("Jun 2025");
   });
 });

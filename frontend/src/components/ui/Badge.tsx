@@ -17,5 +17,5 @@ const KINDS: Record<BadgeKind, string> = {
 export const BADGE_KIND_FOR: Record<string, BadgeKind> = { sale: "sale", new: "highlight", low_stock: "highlight", featured: "highlight", custom: "highlight" };
 
 export function Badge({ kind = "highlight", children, className }: { kind?: BadgeKind; children: ReactNode; className?: string }) {
-  return <span className={cn("inline-flex items-center rounded-xs px-2.5 py-1 text-micro font-bold uppercase tracking-[0.04em]", KINDS[kind], className)}>{children}</span>;
+  return <span className={cn("inline-flex items-center rounded-xs px-2.5 py-0.5 text-micro font-bold", KINDS[kind], className)}>{children}</span>;
 }

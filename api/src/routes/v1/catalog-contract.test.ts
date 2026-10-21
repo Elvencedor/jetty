@@ -73,10 +73,12 @@ describe('catalog contract for the storefront', { skip: !TEST_DATABASE_URL && 'T
       assert.equal(alpha.badges[0].label, 'Best seller');
       assert.equal(alpha.badges[1].label, '-20%');
       assert.match(alpha.image.url, /cover\.webp/);
+      assert.equal(alpha.price.compareAtMinor, 125000, 'the struck-through price of the cheapest variant');
 
       const oil = ((await get('/products?q=gamma')).body.data as Json[])[0]!;
       assert.deepEqual(oil.colours, []);
       assert.equal(oil.lengthRange, null);
+      assert.equal(oil.price.compareAtMinor, null, 'nothing is on sale');
       assert.deepEqual(oil.badges.map((b: Json) => b.kind), ['new']);
     });
 

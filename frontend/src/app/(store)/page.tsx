@@ -1,5 +1,6 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { HomeTop } from "@/components/shell/MobileTop";
 import { HomeSections } from "@/components/home/HomeSections";
 import { Button, EmptyState, Skeleton } from "@/components/ui";
 import { currentTime } from "@/lib/clock";
@@ -19,11 +20,14 @@ async function Home() {
 
 export default function HomePage() {
   return (
-    <div className="mx-auto flex w-full max-w-store flex-col gap-7 px-4 pt-4">
+    <div className="mx-auto w-full max-w-store">
       <h1 className="sr-only">Jetty&rsquo;s Hair</h1>
-      <Suspense fallback={<Skeleton className="h-[380px] w-full rounded-xl" />}>
-        <Home />
-      </Suspense>
+      <HomeTop />
+      <div className="flex flex-col gap-7 px-4 pt-2 lg:pt-6">
+        <Suspense fallback={<Skeleton className="h-[380px] w-full rounded-xl" />}>
+          <Home />
+        </Suspense>
+      </div>
     </div>
   );
 }

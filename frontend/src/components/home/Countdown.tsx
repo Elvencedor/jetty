@@ -28,7 +28,7 @@ export function Countdown({ endsAt, onEnd }: { endsAt: string; onEnd?: () => voi
     // Labelled once with the whole duration; the ticking boxes are hidden so screen readers are not interrupted.
     <span role="timer" aria-label={`Offer ends in ${describeDuration(left)}`} className="inline-flex gap-1">
       {parts.map((n, i) => (
-        <span key={i} aria-hidden="true" className="inline-flex min-w-8 justify-center rounded-sm bg-primary px-1.5 py-1 font-display text-label font-extrabold tabular-nums text-on-primary">
+        <span key={i} aria-hidden="true" className="inline-flex justify-center rounded-xs bg-primary px-[7px] py-1 font-display font-bold tabular-nums text-on-primary">
           {pad(n)}
         </span>
       ))}

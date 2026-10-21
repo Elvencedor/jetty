@@ -5,7 +5,7 @@ export const metadata: Metadata = { title: "My bag", robots: { index: false } };
 
 export default function BagPage() {
   return (
-    <div className="mx-auto w-full max-w-xl px-4 pt-4 lg:max-w-store">
+    <div className="flex flex-1 flex-col">
       <Bag />
     </div>
   );

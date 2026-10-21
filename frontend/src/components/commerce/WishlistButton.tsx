@@ -14,7 +14,7 @@ export function WishlistButton({ slug, title, className }: { slug: string; title
       aria-pressed={saved}
       aria-label={`Save ${title}`}
       onClick={() => toggle(slug)}
-      className={cn("relative z-10 inline-flex size-11 items-center justify-center", className)}
+      className={cn("z-10 inline-flex size-11 items-center justify-center", className)}
     >
       <span className="flex size-[30px] items-center justify-center rounded-full bg-white shadow-sm">
         <Heart aria-hidden="true" size={16} className={cn(saved ? "fill-primary text-primary" : "text-ink")} />

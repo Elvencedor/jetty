@@ -15,7 +15,7 @@ async function Content({ params }: Pick<PageProps<"/order/[orderId]/confirmed">,
 
 export default function ConfirmedPage(props: PageProps<"/order/[orderId]/confirmed">) {
   return (
-    <div className="px-4">
+    <div>
       <Suspense fallback={<Skeleton className="mx-auto h-72 w-full max-w-xl" />}>
         <Content params={props.params} />
       </Suspense>

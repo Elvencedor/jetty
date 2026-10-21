@@ -1,6 +1,6 @@
 "use client";
 
-import { Tag, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui";
 import type { Quote } from "@/lib/api/types";
@@ -32,8 +32,8 @@ export function CodeEntry({ quote }: { quote: Quote | undefined }) {
   }
 
   return (
-    <section aria-labelledby="codes-heading" className="flex flex-col gap-3 rounded-lg bg-surface p-4">
-      <h2 id="codes-heading" className="flex items-center gap-2 text-body font-bold"><Tag aria-hidden="true" size={18} /> Offers and codes</h2>
+    <section aria-labelledby="codes-heading" className="flex flex-col gap-2.5">
+      <h2 id="codes-heading" className="font-display text-heading-xs font-extrabold">Promo code</h2>
       <form onSubmit={submit} className="flex gap-2">
         <input
           aria-label="Promotion code"
@@ -42,10 +42,10 @@ export function CodeEntry({ quote }: { quote: Quote | undefined }) {
           maxLength={64}
           autoCapitalize="characters"
           autoComplete="off"
-          placeholder="Enter a code"
-          className="h-11 min-w-0 flex-1 rounded-pill border border-line-strong px-4 text-body-sm uppercase"
+          placeholder="Have a code?"
+          className="h-12 min-w-0 flex-1 rounded-pill border-[1.5px] border-line-strong bg-surface px-4 uppercase placeholder:normal-case"
         />
-        <Button type="submit" variant="dark" disabled={!text.trim()}>Apply</Button>
+        <Button type="submit" variant="dark" className="h-12 px-[18px]" disabled={!text.trim()}>Apply</Button>
       </form>
       {note ? <p role="alert" className="text-caption font-semibold text-danger">{note}</p> : null}
       {codes.length ? (
@@ -54,7 +54,7 @@ export function CodeEntry({ quote }: { quote: Quote | undefined }) {
             const reason = rejected.get(code);
             const ok = applied.has(code);
             return (
-              <li key={code} className="flex items-start justify-between gap-2 rounded-md bg-surface-tint px-3 py-2">
+              <li key={code} className="flex items-start justify-between gap-2 rounded-lg bg-surface px-3.5 py-2">
                 <div className="min-w-0">
                   <p className="text-body-sm font-bold">{code}{ok ? <span className="ml-2 text-caption font-semibold text-success">Applied</span> : null}</p>
                   {reason ? <p role="alert" className="text-caption text-danger">{rejectionMessage(reason)}</p> : null}

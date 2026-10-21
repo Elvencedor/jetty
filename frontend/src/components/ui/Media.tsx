@@ -27,7 +27,8 @@ type Props = {
  * Only the configured media host (the CDN) goes through Next's optimiser; any other URL is served as it is.
  */
 export function Media({ image, alt, aspect = "4 / 5", sizes, priority = false, tone = 0, caption, className }: Props) {
-  const box = cn("relative overflow-hidden rounded-lg", className);
+  // Callers may set their own corner radius; otherwise images use the standard 20px.
+  const box = cn("relative overflow-hidden", !/(^|\s)rounded(-|\s|$)/.test(className ?? "") && "rounded-lg", className);
   if (!image?.url) {
     return (
       <div className={cn(box, TONES[Math.abs(tone) % TONES.length], "flex items-end p-3")} style={{ aspectRatio: aspect }} role={alt ? "img" : undefined} aria-label={alt || undefined}>

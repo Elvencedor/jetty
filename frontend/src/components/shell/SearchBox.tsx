@@ -13,7 +13,21 @@ import { useDebounced } from "./useDebounced";
 const MIN_CHARS = 2;
 
 /** Header search with type-ahead. Enter searches the text; arrow keys move through suggestions (a combobox). */
-export function SearchBox({ className, initial = "" }: { className?: string; initial?: string }) {
+type Props = {
+  className?: string;
+  initial?: string;
+  /** `lg` is the 50px home field, `md` the 44px header field. */
+  size?: "md" | "lg";
+  /** Colour of the field: tinted on white pages, white on the pink shop header. */
+  tone?: "tint" | "white";
+  placeholder?: string;
+  /** Where Enter searches: the listing this box is scoped to (default: all products). */
+  scopePath?: string;
+  /** Names the search landmark, which must differ when a page has more than one. */
+  label?: string;
+};
+
+export function SearchBox({ className, initial = "", size = "md", tone = "tint", placeholder = "Try “bob”, “26 inch”, “glueless”", scopePath, label = "Store search" }: Props) {
   const router = useRouter();
   const listId = useId();
   const input = useRef<HTMLInputElement>(null);
@@ -39,7 +53,7 @@ export function SearchBox({ className, initial = "" }: { className?: string; ini
   };
   const submit = () => {
     const q = text.trim();
-    if (q) go(`/search?q=${encodeURIComponent(q)}`);
+    if (q) go(scopePath ? `${scopePath}?q=${encodeURIComponent(q)}` : `/search?q=${encodeURIComponent(q)}`);
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -62,8 +76,8 @@ export function SearchBox({ className, initial = "" }: { className?: string; ini
 
   return (
     <div className={cn("relative", className)} onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setOpen(false)}>
-      <form role="search" onSubmit={(e) => { e.preventDefault(); submit(); }} className="flex h-11 items-center gap-2 rounded-pill bg-surface-tint px-4 focus-within:outline-2 focus-within:outline-primary">
-        <Search aria-hidden="true" size={18} className="shrink-0 text-muted" />
+      <form role="search" aria-label={label} onSubmit={(e) => { e.preventDefault(); submit(); }} className={cn("flex items-center gap-2.5 rounded-pill px-4 focus-within:outline-2 focus-within:outline-primary", size === "lg" ? "h-[50px]" : "h-11", tone === "white" ? "bg-surface" : "bg-surface-tint")}>
+        <Search aria-hidden="true" size={18} strokeWidth={2} className="shrink-0 text-primary-strong" />
         <input
           ref={input}
           type="search"
@@ -76,7 +90,7 @@ export function SearchBox({ className, initial = "" }: { className?: string; ini
           autoComplete="off"
           enterKeyHint="search"
           maxLength={100}
-          placeholder="Search wigs, textures, lengths"
+          placeholder={placeholder}
           value={text}
           onChange={(e) => { setText(e.target.value); setOpen(true); setActive(-1); }}
           onFocus={() => setOpen(true)}

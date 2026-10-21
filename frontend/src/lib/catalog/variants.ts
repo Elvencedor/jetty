@@ -70,3 +70,30 @@ export function priceRange(variants: Variant[]): { min: number; max: number } | 
   const prices = variants.map((v) => v.price.amountMinor);
   return { min: Math.min(...prices), max: Math.max(...prices) };
 }
+
+/**
+ * The cheapest price among the variants that match a choice: the others fixed as they are now, this option set to
+ * `valueId`. Used only to show how choices differ ("+₦25k"); the price of what is bought comes from the quote.
+ */
+function lowestPriceWith(product: Shape, selection: Selection, optionId: string, valueId: string): number | null {
+  const others = Object.entries(selection).filter(([id]) => id !== optionId).map(([, value]) => value);
+  const prices = product.variants
+    .filter((v) => v.optionValueIds.includes(valueId) && others.every((o) => v.optionValueIds.includes(o)))
+    .map((v) => v.price.amountMinor);
+  return prices.length ? Math.min(...prices) : null;
+}
+
+/**
+ * How much more a value costs than the cheapest alternative in the same option, given the other choices:
+ * `{ extraMinor: 2_500_000 }` for "+₦25k", `{ extraMinor: 0 }` for the cheapest ("Included") when the others cost
+ * more, or null when every value costs the same (nothing worth saying) or this one cannot be had.
+ */
+export function valuePriceNote(product: Shape, selection: Selection, optionId: string, valueId: string): { extraMinor: number } | null {
+  const option = product.options.find((o) => o.id === optionId);
+  const mine = lowestPriceWith(product, selection, optionId, valueId);
+  if (!option || mine === null) return null;
+  const all = option.values.map((v) => lowestPriceWith(product, selection, optionId, v.id)).filter((p): p is number => p !== null);
+  const cheapest = Math.min(...all);
+  if (Math.max(...all) === cheapest) return null;
+  return { extraMinor: mine - cheapest };
+}

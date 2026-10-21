@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
@@ -20,25 +20,38 @@ function Harness({ start }: { start?: Selection }) {
 }
 
 describe("OptionPicker", () => {
-  it("opens the first unanswered step and moves to the next after a choice", async () => {
+  it("opens the first unanswered step and, a moment after a choice, the next", async () => {
     render(<Harness />);
     expect(screen.getByRole("button", { name: /Length/ })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("button", { name: /Lace/ })).toHaveAttribute("aria-expanded", "false");
-    await userEvent.click(screen.getByRole("button", { name: "14 inch" }));
-    expect(screen.getByRole("button", { name: /Lace/ })).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(screen.getByRole("button", { name: /^14 inch/ }));
     expect(screen.getByRole("button", { name: /Length/ })).toHaveTextContent("14 inch");
+    await waitFor(() => expect(screen.getByRole("button", { name: /Lace/ })).toHaveAttribute("aria-expanded", "true"));
   });
 
-  it("flags sold-out values for assistive technology and disables ones that were never made", async () => {
+  it("disables values that are sold out or never made, and says so", async () => {
     render(<Harness start={initialSelection(product)} />);
     await userEvent.click(screen.getByRole("button", { name: /Lace/ }));
-    // 14 inch × Swiss lace exists but is sold out: still choosable, and announced as sold out.
-    expect(screen.getByRole("button", { name: /Swiss lace.*sold out/ })).toBeEnabled();
+    // 14 inch × Swiss lace exists but is sold out.
+    expect(screen.getByRole("button", { name: "Swiss lace, sold out" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^HD lace/ })).toHaveAttribute("aria-pressed", "true");
+    // Moving to 20 inch: Swiss lace was never made in that length.
     await userEvent.click(screen.getByRole("button", { name: /Length/ }));
-    await userEvent.click(screen.getByRole("button", { name: "20 inch" }));
-    // 20 inch × Swiss lace was never made.
+    await userEvent.click(screen.getByRole("button", { name: /^20 inch/ }));
     await userEvent.click(screen.getByRole("button", { name: /Lace/ }));
-    expect(screen.getByRole("button", { name: "Swiss lace" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Swiss lace, sold out" })).toBeDisabled();
+  });
+
+  it("notes what a choice adds over the cheapest alternative", async () => {
+    const priced = { ...product, variants: [variant("a", ["l14", "hd"], true), variant("b", ["l14", "swiss"], true), variant("c", ["l20", "hd"], true)].map((v, i) => ({ ...v, price: { ...v.price, amountMinor: [20_000_00, 15_000_00, 30_000_00][i]! } })) };
+    function Priced() {
+      const [selection, setSelection] = useState<Selection>({ len: "l14" });
+      return <OptionPicker product={priced} selection={selection} onChange={setSelection} />;
+    }
+    render(<Priced />);
+    // With length answered, the Lace step is the one that opens.
+    expect(screen.getByRole("button", { name: /^Swiss lace/ })).toHaveTextContent("Included");
+    expect(screen.getByRole("button", { name: /^HD lace/ })).toHaveTextContent("+₦5k");
   });
 
   it("renders nothing for a product without options", () => {

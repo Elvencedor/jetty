@@ -11,22 +11,17 @@ async function Content({ searchParams }: Pick<PageProps<"/search">, "searchParam
   const state = parseListState(await searchParams);
   if (!state.q) {
     return (
-      <EmptyState title="What are you looking for?" action={<Button href="/shop">Browse all wigs</Button>}>
+      <EmptyState className="mx-4 mt-4" title="What are you looking for?" action={<Button href="/shop">Browse all wigs</Button>}>
         Search by style, texture or length, for example &ldquo;bob&rdquo; or &ldquo;26 inch&rdquo;.
       </EmptyState>
     );
   }
-  return (
-    <>
-      <h1 className="font-display text-heading-lg font-extrabold">Results for &ldquo;{state.q}&rdquo;</h1>
-      <ListingPage path="/search" state={state} />
-    </>
-  );
+  return <ListingPage path="/search" title={`“${state.q}”`} crumbs={["Search"]} state={state} />;
 }
 
 export default function SearchPage(props: PageProps<"/search">) {
   return (
-    <div className="mx-auto flex w-full max-w-store flex-col gap-4 px-4 pt-4">
+    <div className="flex w-full flex-col">
       <Suspense fallback={<div className="grid grid-cols-2 gap-3 md:grid-cols-4">{Array.from({ length: 8 }, (_, i) => <ProductCardSkeleton key={i} />)}</div>}>
         <Content searchParams={props.searchParams} />
       </Suspense>

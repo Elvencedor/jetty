@@ -17,7 +17,7 @@ export function PicksTabs({ tabs }: { tabs: Tabs }) {
   return (
     <div className="flex flex-col gap-3">
       {populated.length > 1 ? (
-        <div role="tablist" aria-label="Pick a group" className="flex gap-1 self-start rounded-pill bg-surface-tint p-1">
+        <div role="tablist" aria-label="Pick a group" className="flex gap-1.5 rounded-pill bg-surface-tint p-1">
           {populated.map((t) => (
             <button
               key={t.key}
@@ -27,7 +27,7 @@ export function PicksTabs({ tabs }: { tabs: Tabs }) {
               aria-selected={t.key === current.key}
               aria-controls={`${id}-panel`}
               onClick={() => setSelected(t.key)}
-              className={cn("min-h-9 rounded-pill px-4 text-label font-semibold", t.key === current.key ? "bg-primary text-on-primary" : "text-muted")}
+              className={cn("h-10 flex-1 rounded-pill text-body-sm font-semibold transition-colors duration-(--duration-base)", t.key === current.key ? "bg-surface text-ink" : "text-muted")}
             >
               {t.label}
             </button>

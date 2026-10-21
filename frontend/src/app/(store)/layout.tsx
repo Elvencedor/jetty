@@ -27,14 +27,14 @@ export default function StoreLayout({ children }: LayoutProps<"/">) {
         <Announcements />
       </Suspense>
       <Header />
-      <main id="main" className="flex flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0">
+      <main id="main" className="flex flex-1 flex-col">
         {children}
       </main>
-      <Suspense fallback={<div className="mt-16 h-64 bg-surface-subtle" />}>
+      <Suspense fallback={<div className="mx-4 mt-5 h-64 rounded-card bg-surface-inverse" />}>
         <StoreFooter />
       </Suspense>
-      {/* usePathname() is request-time on dynamic routes, so the bar streams in; the placeholder holds its place. */}
-      <Suspense fallback={<div aria-hidden="true" className="fixed inset-x-0 bottom-0 z-30 h-14 border-t border-line bg-surface lg:hidden" />}>
+      {/* usePathname() is request-time on dynamic routes, so the bar streams in. */}
+      <Suspense fallback={null}>
         <BottomTabBar />
       </Suspense>
     </>

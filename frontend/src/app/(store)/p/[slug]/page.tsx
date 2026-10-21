@@ -58,9 +58,9 @@ async function Content({ params, searchParams }: Pick<PageProps<"/p/[slug]">, "p
       {/* "<" is escaped so product text can never close the script tag. */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       <ProductView product={product}>
-        {product.description ? <p className="text-body text-ink-soft">{product.description}</p> : null}
+        {!tabs.length && product.description ? <p className="text-body-sm text-ink-soft">{product.description}</p> : null}
         <InfoTabs tabs={tabs} />
-        {reviews ? <Reviews reviews={reviews} basePath={`/p/${slug}`} rating={rating} /> : null}
+        {reviews ? <Reviews productId={product.id} reviews={reviews} basePath={`/p/${slug}`} rating={rating} /> : null}
       </ProductView>
     </>
   );
@@ -68,8 +68,8 @@ async function Content({ params, searchParams }: Pick<PageProps<"/p/[slug]">, "p
 
 export default function ProductPage(props: PageProps<"/p/[slug]">) {
   return (
-    <div className="mx-auto w-full max-w-store px-4 pt-4">
-      <Suspense fallback={<div className="grid gap-6 lg:grid-cols-2"><Skeleton className="aspect-[4/5] rounded-xl" /><Skeleton className="h-64" /></div>}>
+    <div className="w-full">
+      <Suspense fallback={<div className="grid gap-6 lg:grid-cols-2"><Skeleton className="h-[500px] rounded-none" /><Skeleton className="h-64" /></div>}>
         <Content params={props.params} searchParams={props.searchParams} />
       </Suspense>
     </div>

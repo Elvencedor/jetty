@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: PageProps<"/shop/[[...collect
 }
 
 function Fallback() {
-  return <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">{Array.from({ length: 8 }, (_, i) => <ProductCardSkeleton key={i} />)}</div>;
+  return <div className="grid grid-cols-2 gap-x-2.5 gap-y-3.5 px-4 pt-4 md:grid-cols-3 lg:grid-cols-4">{Array.from({ length: 8 }, (_, i) => <ProductCardSkeleton key={i} />)}</div>;
 }
 
 async function Content({ params, searchParams }: Pick<PageProps<"/shop/[[...collection]]">, "params" | "searchParams">) {
@@ -29,17 +29,13 @@ async function Content({ params, searchParams }: Pick<PageProps<"/shop/[[...coll
   const scope = slug ? await resolveScope(slug) : null;
   if (slug && !scope) notFound();
   const state = parseListState(await searchParams);
-  return (
-    <>
-      <h1 className="font-display text-heading-lg font-extrabold">{scope?.name ?? "All wigs"}</h1>
-      <ListingPage path={scope ? `/shop/${scope.slug}` : "/shop"} scope={scope ? { kind: scope.kind, slug: scope.slug } : undefined} state={state} />
-    </>
-  );
+  const title = scope?.name ?? "All wigs";
+  return <ListingPage path={scope ? `/shop/${scope.slug}` : "/shop"} title={title} crumbs={scope ? ["Wigs", title] : ["Wigs"]} scope={scope ? { kind: scope.kind, slug: scope.slug } : undefined} state={state} />;
 }
 
 export default function ShopPage(props: PageProps<"/shop/[[...collection]]">) {
   return (
-    <div className="mx-auto flex w-full max-w-store flex-col gap-4 px-4 pt-4">
+    <div className="flex w-full flex-col">
       <Suspense fallback={<Fallback />}>
         <Content params={props.params} searchParams={props.searchParams} />
       </Suspense>

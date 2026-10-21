@@ -24,7 +24,7 @@ export type ProductCard = {
   colours: ColourOption[];
   lengthRange: { min: number; max: number } | null;
   featured: boolean;
-  price: { minAmountMinor: number; maxAmountMinor: number; currency: string };
+  price: { minAmountMinor: number; maxAmountMinor: number; /** The struck-through "was" price of the cheapest variant, when it is on sale. */ compareAtMinor: number | null; currency: string };
   inStock: boolean;
   onOffer: boolean;
   rating: { average: number; count: number };
