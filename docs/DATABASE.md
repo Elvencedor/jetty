@@ -69,7 +69,7 @@ The list below defines the required logical shape. Names are snake_case.
 
 | Table | Required columns and constraints | Phase |
 |---|---|---|
-| `customers` | `id`, nullable `email`, nullable `phone_e164`, nullable `password_hash`, `status` (`active`, `blocked`, `pending_verification`), `email_verified_at`, `phone_verified_at`, `created_at`, `updated_at`; require at least email or phone; unique normalized email and phone when present; password may be absent for OTP-only accounts | P0 |
+| `customers` | `id`, nullable `email`, nullable `phone_e164`, nullable `password_hash`, `status` (`active`, `blocked`, `pending_verification`), `email_verified_at`, `phone_verified_at`, `created_at`, `updated_at`; require at least email or phone; unique normalized email and phone when present; password may be absent for accounts that sign in another way (Google, planned) | P0 |
 | `customer_sessions` | `id`, `customer_id`, `refresh_token_hash`, `expires_at`, `revoked_at`, `created_at`, `last_used_at`; never persist bearer/refresh tokens in plaintext | P0 |
 | `auth_challenges` | `id`, nullable `customer_id`, `identifier`, `purpose`, `secret_hash`, `expires_at`, `attempt_count`, `consumed_at`, `created_at`; rate-limit and expire challenges | P0 |
 | `customer_preferences` | `customer_id` PK/FK, `email_marketing`, `whatsapp_marketing`, `sms_marketing`, `updated_at`; record consent timestamp and source for each granted consent | P1 |
@@ -80,7 +80,7 @@ The list below defines the required logical shape. Names are snake_case.
 | `admin_user_roles` | `(admin_user_id, admin_role_id)` PK/FKs | P1 |
 | `admin_audit_log` | `id`, `admin_user_id`, `action`, `resource_type`, `resource_id`, `before_json`, `after_json`, `request_id`, `created_at`; append-only | P1 |
 
-Do not store OTPs or password-reset tokens in plaintext. Persist only a
+Do not store password-reset codes in plaintext. Persist only a
 cryptographic hash, purpose, expiry, attempt count, and consumed timestamp;
 expire records promptly. (2FA columns and `admin_recovery_codes` exist for later but are unused while admin sign-in is password-only.) Codes are
 HMAC-keyed (not plain hashes), because a six-digit code is otherwise trivially

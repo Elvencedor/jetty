@@ -171,7 +171,7 @@ describe('notification outbox processor', { skip: !TEST_DATABASE_URL && 'TEST_DA
   });
 
   it('removes one-time codes from the payload once the message is sent or has failed', async () => {
-    const ok = await enqueue({ eventType: 'auth.otp', payload: { code: '123456' } });
+    const ok = await enqueue({ eventType: 'auth.password_reset', payload: { code: '123456' } });
     await processOutbox(t.db, senders, logger);
     assert.match(sms.sent[0]!.text, /123456/);
     assert.deepEqual((await load(ok.id)).payload, {});
@@ -183,7 +183,7 @@ describe('notification outbox processor', { skip: !TEST_DATABASE_URL && 'TEST_DA
 
     // A code waiting for a retry is kept, because it still has to be sent.
     sms.failWith = new TransientSendError('timeout');
-    const waiting = await enqueue({ eventType: 'auth.otp', payload: { code: '111111' } });
+    const waiting = await enqueue({ eventType: 'auth.password_reset', payload: { code: '111111' } });
     await processOutbox(t.db, senders, logger);
     assert.deepEqual((await load(waiting.id)).payload, { code: '111111' });
   });

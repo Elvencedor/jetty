@@ -6,7 +6,7 @@ import { apiError } from '../../lib/errors.js';
 import { hmacSha256, sameHash } from '../../lib/tokens.js';
 import { OTP_TTL_MINUTES } from '../notifications/templates.js';
 
-export type Purpose = 'login' | 'password_reset';
+export type Purpose = 'password_reset';
 export type Channel = 'sms' | 'email';
 
 export const CODE_TTL_MS = OTP_TTL_MINUTES * 60 * 1000;
@@ -53,7 +53,7 @@ export async function issueChallenge(db: Db, secret: string, input: Issue, now: 
       createdAt: now,
     });
     await tx.insert(notificationOutbox).values({
-      eventType: input.purpose === 'login' ? 'auth.otp' : 'auth.password_reset',
+      eventType: 'auth.password_reset',
       recipient: input.identifier,
       channel: input.channel,
       payload: { code },
@@ -115,7 +115,7 @@ export async function scrubStaleCodes(db: Db, now: Date = new Date()): Promise<n
     update notification_outbox set status = case when status in ('pending', 'sending') then 'failed' else status end,
       last_error = case when status in ('pending', 'sending') then 'code expired before delivery' else last_error end,
       payload = payload - 'code'
-    where event_type in ('auth.otp', 'auth.password_reset') and payload ? 'code'
+    where event_type = 'auth.password_reset' and payload ? 'code'
       and created_at < ${at}::timestamptz - make_interval(secs => ${CODE_TTL_MS / 1000})
     returning id`);
   return [...rows].length;
