@@ -242,20 +242,20 @@ Checks at the end of the phase: 116 unit/component tests, typecheck, lint and pr
 
 
 ### Phase 3 — Accounts (4 days)
-- Sign-in page with three paths: password, phone + OTP (resend cooldown 60s, 6-digit input with auto-submit), password reset by phone or email. Register inline at checkout/Me. Handle `INVALID_CREDENTIALS`, `INVALID_CODE`, `429` with `Retry-After`.
+- Sign-in page: email and password, register, and password reset by an emailed code. Google sign-in is the planned alternative (`POST /auth/google`, P1). Handle `INVALID_CREDENTIALS`, `INVALID_CODE`, `429` with `Retry-After`.
 - Me tab and `/account`: profile, sign out. Order history (cursor paging) and detail with the same `OrderTracker`; guests get a prompt to track.
 - Review submission from a delivered order item (needs **A2**).
 - Local wishlist merges on sign-in (server wishlist is P1).
 - **Done when:** a customer can register, sign in by OTP, see an order they placed while signed in, and reset their password; session survives reload via refresh.
 
 **Status: built.** Differences from the plan:
-- **Routes:** `/account` (the Me tab: sign-in prompt for guests, details and sign-out for customers), `/account/sign-in` (phone code, password, or register; honours a validated `?next=`), `/account/reset-password`, `/account/orders` and `/account/orders/[orderId]`.
+- **Routes:** `/account` (the Me tab: sign-in prompt for guests, details and sign-out for customers), `/account/sign-in` (email and password, or create an account; honours a validated `?next=`), `/account/reset-password`, `/account/orders` and `/account/orders/[orderId]`.
 - **Return links are validated** (`safeNext`): only paths on this site are followed, so `?next=//evil.example` falls back to `/account`.
 - **Account data is forgotten when the signed-in person changes or signs out**, so a shared device never shows the previous customer's orders, even from cache.
 - **Checkout** prefills a signed-in customer's phone and email (never over what was typed) and offers a sign-in link; guests are unaffected.
 - **Reviews** are written from a delivered order's items (`reviewable`), and the form says new reviews wait for a moderator.
 - **Wishlist merge on sign-in is a no-op for now:** the wishlist stays on the device until the server wishlist (P1) exists.
-- Registration with a password never proves the phone; the API removes such a password if the real owner later signs in by code (documented in `docs/API.md`), so the sign-in screen leads with the phone code.
+- **Email and password only (changed after this phase first shipped).** Phone sign-in codes were removed from the API and the screens; customers register and sign in with an email, and the phone number is asked for at checkout, where delivery needs it. Password reset is an emailed code. Google sign-in is the planned alternative: the sign-in screen leaves room for a "Continue with Google" button, and the API side (`POST /auth/google`, linking by verified email only) is listed as P1 in `docs/API.md`.
 
 
 ### Phase 4 — Content, trust, SEO, analytics (4 days)

@@ -82,10 +82,9 @@ another request has already updated the cart.
 | `GET /products/{slug}` | Product details, options/variants, media, availability, ratings, active promotion messaging | P0 |
 | `GET /products/{productId}/reviews` | Approved reviews and rating summary; sort/filter query params | P0 |
 | `POST /reviews` | Authenticated verified-purchase review submission; begins in moderation state | P0 |
-| `POST /auth/register` | Create customer from email/password or phone/OTP flow; never return password/hash | P0 |
+| `POST /auth/register` | Create customer from email and password (phone optional); never return password/hash | P0 |
 | `POST /auth/login` | Email/password login; generic credential failure response | P0 |
-| `POST /auth/otp/request` | Request rate-limited sign-in/verification OTP | P0 |
-| `POST /auth/otp/verify` | Verify OTP and issue session | P0 |
+| `POST /auth/google` | Sign in or register with a Google ID token (verified server-side; links to an existing account by verified email) | P1 |
 | `POST /auth/password/forgot` | Request reset; non-enumerating response | P0 |
 | `POST /auth/password/reset` | Consume one-time reset token and set password | P0 |
 | `POST /auth/logout` | Revoke current session | P0 |
@@ -107,15 +106,15 @@ another request has already updated the cart.
 
 ### Customer authentication (email and password)
 
-`POST /auth/register` (E.164 `phone` required, `password` of 10-128 characters,
-optional `email`) and `POST /auth/login` (`phone` or `email`, plus `password`)
+`POST /auth/register` (`email` and `password` of 10-128 characters required,
+optional E.164 `phone`) and `POST /auth/login` (`email` plus `password`)
 return `{ accessToken, tokenType: "Bearer",
 expiresIn, customer }` and set the `jh_refresh` cookie (`Secure`, `HttpOnly`,
 `SameSite=Strict`, path `/api/v1/auth`, 30 days). Access tokens are signed
 15-minute bearer tokens tied to a session row, so logout revokes them at once.
 `POST /auth/refresh` rotates the cookie; presenting a rotated-out token revokes
 the whole session. Refresh and logout reject a foreign `Origin`. Login failures
-(wrong password, unknown phone/email, blocked account) are identical `401
+(wrong password, unknown email, blocked account) are identical `401
 INVALID_CREDENTIALS`; a duplicate registration is `409 ACCOUNT_EXISTS`.
 `POST /auth/logout` returns `204`; `GET /me` returns the profile. Auth routes
 return `503 AUTH_UNAVAILABLE` until `AUTH_TOKEN_SECRET` is set.
@@ -402,7 +401,7 @@ webhook.
 
 ## Operational requirements
 
-- Rate-limit login, OTP, password reset, guest tracking, review submission,
+- Rate-limit login, password reset, guest tracking, review submission,
   coupon validation, and webhooks; use separate limits per IP/account.
 - Validate and normalize input at the API boundary. Enforce ownership checks
   for customer resources and permissions for each admin action.
@@ -414,10 +413,10 @@ webhook.
 - Track and alert on payment/checkout failures, webhook lag, outbox backlog,
   inventory reservation expiry, and API error/latency rates.
 
-## Phone-first identity, order history and rate limits (implemented)
+## Identity, order history and rate limits (implemented)
 
-Customers are identified by phone number; email is optional everywhere,
-including checkout (`contact.email`). When there is no email, Paystack receives
+Customer accounts are identified by **email and password**. Checkout stays open to guests, where the phone number is
+required (delivery needs it) and email is optional (`contact.email`). When a guest gives no email, Paystack receives
 a per-phone placeholder on `PAYSTACK_PLACEHOLDER_EMAIL_DOMAIN`, which is never
 stored on the order, and notifications go by SMS only.
 
@@ -436,29 +435,21 @@ so `x-forwarded-for` is trusted. Redis expires counters itself. `REDIS_URL` is r
 when `RATE_LIMIT_ENABLED` is true, and the service fails at startup if Redis is
 unreachable; once running, the limiter fails open if Redis errors.
 
-## One-time codes and notification delivery (implemented)
+## Password reset codes and notification delivery (implemented)
 
-`POST /auth/otp/request` (`{ phone }`) texts a six-digit code and
-`POST /auth/otp/verify` (`{ phone, code }`) returns the same session response
-as login. A code is sent to any well-formed number and signing in with it
-creates the account if needed, so nothing reveals whether an account exists.
-Codes expire after ten minutes, allow 5 wrong guesses, and work once. A new
-code replaces the old one, and requests within 60 seconds of the last one are
-ignored silently. Every failure is `401 INVALID_CODE`. Limits: requests are
-10/15m/IP and 5/h/phone; verification is 30/15m/IP and 10/15m/account.
+Phone sign-in codes (`/auth/otp/*`) were removed: customers sign in with email and password, and Google sign-in is the
+planned alternative (`POST /auth/google`, P1: the client sends a Google ID token, the API verifies it with Google,
+and links it to an account by *verified* email, never by an unverified one).
 
-Proving a phone number is what password registration never did. If the account
-for that number was still unverified, verifying it removes the password and
-revokes all sessions, so someone who registered a number they do not own cannot
-keep access.
+`POST /auth/password/forgot` (`{ email }`) always returns `202`, with an identical body for unknown accounts. For a
+known account it emails a six-digit code that expires after ten minutes, allows 5 wrong guesses and works once; a new
+code replaces the old one, and requests within 60 seconds of the last one are ignored silently. `POST
+/auth/password/reset` (`{ email, code, password }`) returns `204`, ends every session of the account and marks the
+email as verified. Every failure is `401 INVALID_CODE`. Limits: forgot is 10/15m/IP and 5/h/email; reset is
+20/15m/IP and 10/15m/email.
 
-`POST /auth/password/forgot` (`phone` or `email`) always returns `202`, with an
-identical body for unknown accounts. For a known account it sends a code by SMS
-(phone) or email (email). `POST /auth/password/reset` (`phone` or `email`,
-`code`, `password`) returns `204`, ends every session of the account and marks
-the contact that received the code as verified. This uses the same six-digit
-code as sign-in rather than a long link token, because phone is the primary
-channel.
+Registration does not require proving the email. Someone who registers an address that is not theirs cannot keep it:
+the real owner resets the password with a code sent to that address, which also signs the first registrant out.
 
 The worker sends the outbox every 5 seconds. Rows are claimed with
 `FOR UPDATE SKIP LOCKED` and a 2-minute lease, so several workers are safe and a

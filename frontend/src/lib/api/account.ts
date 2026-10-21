@@ -10,21 +10,16 @@ function startSession(res: SessionResponse): Customer {
   return res.customer;
 }
 
-export const register = async (input: { phone: string; password: string; email?: string }, init: Init = {}) =>
+export const register = async (input: { email: string; password: string; phone?: string }, init: Init = {}) =>
   startSession(await apiFetch<SessionResponse>("/auth/register", { method: "POST", body: input, ...init }));
 
-export const signIn = async (input: { phone?: string; email?: string; password: string }, init: Init = {}) =>
+export const signIn = async (input: { email: string; password: string }, init: Init = {}) =>
   startSession(await apiFetch<SessionResponse>("/auth/login", { method: "POST", body: input, ...init }));
 
-export const requestLoginCode = (phone: string, init: Init = {}) => apiFetch<CodeSent>("/auth/otp/request", { method: "POST", body: { phone }, ...init });
-
-export const verifyLoginCode = async (input: { phone: string; code: string }, init: Init = {}) =>
-  startSession(await apiFetch<SessionResponse>("/auth/otp/verify", { method: "POST", body: input, ...init }));
-
 /** Always succeeds with the same body, whether or not the account exists. */
-export const forgotPassword = (input: { phone?: string; email?: string }, init: Init = {}) => apiFetch<CodeSent>("/auth/password/forgot", { method: "POST", body: input, ...init });
+export const forgotPassword = (input: { email: string }, init: Init = {}) => apiFetch<CodeSent>("/auth/password/forgot", { method: "POST", body: input, ...init });
 
-export const resetPassword = (input: { phone?: string; email?: string; code: string; password: string }, init: Init = {}) =>
+export const resetPassword = (input: { email: string; code: string; password: string }, init: Init = {}) =>
   apiFetch<null>("/auth/password/reset", { method: "POST", body: input, ...init });
 
 export async function signOut(): Promise<void> {

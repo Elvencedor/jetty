@@ -103,7 +103,7 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
     let reviewId = '';
 
     before(async () => {
-      const reg = await api.inject({ method: 'POST', url: '/api/v1/auth/register', payload: { phone: '+2348077700001', password: 'correct horse battery' } });
+      const reg = await api.inject({ method: 'POST', url: '/api/v1/auth/register', payload: { email: 'mgmt1@example.com', phone: '+2348077700001', password: 'correct horse battery' } });
       customerId = (reg.result as Json).customer.id;
       for (const [i, total] of [300000, 100000].entries()) {
         const [o] = await t.db.insert(orders).values({ orderNumber: `JH-M-${i}`, customerId, phoneE164: '+2348077700001', subtotalMinor: total, totalMinor: total, deliveryAddressSnapshot: {}, deliveryMethod: 'next_day', termsAcceptedAt: new Date(), status: 'delivered', paymentStatus: 'paid', placedAt: new Date() }).returning();
@@ -111,7 +111,7 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
         if (i === 0) itemId = item!.id;
       }
       await t.db.insert(orders).values({ orderNumber: 'JH-M-X', customerId, phoneE164: '+2348077700001', subtotalMinor: 999, totalMinor: 999, deliveryAddressSnapshot: {}, deliveryMethod: 'next_day', termsAcceptedAt: new Date() });
-      await api.inject({ method: 'POST', url: '/api/v1/auth/register', payload: { phone: '+2348077700002', password: 'correct horse battery' } });
+      await api.inject({ method: 'POST', url: '/api/v1/auth/register', payload: { email: 'mgmt2@example.com', phone: '+2348077700002', password: 'correct horse battery' } });
     });
 
     it('lists customers with order count and lifetime value over paid orders only', async () => {
@@ -132,7 +132,7 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
     });
 
     it('moderates reviews: pending queue, approve makes it public, hide removes it', async () => {
-      const created = await api.inject({ method: 'POST', url: '/api/v1/reviews', payload: { orderItemId: itemId, rating: 5, title: 'Great', body: 'Love it' }, headers: { authorization: `Bearer ${((await api.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { phone: '+2348077700001', password: 'correct horse battery' } })).result as Json).accessToken}` } });
+      const created = await api.inject({ method: 'POST', url: '/api/v1/reviews', payload: { orderItemId: itemId, rating: 5, title: 'Great', body: 'Love it' }, headers: { authorization: `Bearer ${((await api.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { email: 'mgmt1@example.com', password: 'correct horse battery' } })).result as Json).accessToken}` } });
       assert.equal(created.statusCode, 201, JSON.stringify(created.result));
       reviewId = (created.result as Json).id;
 

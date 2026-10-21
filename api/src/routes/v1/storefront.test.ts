@@ -26,7 +26,7 @@ describe('storefront content, suggestions, reviews and bank transfer', { skip: !
   };
   const signup = async () => {
     const phone = `+23482${String(30_000_000 + ++phones)}`;
-    const res = await api.inject({ method: 'POST', url: '/api/v1/auth/register', payload: { phone, password: 'correct horse battery' } });
+    const res = await api.inject({ method: 'POST', url: '/api/v1/auth/register', payload: { email: `${phone.slice(1)}@example.com`, phone, password: 'correct horse battery' } });
     return { phone, token: (res.result as Json).accessToken as string, id: (res.result as Json).customer.id as string };
   };
   const addProduct = async (slug: string, title: string, over: Partial<typeof products.$inferInsert> = {}) => {

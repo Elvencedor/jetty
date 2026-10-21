@@ -14,21 +14,11 @@ export const phoneError = (value: string): string | undefined => (normaliseNiger
 
 export const emailError = (value: string): string | undefined => (EMAIL.test(value.trim()) && value.trim().length <= 254 ? undefined : "Enter a valid email");
 
+/** The email as the API wants it (trimmed, lower case). */
+export const normaliseEmail = (value: string) => value.trim().toLowerCase();
+
 /** Keeps digits only and caps the length, so pasting "123 456" into a code box works. */
 export const cleanCode = (value: string) => value.replace(/\D/g, "").slice(0, CODE_LENGTH);
-
-/** Someone typing a phone or an email into one box: which one is it? Anything with an @ is an email. */
-export function identifierKind(value: string): "email" | "phone" {
-  return value.includes("@") ? "email" : "phone";
-}
-
-/** The identifier as the API wants it: `{ email }` or `{ phone }` in E.164, or null if it is not usable. */
-export function toIdentifier(value: string): { email: string } | { phone: string } | null {
-  const v = value.trim();
-  if (identifierKind(v) === "email") return emailError(v) ? null : { email: v.toLowerCase() };
-  const phone = normaliseNigerianPhone(v);
-  return phone ? { phone } : null;
-}
 
 /**
  * Where to send someone after signing in. Only paths on this site are honoured, so a crafted

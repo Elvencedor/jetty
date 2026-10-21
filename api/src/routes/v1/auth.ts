@@ -7,19 +7,15 @@ import { enforce } from '../../plugins/rate-limit.js';
 import { LIMITS } from '../../lib/rate-policies.js';
 import { CODE_TTL_MS, RESEND_COOLDOWN_MS } from '../../modules/auth/challenges.js';
 import {
-  loginWithCode,
   logout,
   profile,
   refresh,
   REFRESH_TOKEN_TTL_MS,
   register,
   login,
-  requestLoginCode,
   requestPasswordReset,
   resetPassword,
   type Issued,
-  type LoginIdentifier,
-  type ResetIdentifier,
 } from '../../modules/auth/customers.js';
 import { db, NO_STORE } from './shared.js';
 
@@ -65,7 +61,7 @@ const email = Joi.string().trim().lowercase().email().max(254);
 const password = Joi.string().min(10).max(128).required();
 const code = Joi.string().trim().pattern(/^\d{6}$/).required().messages({ 'string.pattern.base': 'code must be the 6-digit code you received' });
 
-// Same body whether or not the number or account exists, so these endpoints reveal nothing.
+// Same body whether or not the account exists, so these endpoints reveal nothing.
 const codeSent = (h: ResponseToolkit) =>
   h
     .response({ expiresInSeconds: CODE_TTL_MS / 1000, resendAfterSeconds: RESEND_COOLDOWN_MS / 1000 })
@@ -78,30 +74,30 @@ export const authRoutes: ServerRoute[] = [
     path: '/auth/register',
     options: {
       auth: false,
-      description: 'Create a customer account identified by phone (email optional) and start a session',
+      description: 'Create a customer account with an email and password (phone optional) and start a session',
       plugins: { rateLimit: { ip: [LIMITS.register] } },
       tags: ['api', 'auth'],
       validate: {
-        payload: Joi.object({ phone: phone.required(), email, password }),
+        payload: Joi.object({ email: email.required(), password, phone }),
       },
     },
-    handler: async (request, h) => sessionResponse(h, await register(db(request), secret(request), request.payload as { phone: string; password: string; email?: string }), 201),
+    handler: async (request, h) => sessionResponse(h, await register(db(request), secret(request), request.payload as { email: string; password: string; phone?: string }), 201),
   },
   {
     method: 'POST',
     path: '/auth/login',
     options: {
       auth: false,
-      description: 'Phone (or optional email) and password login; credential failures are indistinguishable',
+      description: 'Email and password login; credential failures are indistinguishable',
       plugins: { rateLimit: { ip: [LIMITS.login] } },
       tags: ['api', 'auth'],
       validate: {
-        payload: Joi.object({ phone, email, password: Joi.string().min(1).max(128).required() }).xor('phone', 'email'),
+        payload: Joi.object({ email: email.required(), password: Joi.string().min(1).max(128).required() }),
       },
     },
     handler: async (request, h) => {
-      const credentials = request.payload as LoginIdentifier & { password: string };
-      const subject = 'phone' in credentials ? credentials.phone : credentials.email;
+      const credentials = request.payload as { email: string; password: string };
+      const subject = credentials.email;
       // Failed attempts per account are capped across all IPs; the counter is cleared on success.
       await enforce(request, LIMITS.loginAccount, subject);
       const issued = await login(db(request), secret(request), credentials);
@@ -111,50 +107,17 @@ export const authRoutes: ServerRoute[] = [
   },
   {
     method: 'POST',
-    path: '/auth/otp/request',
-    options: {
-      auth: false,
-      description: 'Text a sign-in code to a phone number; signing in with it creates the account if needed',
-      plugins: { rateLimit: { ip: [LIMITS.otpRequest] } },
-      tags: ['api', 'auth'],
-      validate: { payload: Joi.object({ phone: phone.required() }) },
-    },
-    handler: async (request, h) => {
-      const { phone: number } = request.payload as { phone: string };
-      await enforce(request, LIMITS.otpRequestPhone, number);
-      await requestLoginCode(db(request), secret(request), number);
-      return codeSent(h);
-    },
-  },
-  {
-    method: 'POST',
-    path: '/auth/otp/verify',
-    options: {
-      auth: false,
-      description: 'Verify a sign-in code and start a session',
-      plugins: { rateLimit: { ip: [LIMITS.otpVerify] } },
-      tags: ['api', 'auth'],
-      validate: { payload: Joi.object({ phone: phone.required(), code }) },
-    },
-    handler: async (request, h) => {
-      const input = request.payload as { phone: string; code: string };
-      await enforce(request, LIMITS.otpVerifyAccount, input.phone);
-      return sessionResponse(h, await loginWithCode(db(request), secret(request), input));
-    },
-  },
-  {
-    method: 'POST',
     path: '/auth/password/forgot',
     options: {
       auth: false,
-      description: 'Send a password reset code to the account phone (or email); the response never reveals whether the account exists',
+      description: 'Send a password reset code to the account email; the response never reveals whether the account exists',
       plugins: { rateLimit: { ip: [LIMITS.passwordForgot] } },
       tags: ['api', 'auth'],
-      validate: { payload: Joi.object({ phone, email }).xor('phone', 'email') },
+      validate: { payload: Joi.object({ email: email.required() }) },
     },
     handler: async (request, h) => {
-      const input = request.payload as ResetIdentifier;
-      await enforce(request, LIMITS.passwordForgotAccount, 'phone' in input ? input.phone : input.email);
+      const input = request.payload as { email: string };
+      await enforce(request, LIMITS.passwordForgotAccount, input.email);
       await requestPasswordReset(db(request), secret(request), input);
       return codeSent(h);
     },
@@ -167,11 +130,11 @@ export const authRoutes: ServerRoute[] = [
       description: 'Set a new password with a reset code; ends every session of the account',
       plugins: { rateLimit: { ip: [LIMITS.passwordReset] } },
       tags: ['api', 'auth'],
-      validate: { payload: Joi.object({ phone, email, code, password }).xor('phone', 'email') },
+      validate: { payload: Joi.object({ email: email.required(), code, password }) },
     },
     handler: async (request, h) => {
-      const input = request.payload as ResetIdentifier & { code: string; password: string };
-      await enforce(request, LIMITS.otpVerifyAccount, 'phone' in input ? input.phone : input.email);
+      const input = request.payload as { email: string; code: string; password: string };
+      await enforce(request, LIMITS.passwordResetAccount, input.email);
       await resetPassword(db(request), secret(request), input);
       return h.response().code(204).unstate(REFRESH_COOKIE, { path: '/api/v1/auth' }).header('Cache-Control', NO_STORE);
     },

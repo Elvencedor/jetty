@@ -89,7 +89,7 @@ describe('review hardening', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL no
         assert.equal((res.result as Json).quote.discountMinor, 0);
       }
       assert.deepEqual((first.result as Json).quote.promotions.rejectedCodes, [{ code: 'WELCOME50', reason: 'NOT_ELIGIBLE' }]);
-      const signedIn = await api.inject({ method: 'POST', url: '/api/v1/auth/register', payload: { phone: phone(), password: 'correct horse battery' } });
+      const signedIn = await api.inject({ method: 'POST', url: '/api/v1/auth/register', payload: { email: `c${Math.random().toString(36).slice(2)}@example.com`, phone: phone(), password: 'correct horse battery' } });
       const mine = await api.inject({ method: 'POST', url: '/api/v1/checkout', payload: body(phone(), { promotionCodes: ['WELCOME50'] }), headers: { 'idempotency-key': KEY('fo3'), authorization: `Bearer ${(signedIn.result as Json).accessToken}` } });
       assert.equal((mine.result as Json).quote.discountMinor, 50000, 'a signed-in customer on their first order still gets it');
     });
@@ -103,7 +103,7 @@ describe('review hardening', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL no
       assert.equal(guest.discountMinor, 0);
       assert.deepEqual(guest.promotions.rejectedCodes, [{ code: 'WELCOME50', reason: 'NOT_ELIGIBLE' }]);
 
-      const reg = await api.inject({ method: 'POST', url: '/api/v1/auth/register', payload: { phone: phone(), password: 'correct horse battery' } });
+      const reg = await api.inject({ method: 'POST', url: '/api/v1/auth/register', payload: { email: `c${Math.random().toString(36).slice(2)}@example.com`, phone: phone(), password: 'correct horse battery' } });
       const auth = { authorization: `Bearer ${(reg.result as Json).accessToken}` };
       const mine = (await quote(auth)).result as Json;
       assert.equal(mine.discountMinor, 50000);

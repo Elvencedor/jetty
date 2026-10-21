@@ -32,9 +32,10 @@ describe('order history, tracking, optional email and rate limits', { skip: (!TE
 
   const signup = async () => {
     const phone = newPhone();
-    const res = await api.inject({ method: 'POST', url: '/api/v1/auth/register', payload: { phone, password: PASSWORD } });
+    const email = `${phone.slice(1)}@example.com`;
+    const res = await api.inject({ method: 'POST', url: '/api/v1/auth/register', payload: { email, phone, password: PASSWORD } });
     assert.equal(res.statusCode, 201, JSON.stringify(res.result));
-    return { phone, token: (res.result as Json).accessToken as string };
+    return { phone, email, token: (res.result as Json).accessToken as string };
   };
   const body = (phone: string, over: Json = {}) => ({
     items: [{ variantId, quantity: 2 }],
@@ -313,9 +314,9 @@ describe('order history, tracking, optional email and rate limits', { skip: (!TE
     });
 
     it('locks an account after repeated failed logins, even with the right password, and unlocks on success only before the cap', async () => {
-      const { phone } = await signup();
+      const { email } = await signup();
       const login = (password: string, ip: string) =>
-        limited.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { phone, password }, headers: { 'x-forwarded-for': ip } });
+        limited.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { email, password }, headers: { 'x-forwarded-for': ip } });
 
       // Failures below the cap are forgotten after a successful login.
       for (let i = 0; i < 5; i++) assert.equal((await login('wrong password!!', '198.51.100.1')).statusCode, 401);
@@ -330,27 +331,27 @@ describe('order history, tracking, optional email and rate limits', { skip: (!TE
 
       // Other accounts are untouched.
       const other = await signup();
-      const res = await limited.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { phone: other.phone, password: PASSWORD }, headers: { 'x-forwarded-for': '198.51.100.99' } });
+      const res = await limited.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { email: other.email, password: PASSWORD }, headers: { 'x-forwarded-for': '198.51.100.99' } });
       assert.equal(res.statusCode, 200);
     });
 
-    it('limits sign-in code requests per phone and per IP, so texts cannot be pumped', async () => {
-      const request = (phone: string, ip: string) =>
-        limited.inject({ method: 'POST', url: '/api/v1/auth/otp/request', payload: { phone }, headers: { 'x-forwarded-for': ip } });
-      const phone = newPhone();
-      const perPhone: number[] = [];
-      for (let i = 0; i < 6; i++) perPhone.push((await request(phone, `203.0.113.${100 + i}`)).statusCode);
-      assert.deepEqual(perPhone, [202, 202, 202, 202, 202, 429]);
+    it('limits password reset requests per email and per IP, so emails cannot be pumped', async () => {
+      const request = (email: string, ip: string) =>
+        limited.inject({ method: 'POST', url: '/api/v1/auth/password/forgot', payload: { email }, headers: { 'x-forwarded-for': ip } });
+      const email = `pump-${++phones}@example.com`;
+      const perEmail: number[] = [];
+      for (let i = 0; i < 6; i++) perEmail.push((await request(email, `203.0.113.${100 + i}`)).statusCode);
+      assert.deepEqual(perEmail, [202, 202, 202, 202, 202, 429]);
 
       const perIp: number[] = [];
-      for (let i = 0; i < 11; i++) perIp.push((await request(newPhone(), '203.0.113.200')).statusCode);
+      for (let i = 0; i < 11; i++) perIp.push((await request(`pump-ip-${++phones}@example.com`, '203.0.113.200')).statusCode);
       assert.deepEqual(perIp, [...Array(10).fill(202), 429]);
     });
 
     it('limits registrations per IP', async () => {
       let last;
       for (let i = 0; i < 11; i++) {
-        last = await limited.inject({ method: 'POST', url: '/api/v1/auth/register', payload: { phone: newPhone(), password: PASSWORD }, headers: { 'x-forwarded-for': '203.0.113.50' } });
+        last = await limited.inject({ method: 'POST', url: '/api/v1/auth/register', payload: { email: `reg-${++phones}@example.com`, password: PASSWORD }, headers: { 'x-forwarded-for': '203.0.113.50' } });
       }
       assert.equal(last!.statusCode, 429);
     });

@@ -127,7 +127,7 @@ describe('order and quote contract for the storefront', { skip: !TEST_DATABASE_U
     const mine = (id: string) => api.inject({ url: `/api/v1/me/orders/${id}`, headers: bearer() }).then((r) => r.result as Json);
 
     before(async () => {
-      const reg = await api.inject({ method: 'POST', url: '/api/v1/auth/register', payload: { phone: phone(), password: 'correct horse battery' } });
+      const reg = await api.inject({ method: 'POST', url: '/api/v1/auth/register', payload: { email: `c${Math.random().toString(36).slice(2)}@example.com`, phone: phone(), password: 'correct horse battery' } });
       customer = { token: (reg.result as Json).accessToken, id: (reg.result as Json).customer.id };
     });
 

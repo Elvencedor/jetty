@@ -27,13 +27,13 @@ describe('customer auth', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not s
     const raw = ([] as string[]).concat(res.headers['set-cookie'] as string | string[]).find((c) => c.startsWith('jh_refresh='));
     return raw ? raw.split(';')[0]! : undefined;
   };
-  let phones = 0;
-  const newPhone = () => `+23480${String(10_000_000 + ++phones)}`;
+  let accounts = 0;
+  const newEmail = () => `customer-${++accounts}@example.com`;
   const register = async (extra: Json = {}) => {
-    const phone = extra.phone ?? newPhone();
-    const res = await post('/auth/register', { password: 'correct horse battery', ...extra, phone });
+    const email = extra.email ?? newEmail();
+    const res = await post('/auth/register', { password: 'correct horse battery', ...extra, email });
     assert.equal(res.statusCode, 201, JSON.stringify(res.result));
-    return { body: res.result as Json, cookie: cookieOf(res)!, phone: phone as string };
+    return { body: res.result as Json, cookie: cookieOf(res)!, email: email as string };
   };
   const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
   const checkoutBody = (over: Json = {}) => ({
@@ -69,59 +69,59 @@ describe('customer auth', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not s
     await t?.destroy();
   });
 
-  it('registers with a phone number alone, returns a session and never exposes the password hash', async () => {
-    const { body, phone } = await register();
+  it('registers with an email and password, returns a session and never exposes the password hash', async () => {
+    const { body, email } = await register({ email: 'Ada@Example.com' });
     assert.equal(body.tokenType, 'Bearer');
-    assert.equal(body.customer.phone, phone);
-    assert.equal(body.customer.email, null);
+    assert.equal(body.customer.email, 'ada@example.com');
+    assert.equal(body.customer.phone, null);
     assert.ok(!JSON.stringify(body).includes('password'));
-    const [row] = await t.db.select().from(customers).where(eq(customers.phoneE164, phone));
+    const [row] = await t.db.select().from(customers).where(eq(customers.email, email.toLowerCase()));
     assert.match(row!.passwordHash!, /^scrypt\$/);
-    const dup = await post('/auth/register', { phone, password: 'another long password' });
+    const dup = await post('/auth/register', { email: 'ADA@example.com', password: 'another long password' });
     assert.equal(dup.statusCode, 409);
     assert.equal((dup.result as Json).error.code, 'ACCOUNT_EXISTS');
   });
 
-  it('stores an optional email normalised, and rejects an email already in use', async () => {
-    const { body } = await register({ email: 'Ada@Example.com' });
-    assert.equal(body.customer.email, 'ada@example.com');
-    const dup = await post('/auth/register', { phone: newPhone(), email: 'ADA@example.com', password: 'correct horse battery' });
+  it('stores an optional phone number, and rejects one already in use', async () => {
+    const { body } = await register({ phone: '+2348055500001' });
+    assert.equal(body.customer.phone, '+2348055500001');
+    const dup = await post('/auth/register', { email: newEmail(), phone: '+2348055500001', password: 'correct horse battery' });
     assert.equal(dup.statusCode, 409);
   });
 
-  it('validates registration input: phone is required, email is not', async () => {
-    assert.equal((await post('/auth/register', { email: 'only@example.com', password: 'correct horse battery' })).statusCode, 422);
-    assert.equal((await post('/auth/register', { phone: '08012345678', password: 'correct horse battery' })).statusCode, 422);
-    assert.equal((await post('/auth/register', { phone: newPhone(), email: 'not-an-email', password: 'correct horse battery' })).statusCode, 422);
-    assert.equal((await post('/auth/register', { phone: newPhone(), password: 'short' })).statusCode, 422);
+  it('validates registration input: email is required, phone is not', async () => {
+    assert.equal((await post('/auth/register', { password: 'correct horse battery' })).statusCode, 422);
+    assert.equal((await post('/auth/register', { phone: '+2348055500002', password: 'correct horse battery' })).statusCode, 422);
+    assert.equal((await post('/auth/register', { email: 'not-an-email', password: 'correct horse battery' })).statusCode, 422);
+    assert.equal((await post('/auth/register', { email: newEmail(), phone: '08012345678', password: 'correct horse battery' })).statusCode, 422);
+    assert.equal((await post('/auth/register', { email: newEmail(), password: 'short' })).statusCode, 422);
   });
 
   it('sets a Secure, HttpOnly, SameSite=Strict refresh cookie scoped to /auth', async () => {
-    const res = await post('/auth/register', { phone: newPhone(), password: 'correct horse battery' });
+    const res = await post('/auth/register', { email: newEmail(), password: 'correct horse battery' });
     const raw = ([] as string[]).concat(res.headers['set-cookie'] as string | string[]).find((c) => c.startsWith('jh_refresh='))!;
     for (const part of ['Secure', 'HttpOnly', 'SameSite=Strict', 'Path=/api/v1/auth']) assert.ok(raw.includes(part), raw);
     assert.equal(res.headers['cache-control'], 'no-store');
     assert.ok(!('refreshToken' in (res.result as Json)));
   });
 
-  it('logs in by phone, or by email when one was registered, with generic failures', async () => {
-    const { phone } = await register({ email: 'login@example.com' });
-    const ok = await post('/auth/login', { phone, password: 'correct horse battery' });
-    assert.equal(ok.statusCode, 200);
+  it('logs in by email (case-insensitive) with generic failures, and no longer by phone', async () => {
+    const { email } = await register({ email: 'login@example.com', phone: '+2348055500003' });
+    assert.equal((await post('/auth/login', { email, password: 'correct horse battery' })).statusCode, 200);
     assert.equal((await post('/auth/login', { email: 'LOGIN@example.com', password: 'correct horse battery' })).statusCode, 200);
 
-    const wrong = await post('/auth/login', { phone, password: 'wrong password!!' });
-    const unknown = await post('/auth/login', { phone: newPhone(), password: 'wrong password!!' });
+    const wrong = await post('/auth/login', { email, password: 'wrong password!!' });
+    const unknown = await post('/auth/login', { email: newEmail(), password: 'wrong password!!' });
     assert.equal(wrong.statusCode, 401);
     assert.equal((wrong.result as Json).error.code, 'INVALID_CREDENTIALS');
     assert.equal(unknown.statusCode, 401);
     assert.equal((wrong.result as Json).error.message, (unknown.result as Json).error.message);
 
-    assert.equal((await post('/auth/login', { password: 'correct horse battery' })).statusCode, 422, 'an identifier is required');
-    assert.equal((await post('/auth/login', { phone, email: 'login@example.com', password: 'correct horse battery' })).statusCode, 422, 'not both');
+    assert.equal((await post('/auth/login', { password: 'correct horse battery' })).statusCode, 422, 'an email is required');
+    assert.equal((await post('/auth/login', { phone: '+2348055500003', password: 'correct horse battery' })).statusCode, 422, 'phone sign-in is gone');
 
-    await t.db.update(customers).set({ status: 'blocked' }).where(eq(customers.phoneE164, phone));
-    const blocked = await post('/auth/login', { phone, password: 'correct horse battery' });
+    await t.db.update(customers).set({ status: 'blocked' }).where(eq(customers.email, email));
+    const blocked = await post('/auth/login', { email, password: 'correct horse battery' });
     assert.equal(blocked.statusCode, 401);
     assert.equal((blocked.result as Json).error.code, 'INVALID_CREDENTIALS');
   });
@@ -175,7 +175,7 @@ describe('customer auth', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not s
   });
 
   it('answers 503 when no signing secret is configured', async () => {
-    const res = await post('/auth/login', { phone: '+2348099999999', password: 'whatever it is' }, {}, noAuth);
+    const res = await post('/auth/login', { email: 'nobody@example.com', password: 'whatever it is' }, {}, noAuth);
     assert.equal(res.statusCode, 503);
     assert.equal((res.result as Json).error.code, 'AUTH_UNAVAILABLE');
   });

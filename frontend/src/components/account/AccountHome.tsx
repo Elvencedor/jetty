@@ -45,8 +45,8 @@ export function AccountHome() {
     <div className="flex flex-col gap-5">
       <h1 className="font-display text-heading-lg font-extrabold">Me</h1>
       <section aria-label="Your details" className="rounded-lg bg-surface-tint p-4 text-body-sm">
-        <p className="font-bold">{user?.phone ? formatPhone(user.phone) : user?.email}</p>
-        {user?.phone && user.email ? <p className="text-ink-soft">{user.email}</p> : null}
+        <p className="font-bold">{user?.email ?? (user?.phone ? formatPhone(user.phone) : "")}</p>
+        {user?.email && user.phone ? <p className="text-ink-soft">{formatPhone(user.phone)}</p> : null}
       </section>
       <ul className="flex flex-col">{LINKS.map((l) => <NavRow key={l.href} {...l} />)}</ul>
       <Button

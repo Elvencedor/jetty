@@ -2,7 +2,7 @@ import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { API, server } from "@/test/server";
 import { useCustomerSession } from "@/lib/stores/session";
-import { forgotPassword, getMyOrder, register, requestLoginCode, signIn, signOut, submitReview, verifyLoginCode } from "./account";
+import { forgotPassword, getMyOrder, register, resetPassword, signIn, signOut, submitReview } from "./account";
 import { getCategories, getFacets, getProduct, getProducts, getReviews, getSuggestions } from "./catalog";
 import { getCheckoutStatus, placeOrder, retryPayment, trackOrder, verifyPayment } from "./checkout";
 import { getHome, getPage, getStoreSettings } from "./content";
@@ -120,34 +120,31 @@ describe("pricing and checkout", () => {
 });
 
 describe("account", () => {
-  it("signs in with a password, with a code, and registers; each starts the session", async () => {
+  it("signs in with email and password and registers; each starts the session", async () => {
     server.use(
       http.post(`${API}/auth/login`, () => HttpResponse.json({ ...sessionBody, accessToken: "from-login" })),
-      http.post(`${API}/auth/otp/verify`, () => HttpResponse.json({ ...sessionBody, accessToken: "from-otp" })),
       http.post(`${API}/auth/register`, () => HttpResponse.json({ ...sessionBody, accessToken: "from-register" }, { status: 201 })),
     );
-    expect(await signIn({ phone: "+2348031234567", password: "pw" })).toEqual(customer);
+    expect(await signIn({ email: "ada@example.com", password: "pw" })).toEqual(customer);
     expect(useCustomerSession.getState()).toMatchObject({ status: "authenticated", accessToken: "from-login", user: customer });
-    await verifyLoginCode({ phone: "+2348031234567", code: "123456" });
-    expect(useCustomerSession.getState().accessToken).toBe("from-otp");
-    await register({ phone: "+2348031234567", password: "correct horse battery" });
+    await register({ email: "ada@example.com", password: "correct horse battery" });
     expect(useCustomerSession.getState().accessToken).toBe("from-register");
     expect(useCustomerSession.getState().expiresAt).toBeGreaterThan(Date.now());
   });
 
   it("does not start a session when sign-in fails", async () => {
     server.use(http.post(`${API}/auth/login`, () => HttpResponse.json({ error: { code: "INVALID_CREDENTIALS", message: "Wrong.", requestId: "r" } }, { status: 401 })));
-    await expect(signIn({ phone: "+2348031234567", password: "bad" })).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
+    await expect(signIn({ email: "ada@example.com", password: "bad" })).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
     expect(useCustomerSession.getState().status).toBe("unknown");
   });
 
-  it("requests codes and resets passwords without starting a session", async () => {
+  it("requests a reset code and resets the password without starting a session", async () => {
     server.use(
-      http.post(`${API}/auth/otp/request`, () => HttpResponse.json({ expiresInSeconds: 600, resendAfterSeconds: 60 }, { status: 202 })),
       http.post(`${API}/auth/password/forgot`, () => HttpResponse.json({ expiresInSeconds: 600, resendAfterSeconds: 60 }, { status: 202 })),
+      http.post(`${API}/auth/password/reset`, () => new HttpResponse(null, { status: 204 })),
     );
-    expect(await requestLoginCode("+2348031234567")).toMatchObject({ resendAfterSeconds: 60 });
     expect(await forgotPassword({ email: "a@x.com" })).toMatchObject({ expiresInSeconds: 600 });
+    await resetPassword({ email: "a@x.com", code: "123456", password: "a brand new password" });
     expect(useCustomerSession.getState().status).toBe("unknown");
   });
 

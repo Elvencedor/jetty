@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanCode, emailError, identifierKind, passwordError, phoneError, safeNext, toIdentifier } from "./rules";
+import { cleanCode, emailError, normaliseEmail, passwordError, phoneError, safeNext } from "./rules";
 
 describe("field rules", () => {
   it("bounds passwords like the API", () => {
@@ -20,16 +20,8 @@ describe("field rules", () => {
   });
 });
 
-describe("toIdentifier", () => {
-  it("tells email from phone and normalises each", () => {
-    expect(identifierKind("a@b.co")).toBe("email");
-    expect(toIdentifier(" Ada@Example.com ")).toEqual({ email: "ada@example.com" });
-    expect(toIdentifier("08031234567")).toEqual({ phone: "+2348031234567" });
-  });
-  it("rejects what neither parses as", () => {
-    expect(toIdentifier("nope")).toBeNull();
-    expect(toIdentifier("a@")).toBeNull();
-  });
+describe("normaliseEmail", () => {
+  it("trims and lower-cases", () => expect(normaliseEmail("  Ada@Example.COM ")).toBe("ada@example.com"));
 });
 
 describe("safeNext", () => {

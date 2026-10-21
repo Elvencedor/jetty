@@ -5,18 +5,17 @@ import { useEffect, useState } from "react";
 import { Segmented } from "@/components/ui";
 import { safeNext } from "@/lib/auth/rules";
 import { useCustomerSession } from "@/lib/stores/session";
-import { CodeSignIn } from "./CodeSignIn";
 import { PasswordSignIn } from "./PasswordSignIn";
 import { RegisterForm } from "./RegisterForm";
 
-type Mode = "code" | "password" | "register";
+type Mode = "signin" | "register";
 
-/** Sign in by code, by password, or create an account. Afterwards, back to where the shopper was going. */
+/** Sign in with email and password, or create an account. Afterwards, back to where the shopper was going. */
 export function AuthPanel() {
   const router = useRouter();
   const params = useSearchParams();
   const next = safeNext(params.get("next"));
-  const [mode, setMode] = useState<Mode>(params.get("mode") === "register" ? "register" : "code");
+  const [mode, setMode] = useState<Mode>(params.get("mode") === "register" ? "register" : "signin");
   const status = useCustomerSession((s) => s.status);
   const done = () => router.replace(next);
 
@@ -30,13 +29,13 @@ export function AuthPanel() {
       <h1 className="font-display text-heading-lg font-extrabold">{mode === "register" ? "Create your account" : "Welcome back"}</h1>
       <Segmented
         mode="tabs"
-        label="How to sign in"
+        label="Sign in or create an account"
         value={mode}
         onChange={setMode}
-        items={[{ value: "code", label: "Phone code" }, { value: "password", label: "Password" }, { value: "register", label: "New here" }]}
+        items={[{ value: "signin", label: "Sign in" }, { value: "register", label: "Create account" }]}
       />
       <div role="tabpanel">
-        {mode === "code" ? <CodeSignIn onDone={done} /> : mode === "password" ? <PasswordSignIn onDone={done} /> : <RegisterForm onDone={done} />}
+        {mode === "signin" ? <PasswordSignIn onDone={done} /> : <RegisterForm onDone={done} />}
       </div>
     </div>
   );

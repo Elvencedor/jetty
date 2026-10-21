@@ -62,16 +62,16 @@ function tokens(customer: Customer, sessionId: string, refreshSecret: string, se
 export async function register(
   db: Db,
   secret: string,
-  input: { phone: string; password: string; email?: string | undefined },
+  input: { email: string; password: string; phone?: string | undefined },
   now: Date = new Date(),
 ): Promise<Issued> {
-  const email = input.email?.trim().toLowerCase() || null;
+  const email = input.email.trim().toLowerCase();
   const passwordHash = await hashPassword(input.password);
   let customer: Customer;
   try {
     [customer] = (await db
       .insert(customers)
-      .values({ phoneE164: input.phone, email, passwordHash, status: 'active' })
+      .values({ email, phoneE164: input.phone ?? null, passwordHash, status: 'active' })
       .returning()) as [Customer];
   } catch (err) {
     if (uniqueViolation(err)) {
@@ -82,14 +82,8 @@ export async function register(
   return issue(db, customer, secret, now);
 }
 
-/** The phone number is the primary identifier; email works as a fallback only if the customer registered one. */
-export type LoginIdentifier = { phone: string } | { email: string };
-
-export async function login(db: Db, secret: string, input: LoginIdentifier & { password: string }, now: Date = new Date()): Promise<Issued> {
-  const [customer] = await db
-    .select()
-    .from(customers)
-    .where('phone' in input ? eq(customers.phoneE164, input.phone) : sql`lower(${customers.email}) = ${input.email.trim().toLowerCase()}`);
+export async function login(db: Db, secret: string, input: { email: string; password: string }, now: Date = new Date()): Promise<Issued> {
+  const [customer] = await db.select().from(customers).where(sql`lower(${customers.email}) = ${input.email.trim().toLowerCase()}`);
   const ok = await verifyPassword(input.password, customer?.passwordHash ?? (await decoyHash()));
   if (!customer || !customer.passwordHash || !ok || customer.status === 'blocked') throw invalidCredentials();
   return issue(db, customer, secret, now);
@@ -144,67 +138,24 @@ export async function activeSession(db: Db, sessionId: string, customerId: strin
 const revokeSessions = (db: Db, customerId: string, now: Date) =>
   db.update(customerSessions).set({ revokedAt: now }).where(and(eq(customerSessions.customerId, customerId), isNull(customerSessions.revokedAt)));
 
-/**
- * Sends a sign-in code by SMS. It is sent to any well-formed number, known or
- * not, and the response never says which, so the endpoint cannot be used to
- * discover accounts; signing in with a code creates the account if needed.
- */
-export async function requestLoginCode(db: Db, secret: string, phone: string, now: Date = new Date()): Promise<void> {
-  await issueChallenge(db, secret, { purpose: 'login', identifier: phone, channel: 'sms' }, now);
-}
-
-/**
- * Signs in with a phone code. Proof of the phone number is what a password
- * registration never had, so an account whose number was still unverified is
- * reset here: anyone who registered it first (before its real owner) loses
- * both their password and their sessions.
- */
-export async function loginWithCode(db: Db, secret: string, input: { phone: string; code: string }, now: Date = new Date()): Promise<Issued> {
-  await consumeChallenge(db, secret, { purpose: 'login', identifier: input.phone, code: input.code }, now);
-
-  let [customer] = await db.select().from(customers).where(eq(customers.phoneE164, input.phone));
-  if (!customer) {
-    try {
-      [customer] = await db.insert(customers).values({ phoneE164: input.phone, status: 'active', phoneVerifiedAt: now }).returning();
-    } catch (err) {
-      if (!uniqueViolation(err)) throw err;
-      [customer] = await db.select().from(customers).where(eq(customers.phoneE164, input.phone));
-    }
-  }
-  if (!customer || customer.status === 'blocked') throw apiError(401, 'INVALID_CODE', 'The code is incorrect or has expired.');
-
-  if (!customer.phoneVerifiedAt) {
-    await revokeSessions(db, customer.id, now);
-    [customer] = await db.update(customers).set({ phoneVerifiedAt: now, passwordHash: null, updatedAt: now }).where(eq(customers.id, customer.id)).returning();
-  }
-  return issue(db, customer!, secret, now);
-}
-
-export type ResetIdentifier = { phone: string } | { email: string };
-const resetTarget = (input: ResetIdentifier) => ('phone' in input ? { identifier: input.phone, channel: 'sms' as const } : { identifier: input.email.trim().toLowerCase(), channel: 'email' as const });
-
-/** Sends a reset code to the account's own phone or email. Unknown, blocked and cooling-down requests return silently. */
-export async function requestPasswordReset(db: Db, secret: string, input: ResetIdentifier, now: Date = new Date()): Promise<void> {
-  const target = resetTarget(input);
-  const [customer] = await db
-    .select()
-    .from(customers)
-    .where('phone' in input ? eq(customers.phoneE164, input.phone) : sql`lower(${customers.email}) = ${target.identifier}`);
+/** Sends a reset code to the account's own email. Unknown, blocked and cooling-down requests return silently. */
+export async function requestPasswordReset(db: Db, secret: string, input: { email: string }, now: Date = new Date()): Promise<void> {
+  const email = input.email.trim().toLowerCase();
+  const [customer] = await db.select().from(customers).where(sql`lower(${customers.email}) = ${email}`);
   if (!customer || customer.status === 'blocked') return;
-  await issueChallenge(db, secret, { purpose: 'password_reset', ...target, customerId: customer.id }, now);
+  await issueChallenge(db, secret, { purpose: 'password_reset', identifier: email, channel: 'email', customerId: customer.id }, now);
 }
 
-/** Sets a new password with a reset code, marks the contact it proved as verified, and signs the account out everywhere. */
-export async function resetPassword(db: Db, secret: string, input: ResetIdentifier & { code: string; password: string }, now: Date = new Date()): Promise<void> {
-  const target = resetTarget(input);
+/** Sets a new password with a reset code, marks the email as verified (the code proved it), and signs the account out everywhere. */
+export async function resetPassword(db: Db, secret: string, input: { email: string; code: string; password: string }, now: Date = new Date()): Promise<void> {
+  const email = input.email.trim().toLowerCase();
   const passwordHash = await hashPassword(input.password);
-  const { customerId } = await consumeChallenge(db, secret, { purpose: 'password_reset', identifier: target.identifier, code: input.code }, now);
+  const { customerId } = await consumeChallenge(db, secret, { purpose: 'password_reset', identifier: email, code: input.code }, now);
   if (!customerId) throw apiError(401, 'INVALID_CODE', 'The code is incorrect or has expired.');
 
-  const proof = 'phone' in input ? { phoneVerifiedAt: now } : { emailVerifiedAt: now };
   const updated = await db
     .update(customers)
-    .set({ passwordHash, ...proof, updatedAt: now })
+    .set({ passwordHash, emailVerifiedAt: now, updatedAt: now })
     .where(and(eq(customers.id, customerId), sql`${customers.status} <> 'blocked'`))
     .returning({ id: customers.id });
   if (updated.length === 0) throw apiError(401, 'INVALID_CODE', 'The code is incorrect or has expired.');

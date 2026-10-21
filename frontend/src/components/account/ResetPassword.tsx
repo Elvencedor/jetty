@@ -5,31 +5,29 @@ import { useState, type FormEvent } from "react";
 import { Button, TextField } from "@/components/ui";
 import { forgotPassword, resetPassword } from "@/lib/api/account";
 import { authErrorMessage } from "@/lib/auth/errors";
-import { cleanCode, CODE_LENGTH, passwordError, toIdentifier } from "@/lib/auth/rules";
+import { cleanCode, CODE_LENGTH, emailError, normaliseEmail, passwordError } from "@/lib/auth/rules";
 import { useCooldown } from "@/lib/auth/useCooldown";
 
-type Identifier = NonNullable<ReturnType<typeof toIdentifier>>;
-
-/** Forgot password: ask for a code by phone or email, then set a new password with it. Never says whether the account exists. */
+/** Forgot password: ask for a code by email, then set a new password with it. Never says whether the account exists. */
 export function ResetPassword() {
-  const [who, setWho] = useState("");
-  const [id, setId] = useState<Identifier | null>(null);
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
-  const [errors, setErrors] = useState<{ who?: string; code?: string; password?: string; form?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; code?: string; password?: string; form?: string }>({});
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const cooldown = useCooldown();
 
   async function request(e?: FormEvent) {
     e?.preventDefault();
-    const parsed = id ?? toIdentifier(who);
-    if (!parsed) return setErrors({ who: "Enter your phone number or email" });
+    const problem = emailError(email);
+    if (problem) return setErrors({ email: problem });
     setBusy(true);
     setErrors({});
     try {
-      const res = await forgotPassword(parsed);
-      setId(parsed);
+      const res = await forgotPassword({ email: normaliseEmail(email) });
+      setSent(true);
       cooldown.start(res.resendAfterSeconds);
     } catch (err) {
       setErrors({ form: authErrorMessage(err, "request") });
@@ -42,10 +40,10 @@ export function ResetPassword() {
     e.preventDefault();
     const found = { ...(code.length === CODE_LENGTH ? {} : { code: `Enter the ${CODE_LENGTH}-digit code` }), ...(passwordError(password) ? { password: passwordError(password) } : {}) };
     setErrors(found);
-    if (Object.keys(found).length || !id) return;
+    if (Object.keys(found).length || !sent) return;
     setBusy(true);
     try {
-      await resetPassword({ ...id, code, password });
+      await resetPassword({ email: normaliseEmail(email), code, password });
       setDone(true);
     } catch (err) {
       setErrors({ form: authErrorMessage(err, "reset") });
@@ -67,15 +65,15 @@ export function ResetPassword() {
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-5">
       <h1 className="font-display text-heading-lg font-extrabold">Reset your password</h1>
-      {!id ? (
+      {!sent ? (
         <form onSubmit={request} noValidate className="flex flex-col gap-4">
-          <TextField label="Phone number or email" autoComplete="username" value={who} error={errors.who} onChange={(e) => { setWho(e.target.value); setErrors({}); }} hint="We'll send a code to this phone or email if we have an account for it." />
+          <TextField label="Email" type="email" autoComplete="username" value={email} error={errors.email} onChange={(e) => { setEmail(e.target.value); setErrors({}); }} hint="We'll email a code to this address if we have an account for it." />
           {errors.form ? <p role="alert" className="text-body-sm font-medium text-danger">{errors.form}</p> : null}
           <Button type="submit" size="lg" loading={busy}>Send code</Button>
         </form>
       ) : (
         <form onSubmit={reset} noValidate className="flex flex-col gap-4">
-          <p className="text-body-sm text-ink-soft" aria-live="polite">If there&apos;s an account for that {"phone" in id ? "number" : "email"}, a code is on its way.</p>
+          <p className="text-body-sm text-ink-soft" aria-live="polite">If there&apos;s an account for that email, a code is on its way.</p>
           <TextField label="Code" inputMode="numeric" autoComplete="one-time-code" autoFocus value={code} error={errors.code} className="text-center tracking-[0.4em]" onChange={(e) => setCode(cleanCode(e.target.value))} />
           <TextField label="New password" type="password" autoComplete="new-password" hint="At least 10 characters." value={password} error={errors.password} onChange={(e) => setPassword(e.target.value)} />
           {errors.form ? <p role="alert" className="text-body-sm font-medium text-danger">{errors.form}</p> : null}

@@ -79,9 +79,9 @@ function quote(items, codes = []) {
   return { currency: "NGN", lines, promotions: { applied, rejectedCodes }, warnings: [], subtotalMinor: subtotal, discountMinor: discount, delivery: null, deliveryFeeMinor: 0, taxMinor: 0, totalMinor: subtotal - discount, quoteId: "q", quoteExpiresAt: "2099-01-01T00:00:00Z" };
 }
 
-// Accounts: code 123456 and password "correct-horse-1" are accepted; +2348031110000 already has an account.
-const customer = (phone) => ({ id: id(500), phone, email: null, emailVerified: false, phoneVerified: true, createdAt: "2026-01-01T00:00:00Z" });
-const session = (phone) => ({ accessToken: "tok", tokenType: "Bearer", expiresIn: 900, customer: customer(phone) });
+// Accounts: reset code 123456 and password "correct-horse-1" are accepted; taken@example.com already has an account.
+const customer = (email) => ({ id: id(500), phone: null, email, emailVerified: false, phoneVerified: false, createdAt: "2026-01-01T00:00:00Z" });
+const session = (email) => ({ accessToken: "tok", tokenType: "Bearer", expiresIn: 900, customer: customer(email) });
 const SEEDED = {
   id: id(700), orderNumber: "JH-20001", status: "delivered", paymentStatus: "paid", currency: "NGN", totalMinor: 18300000, itemCount: 1, placedAt: "2026-09-01T10:00:00Z", createdAt: "2026-09-01T10:00:00Z",
   contact: { phone: "+2348031234567", email: null }, deliveryMethod: "same_day", deliveryAddress: { recipientName: "Ada Obi", addressLine1: "12 Admiralty Way", city: "Lekki", state: "Lagos" }, estimate: null, rider: null,
@@ -144,17 +144,15 @@ const server = createServer(async (req, res) => {
   if (req.method === "POST") {
     const json = body ? JSON.parse(body) : {};
     const bad = (status, code) => send(status, { error: { code, message: code, requestId: "r" } });
-    const login = (phone) => {
+    const login = (email) => {
       res.setHeader("Set-Cookie", "jh_refresh=1; Path=/; HttpOnly; SameSite=Lax");
-      return send(200, session(phone));
+      return send(200, session(email));
     };
-    if (path === "/auth/register") return json.phone === "+2348031110000" ? bad(409, "ACCOUNT_EXISTS") : login(json.phone);
-    if (path === "/auth/login") return json.password === "correct-horse-1" ? login(json.phone ?? "+2348031234567") : bad(401, "INVALID_CREDENTIALS");
-    if (path === "/auth/otp/request") return send(200, { expiresInSeconds: 600, resendAfterSeconds: 60 });
-    if (path === "/auth/otp/verify") return json.code === "123456" ? login(json.phone) : bad(401, "INVALID_CODE");
+    if (path === "/auth/register") return json.email === "taken@example.com" ? bad(409, "ACCOUNT_EXISTS") : login(json.email);
+    if (path === "/auth/login") return json.password === "correct-horse-1" ? login(json.email) : bad(401, "INVALID_CREDENTIALS");
     if (path === "/auth/password/forgot") return send(202, { expiresInSeconds: 600, resendAfterSeconds: 60 });
     if (path === "/auth/password/reset") return json.code === "123456" ? send(204) : bad(401, "INVALID_CODE");
-    if (path === "/auth/refresh") return hasCookie(req) ? send(200, session("+2348031234567")) : bad(401, "INVALID_REFRESH_TOKEN");
+    if (path === "/auth/refresh") return hasCookie(req) ? send(200, session("ada@example.com")) : bad(401, "INVALID_REFRESH_TOKEN");
     if (path === "/auth/logout") {
       res.setHeader("Set-Cookie", "jh_refresh=; Path=/; HttpOnly; Max-Age=0");
       return send(204);

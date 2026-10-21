@@ -5,7 +5,7 @@ export function authErrorMessage(err: unknown, context: "password" | "code" | "r
   if (!isApiError(err)) return "Something went wrong. Please try again.";
   switch (err.code) {
     case "INVALID_CREDENTIALS":
-      return "That phone, email or password isn't right.";
+      return "That email or password isn't right.";
     case "INVALID_CODE":
       return context === "reset" ? "That code isn't right or has expired. Request a new one." : "That code isn't right or has expired.";
     case "ACCOUNT_EXISTS":
