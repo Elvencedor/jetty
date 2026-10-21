@@ -2,8 +2,11 @@ import type { Quote } from "@/lib/api/types";
 import { cn } from "@/lib/cn";
 import { formatNaira } from "@/lib/format";
 
+/** The parts of a quote (or of a placed order) the summary needs. */
+export type SummaryData = Pick<Quote, "subtotalMinor" | "discountMinor" | "deliveryFeeMinor" | "taxMinor" | "totalMinor" | "delivery"> & { promotions: Pick<Quote["promotions"], "applied"> };
+
 /** Totals exactly as the server calculated them; the client adds nothing up. Dimmed and busy while a new answer loads. */
-export function PriceSummary({ quote, busy, deliveryNote = "Calculated at checkout" }: { quote: Quote; busy: boolean; deliveryNote?: string }) {
+export function PriceSummary({ quote, busy, deliveryNote = "Calculated at checkout" }: { quote: SummaryData; busy: boolean; deliveryNote?: string }) {
   const free = quote.delivery && quote.deliveryFeeMinor === 0;
   return (
     <section aria-label="Order summary" aria-busy={busy} className="flex flex-col gap-3 rounded-lg bg-surface p-4">

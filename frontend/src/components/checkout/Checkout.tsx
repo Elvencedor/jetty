@@ -12,11 +12,12 @@ import { useQuote } from "@/lib/cart/useQuote";
 import { interpretCheckoutError, type CheckoutFailure } from "@/lib/checkout/errors";
 import { buildCheckoutRequest, submissionFor } from "@/lib/checkout/request";
 import { firstInvalid, validateDelivery, type DeliveryErrors, type DeliveryDetails } from "@/lib/checkout/validation";
-import { formatNaira } from "@/lib/format";
+import { formatNaira, formatPhone } from "@/lib/format";
 import { useCartStore } from "@/lib/stores/cart";
 import { useCheckoutDraft } from "@/lib/stores/checkout-draft";
 import { useStoreHydrated } from "@/lib/stores/hydrated";
 import { usePaymentSession } from "@/lib/stores/payment-session";
+import { useCustomerSession } from "@/lib/stores/session";
 import { DeliveryStep } from "./DeliveryStep";
 import { PaymentStep } from "./PaymentStep";
 import { ReviewStep } from "./ReviewStep";
@@ -62,6 +63,18 @@ export function Checkout() {
       track("checkout_start");
     }
   }, [cartReady, lines.length]);
+
+  // A signed-in customer's own phone and email save some typing, but never overwrite what was already entered.
+  const customer = useCustomerSession((s) => s.user);
+  useEffect(() => {
+    if (!draftReady || !customer) return;
+    const { details: current, setDetails: set } = useCheckoutDraft.getState();
+    const patch: Partial<DeliveryDetails> = {
+      ...(!current.phone && customer.phone ? { phone: formatPhone(customer.phone) } : {}),
+      ...(!current.email && customer.email ? { email: customer.email } : {}),
+    };
+    if (Object.keys(patch).length) set(patch);
+  }, [draftReady, customer]);
 
   // A step can't be reached by URL before the ones before it are done.
   const deliveryDone = Object.keys(validateDelivery(details)).length === 0 && !!deliveryMethod;
@@ -161,6 +174,9 @@ export function Checkout() {
           <p className="rounded-pill bg-surface-inverse px-3 py-1.5 text-label font-bold text-on-inverse">{quote ? formatNaira(quote.totalMinor) : "…"}</p>
         </header>
         <StepIndicator current={step} onGo={(s) => go(s)} />
+        {!customer ? (
+          <p className="text-body-sm text-ink-soft">Have an account? <Link href="/account/sign-in?next=%2Fcheckout" className="font-semibold text-primary-strong underline">Sign in</Link> to fill in your details. Guests can check out too.</p>
+        ) : null}
 
         {views.some((v) => v.problem) ? (
           <div role="alert" className="rounded-lg bg-warning-bg p-3 text-body-sm">Something in your bag has changed. <Link href="/bag" className="font-semibold underline">Check your bag</Link></div>

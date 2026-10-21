@@ -248,6 +248,16 @@ Checks at the end of the phase: 116 unit/component tests, typecheck, lint and pr
 - Local wishlist merges on sign-in (server wishlist is P1).
 - **Done when:** a customer can register, sign in by OTP, see an order they placed while signed in, and reset their password; session survives reload via refresh.
 
+**Status: built.** Differences from the plan:
+- **Routes:** `/account` (the Me tab: sign-in prompt for guests, details and sign-out for customers), `/account/sign-in` (phone code, password, or register; honours a validated `?next=`), `/account/reset-password`, `/account/orders` and `/account/orders/[orderId]`.
+- **Return links are validated** (`safeNext`): only paths on this site are followed, so `?next=//evil.example` falls back to `/account`.
+- **Account data is forgotten when the signed-in person changes or signs out**, so a shared device never shows the previous customer's orders, even from cache.
+- **Checkout** prefills a signed-in customer's phone and email (never over what was typed) and offers a sign-in link; guests are unaffected.
+- **Reviews** are written from a delivered order's items (`reviewable`), and the form says new reviews wait for a moderator.
+- **Wishlist merge on sign-in is a no-op for now:** the wishlist stays on the device until the server wishlist (P1) exists.
+- Registration with a password never proves the phone; the API removes such a password if the real owner later signs in by code (documented in `docs/API.md`), so the sign-in screen leads with the phone code.
+
+
 ### Phase 4 — Content, trust, SEO, analytics (4 days)
 - `/pages/[slug]` for returns, FAQs, size guide, care guide, terms, privacy, contact (server-rendered, sanitised markdown); header/footer/PDP links to them; cap-size guide link on PDP.
 - Cookie/privacy notice (inline, non-blocking) for NDPR; analytics events wired at product view, add to bag, checkout start.

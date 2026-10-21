@@ -79,6 +79,19 @@ function quote(items, codes = []) {
   return { currency: "NGN", lines, promotions: { applied, rejectedCodes }, warnings: [], subtotalMinor: subtotal, discountMinor: discount, delivery: null, deliveryFeeMinor: 0, taxMinor: 0, totalMinor: subtotal - discount, quoteId: "q", quoteExpiresAt: "2099-01-01T00:00:00Z" };
 }
 
+// Accounts: code 123456 and password "correct-horse-1" are accepted; +2348031110000 already has an account.
+const customer = (phone) => ({ id: id(500), phone, email: null, emailVerified: false, phoneVerified: true, createdAt: "2026-01-01T00:00:00Z" });
+const session = (phone) => ({ accessToken: "tok", tokenType: "Bearer", expiresIn: 900, customer: customer(phone) });
+const SEEDED = {
+  id: id(700), orderNumber: "JH-20001", status: "delivered", paymentStatus: "paid", currency: "NGN", totalMinor: 18300000, itemCount: 1, placedAt: "2026-09-01T10:00:00Z", createdAt: "2026-09-01T10:00:00Z",
+  contact: { phone: "+2348031234567", email: null }, deliveryMethod: "same_day", deliveryAddress: { recipientName: "Ada Obi", addressLine1: "12 Admiralty Way", city: "Lekki", state: "Lagos" }, estimate: null, rider: null,
+  items: [{ id: id(701), slug: "bone-straight-frontal", image: null, reviewable: true, productId: id(1), variantId: id(11), sku: "BS-14-HD", title: "Bone Straight Frontal Wig", options: { Length: "14 inch" }, quantity: 1, unitPriceMinor: 18000000, discountMinor: 0, lineTotalMinor: 18000000 }],
+  totals: { subtotalMinor: 18000000, discountMinor: 0, deliveryFeeMinor: 300000, taxMinor: 0, totalMinor: 18300000 }, promotions: [], reservationExpiresAt: null,
+  timeline: [{ status: "placed", at: "2026-09-01T10:00:00Z" }, { status: "delivered", at: "2026-09-02T10:00:00Z" }],
+};
+const hasCookie = (req) => (req.headers.cookie ?? "").includes("jh_refresh=");
+const needsAuth = (req) => (req.headers.authorization ?? "").startsWith("Bearer ");
+
 // Orders placed during a test run, keyed by id. A recipient named "Fail Test" gets a payment that has already failed.
 const orders = new Map();
 let counter = 0;
@@ -104,6 +117,8 @@ const server = createServer(async (req, res) => {
   const send = (status, data) => void res.writeHead(status, { "content-type": "application/json" }).end(data === undefined ? undefined : JSON.stringify(data));
 
   if (req.method === "GET") {
+    if (path === "/me/orders") return needsAuth(req) ? send(200, { data: [{ id: SEEDED.id, orderNumber: SEEDED.orderNumber, status: SEEDED.status, paymentStatus: "paid", currency: "NGN", totalMinor: SEEDED.totalMinor, itemCount: 1, placedAt: SEEDED.placedAt, createdAt: SEEDED.createdAt }], page: { nextCursor: null } }) : send(401, { error: { code: "UNAUTHENTICATED", message: "Sign in", requestId: "r" } });
+    if (path === `/me/orders/${SEEDED.id}`) return needsAuth(req) ? send(200, SEEDED) : send(401, { error: { code: "UNAUTHENTICATED", message: "Sign in", requestId: "r" } });
     if (path === "/health") return send(200, { ok: true });
     if (path === "/storefront/home") return send(200, { data: home });
     if (path === "/storefront/settings") return send(200, { data: settings });
@@ -128,6 +143,23 @@ const server = createServer(async (req, res) => {
   }
   if (req.method === "POST") {
     const json = body ? JSON.parse(body) : {};
+    const bad = (status, code) => send(status, { error: { code, message: code, requestId: "r" } });
+    const login = (phone) => {
+      res.setHeader("Set-Cookie", "jh_refresh=1; Path=/; HttpOnly; SameSite=Lax");
+      return send(200, session(phone));
+    };
+    if (path === "/auth/register") return json.phone === "+2348031110000" ? bad(409, "ACCOUNT_EXISTS") : login(json.phone);
+    if (path === "/auth/login") return json.password === "correct-horse-1" ? login(json.phone ?? "+2348031234567") : bad(401, "INVALID_CREDENTIALS");
+    if (path === "/auth/otp/request") return send(200, { expiresInSeconds: 600, resendAfterSeconds: 60 });
+    if (path === "/auth/otp/verify") return json.code === "123456" ? login(json.phone) : bad(401, "INVALID_CODE");
+    if (path === "/auth/password/forgot") return send(202, { expiresInSeconds: 600, resendAfterSeconds: 60 });
+    if (path === "/auth/password/reset") return json.code === "123456" ? send(204) : bad(401, "INVALID_CODE");
+    if (path === "/auth/refresh") return hasCookie(req) ? send(200, session("+2348031234567")) : bad(401, "INVALID_REFRESH_TOKEN");
+    if (path === "/auth/logout") {
+      res.setHeader("Set-Cookie", "jh_refresh=; Path=/; HttpOnly; Max-Age=0");
+      return send(204);
+    }
+    if (path === "/reviews") return send(201, { id: "rev1", status: "pending" });
     if (path === "/pricing/quote") return send(200, quote(json.items ?? [], json.promotionCodes ?? []));
     if (path === "/delivery/quotes") {
       return send(200, { currency: "NGN", zone: { id: "z", name: "Lagos", state: json.deliveryAddress?.state ?? "Lagos" }, warnings: [], options: [{ method: "same_day", available: true, baseFeeMinor: 300000, feeMinor: 300000, freeDeliveryPromotionId: null, estimate: { earliestDate: "2026-10-21", latestDate: "2026-10-21" } }] });
