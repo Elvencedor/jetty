@@ -694,3 +694,23 @@ filter, which the admin nav uses as the "pending reviews" badge (`?status=pendin
   `viaCode`, `kind` and `endsAt`.
 - `topProducts` (here and on `/admin/analytics/products`) gain `image` (`{ objectKey, url }` or `null`), `availableQuantity`
   and `lowStock`.
+
+## Payout account (Paystack subaccount)
+
+Sales settle to a Paystack **subaccount**. Connecting it is an owner action; until one is connected, sales go to the main
+Paystack account as before.
+
+- `GET /admin/payouts/account` (`settings:read`): `{ configured: false, mode }` or `{ configured: true, mode, subaccountCode,
+  businessName, bankCode, bankName, accountName, accountLast4, updatedAt }`. `mode` is `live` for an `sk_live_` key, else `test`.
+  The full account number is never stored or returned; Paystack holds it.
+- `GET /admin/payouts/banks` (`settings:write`): `{ data: [{ name, code }] }`, Nigerian banks from Paystack, cached for a day.
+- `POST /admin/payouts/resolve` (`settings:write`) `{ bankCode, accountNumber }` returns `{ accountName }` from Paystack's
+  account lookup (`422 ACCOUNT_NOT_FOUND` when there is no such account). The screens show it so the owner can check it.
+- `PUT /admin/payouts/account` (`settings:write`) `{ businessName, bankCode, accountNumber }` looks the account up again (the
+  name Paystack returns is the one kept), then creates the subaccount, or updates the existing one so its code never changes.
+  Errors: `422 UNKNOWN_BANK`, `422 ACCOUNT_NOT_FOUND`, `422 PAYOUT_REJECTED` (with Paystack's reason), `503 PAYSTACK_UNAVAILABLE`.
+  Paystack is called first and our record written after, in the same transaction as its audit entry (last four digits only).
+- Checkout then passes `subaccount` and `bearer` to Paystack's Initialize Transaction. The stored share the main account keeps
+  (`percentageCharge`) is 0 and the fee bearer is `subaccount`; neither has a screen. Confirm both with whoever owns the
+  Paystack account before going live. A failure after Paystack creates the subaccount but before our record is saved leaves
+  an unused subaccount at Paystack; connecting again creates a new one.

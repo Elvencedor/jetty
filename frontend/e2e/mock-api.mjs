@@ -177,7 +177,11 @@ seedAdminOrders();
 // ---- admin settings: the store, payments and policies, and two delivery zones
 const adminSettings = {};
 let adminZones = [];
+let payout = null;
+const BANKS = [{ name: "Access Bank", code: "044" }, { name: "GTBank", code: "058" }, { name: "Zenith Bank", code: "057" }];
+const ACCOUNTS = { "0123456789": "JETTY HAIR LTD" };
 function seedAdminSettings() {
+  payout = null;
   adminSettings.store = { name: "Jetty's Hair", contactEmail: "hello@example.com", contactPhone: "+2348031234567", whatsappNumber: "+2348031234567", showroomAddress: "Lekki Phase 1, Lagos", showroomHours: "Mon–Sat, 9am–7pm" };
   adminSettings.policies = { returnWindowDays: 7, podMaxOrderMinor: null };
   adminSettings.payments = { enabledMethods: ["card", "bank_transfer"], cardHoldMinutes: 30, transferHoldMinutes: 120 };
@@ -238,6 +242,8 @@ const server = createServer(async (req, res) => {
         res.setHeader("ETag", etagOfProduct(p));
         return send(200, productDetail(p));
       }
+      if (path === "/admin/payouts/account") return can(a, "settings:read") ? send(200, payout ? { configured: true, mode: "test", ...payout } : { configured: false, mode: "test" }) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+      if (path === "/admin/payouts/banks") return can(a, "settings:write") ? send(200, { data: BANKS }) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
       const settingGet = path.match(/^\/admin\/settings\/([^/]+)$/);
       if (settingGet) {
         if (!can(a, "settings:read")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
@@ -355,6 +361,17 @@ const server = createServer(async (req, res) => {
       adminProducts.set(p.id, p);
       res.setHeader("ETag", etagOfProduct(p));
       return send(201, productDetail(p));
+    }
+    if (path === "/admin/payouts/resolve" && req.method === "POST") {
+      if (!can(a, "settings:write")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");
+      return ACCOUNTS[json.accountNumber] ? send(200, { accountName: ACCOUNTS[json.accountNumber] }) : fail(422, "ACCOUNT_NOT_FOUND", "We could not find that account. Check the bank and the account number.");
+    }
+    if (path === "/admin/payouts/account" && req.method === "PUT") {
+      if (!can(a, "settings:write")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");
+      const bank = BANKS.find((b) => b.code === json.bankCode);
+      if (!bank || !ACCOUNTS[json.accountNumber]) return fail(422, "ACCOUNT_NOT_FOUND", "We could not find that account. Check the bank and the account number.");
+      payout = { subaccountCode: "ACCT_mock", businessName: json.businessName, bankCode: bank.code, bankName: bank.name, accountName: ACCOUNTS[json.accountNumber], accountLast4: json.accountNumber.slice(-4), updatedAt: new Date().toISOString() };
+      return send(200, { configured: true, mode: "test", ...payout });
     }
     const settingPatch = path.match(/^\/admin\/settings\/([^/]+)$/);
     if (settingPatch && req.method === "PATCH") {

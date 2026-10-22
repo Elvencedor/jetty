@@ -11,6 +11,7 @@ import { canSwitchOff, changedFields, holdChoices, PAYMENT_METHOD_ROWS, returnWi
 import { useUnsavedGuard } from "@/lib/admin/useUnsavedGuard";
 import { getSetting, patchSetting, type PaymentMethodKey, type SettingKey, type SettingsByKey } from "@/lib/api/admin-settings";
 import { toast } from "@/lib/stores/toast";
+import { PayoutCard } from "./PayoutCard";
 
 /** Loads one setting and hands it, with a way to save a change to it, to the form. */
 function Loaded<K extends SettingKey>({ name, saved, children }: { name: K; saved: string; children: (value: SettingsByKey[K], save: (patch: Partial<SettingsByKey[K]>) => Promise<SettingsByKey[K]>) => ReactNode }) {
@@ -107,10 +108,12 @@ function StoreForm({ initial, canWrite, save }: { initial: SettingsByKey["store"
 // ---------------------------------------------------------------- payments
 
 export function PaymentsForm({ canWrite }: { canWrite: boolean }) {
-  return <Loaded name="payments" saved="Payment settings saved">{(value, save) => <PaymentsEditor initial={value} canWrite={canWrite} save={save} />}</Loaded>;
+  // The store's name is the suggestion for the payout account's business name.
+  const store = useQuery({ queryKey: adminKeys.detail("settings", "store"), queryFn: ({ signal }) => getSetting("store", { signal }), staleTime: 60_000 });
+  return <Loaded name="payments" saved="Payment settings saved">{(value, save) => <PaymentsEditor initial={value} canWrite={canWrite} save={save} storeName={store.data?.name ?? ""} />}</Loaded>;
 }
 
-function PaymentsEditor({ initial, canWrite, save }: { initial: SettingsByKey["payments"]; canWrite: boolean; save: (patch: Partial<SettingsByKey["payments"]>) => Promise<unknown> }) {
+function PaymentsEditor({ initial, canWrite, save, storeName }: { storeName: string; initial: SettingsByKey["payments"]; canWrite: boolean; save: (patch: Partial<SettingsByKey["payments"]>) => Promise<unknown> }) {
   const [form, setForm] = useState(initial);
   const { saving, error, run, setError } = useSaver();
   const patch = changedFields(initial, form);
@@ -119,10 +122,7 @@ function PaymentsEditor({ initial, canWrite, save }: { initial: SettingsByKey["p
   return (
     <>
       <FormSection title="Payments">
-        <div className="flex items-center gap-3 rounded-[18px] bg-surface-tint p-3.5">
-          <span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-[14px] bg-surface font-extrabold text-primary-strong">PS</span>
-          <span className="flex flex-col leading-[1.3]"><span className="font-bold">Paystack</span><span className="text-body-sm text-muted">Card and bank transfer payments are processed by Paystack. Keys and the payout account are managed in your Paystack dashboard.</span></span>
-        </div>
+        <PayoutCard canWrite={canWrite} storeName={storeName} />
         <ul>
           {PAYMENT_METHOD_ROWS.map((m) => {
             const on = form.enabledMethods.includes(m.key);

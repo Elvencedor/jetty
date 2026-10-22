@@ -101,11 +101,42 @@ test("payments keep one method on, and policies change the return window", async
   await expect(page.getByRole("status").filter({ hasText: "Policies saved" })).toBeVisible();
 });
 
+test("a payout account is connected by checking the account name first, and shown with only its last four digits", async ({ page }) => {
+  await signIn(page, "owner", "/admin/settings/payments");
+  await expect(page.getByText(/No payout account yet/)).toBeVisible();
+  await page.getByRole("button", { name: "Connect payout account" }).click();
+  const drawer = page.getByRole("dialog", { name: "Connect payout account" });
+  await expect(drawer.getByLabel("Business name")).toHaveValue("Jetty's Hair");
+  const connect = drawer.getByRole("button", { name: "Connect account" });
+  await expect(connect).toBeDisabled();
+
+  await drawer.getByLabel("Bank").selectOption("058");
+  await drawer.getByLabel("Account number").fill("0999999999");
+  await expect(drawer.getByText(/could not find that account/)).toBeVisible();
+  await expect(connect).toBeDisabled();
+
+  await drawer.getByLabel("Account number").fill("0123456789");
+  await expect(drawer.getByText("✓ JETTY HAIR LTD")).toBeVisible();
+  await connect.click();
+  await expect(drawer).toBeHidden();
+  await expect(page.getByText("Connected · test mode")).toBeVisible();
+  await expect(page.getByText(/GTBank ••••6789 · JETTY HAIR LTD/)).toBeVisible();
+  await expect(page.getByText("0123456789")).toHaveCount(0);
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Change account" })).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+});
+
 test("a role that can only read sees the settings without the means to change them", async ({ page }) => {
   await signIn(page, "manager", "/admin/settings/store");
   await expect(page.getByText("only an owner can change them")).toBeVisible();
   await expect(page.getByLabel("Store name")).toBeDisabled();
   await expect(page.getByRole("button", { name: "Save changes" })).toHaveCount(0);
+  await page.getByRole("link", { name: /^Payments/ }).click();
+  await expect(page.getByText(/No payout account yet/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Connect payout account" })).toHaveCount(0);
   await page.getByRole("link", { name: /^Delivery & pickup/ }).click();
   await expect(page.getByRole("button", { name: "Add zone" })).toHaveCount(0);
   await expect(page.getByRole("switch", { name: "Deliver to Abuja" })).toBeDisabled();

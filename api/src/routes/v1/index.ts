@@ -3,6 +3,7 @@ import { adminAnalyticsRoutes } from './admin/analytics.js';
 import { adminAuthRoutes } from './admin/auth.js';
 import { adminCatalogRoutes } from './admin/catalog.js';
 import { adminManagementRoutes } from './admin/management.js';
+import { adminPayoutRoutes } from './admin/payouts.js';
 import { adminOrderRoutes } from './admin/orders.js';
 import { adminPromotionRoutes } from './admin/promotions.js';
 import { catalogRoutes } from './catalog.js';
@@ -17,4 +18,4 @@ import { storefrontRoutes } from './storefront.js';
  * Every versioned route is registered here. Paths are declared relative to
  * the root; the /api/v1 prefix is applied once, in server.ts.
  */
-export const v1Routes: ServerRoute[] = [...metaRoutes, ...catalogRoutes, ...pricingRoutes, ...checkoutRoutes, ...authRoutes, ...orderRoutes, ...storefrontRoutes, ...adminAuthRoutes, ...adminCatalogRoutes, ...adminOrderRoutes, ...adminPromotionRoutes, ...adminManagementRoutes, ...adminAnalyticsRoutes];
+export const v1Routes: ServerRoute[] = [...metaRoutes, ...catalogRoutes, ...pricingRoutes, ...checkoutRoutes, ...authRoutes, ...orderRoutes, ...storefrontRoutes, ...adminAuthRoutes, ...adminCatalogRoutes, ...adminOrderRoutes, ...adminPromotionRoutes, ...adminManagementRoutes, ...adminPayoutRoutes, ...adminAnalyticsRoutes];
