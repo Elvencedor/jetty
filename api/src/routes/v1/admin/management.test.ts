@@ -142,6 +142,9 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
       assert.equal(queue.body.data[0].id, reviewId);
       assert.match(queue.body.data[0].customerPhone, /^\+234••••001$/);
       assert.equal(queue.body.data[0].productTitle, 'Mgmt Wig');
+      assert.equal(queue.body.data[0].customerEmail, 'm•••@example.com', 'the reviewer is shown masked, by email now that accounts are email-first');
+      assert.equal(queue.body.page.total, 1, 'the first page carries the queue size, for the nav badge');
+      assert.equal((await call('GET', `/admin/reviews?status=pending&cursor=${encodeURIComponent('x')}`, undefined, support)).body?.page?.total ?? null, null, 'later pages skip the count');
       assert.equal((await call('GET', '/admin/reviews', undefined, editor)).status, 403);
 
       const publicCount = async () => ((await api.inject({ url: `/api/v1/products/${productId}/reviews` })).result as Json).summary.count;

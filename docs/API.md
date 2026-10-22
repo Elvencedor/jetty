@@ -655,3 +655,9 @@ tags every row with its `segments`.
 
 Listing cards carry `price.compareAtMinor`: the struck-through compare-at price of the **cheapest** active variant when
 that variant is on sale, otherwise `null` (so the card's "From ₦X" and its "was" always describe the same variant).
+
+## Admin review queue
+
+`GET /admin/reviews` rows carry `customerEmail` (masked, e.g. `a•••@example.com`) beside `customerPhone`, since customers
+are email-first now. The **first page** (no `cursor`) also carries `page.total`: the number of reviews matching the
+filter, which the admin nav uses as the "pending reviews" badge (`?status=pending&limit=1`). Later pages have `total: null`.

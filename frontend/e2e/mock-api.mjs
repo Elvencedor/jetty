@@ -92,6 +92,25 @@ const SEEDED = {
 const hasCookie = (req) => (req.headers.cookie ?? "").includes("jh_refresh=");
 const needsAuth = (req) => (req.headers.authorization ?? "").startsWith("Bearer ");
 
+// Admin: password "correct-horse-1"; the email's prefix picks the role. Each sign-in is a session that tests can revoke.
+const ADMIN_ROLES = {
+  owner: ["*"],
+  support: ["orders:read", "customers:read", "reviews:moderate"],
+  editor: ["content:write", "catalog:read"],
+};
+const adminSessions = new Map();
+let adminCounter = 0;
+const adminCookie = (req) => /jh_admin_refresh=([^;]+)/.exec(req.headers.cookie ?? "")?.[1];
+const adminIdentity = (s) => ({ id: id(600), email: s.email, roles: [s.role], permissions: ADMIN_ROLES[s.role] });
+const adminSession = (sid) => { const s = adminSessions.get(sid); return { accessToken: `adm.${sid}`, tokenType: "Bearer", expiresIn: 900, admin: adminIdentity(s) }; };
+/** The admin session behind a request's bearer token, or null if it is missing or revoked. */
+const adminFrom = (req) => {
+  const sid = /^Bearer adm\.(.+)$/.exec(req.headers.authorization ?? "")?.[1];
+  const s = sid && adminSessions.get(sid);
+  return s && !s.revoked ? s : null;
+};
+const can = (s, perm) => ADMIN_ROLES[s.role].includes("*") || ADMIN_ROLES[s.role].includes(perm);
+
 // Orders placed during a test run, keyed by id. A recipient named "Fail Test" gets a payment that has already failed.
 const orders = new Map();
 let counter = 0;
@@ -117,6 +136,13 @@ const server = createServer(async (req, res) => {
   const send = (status, data) => void res.writeHead(status, { "content-type": "application/json" }).end(data === undefined ? undefined : JSON.stringify(data));
 
   if (req.method === "GET") {
+    if (path.startsWith("/admin/")) {
+      const a = adminFrom(req);
+      if (!a) return send(401, { error: { code: "UNAUTHENTICATED", message: "Authentication is required.", requestId: "r" } });
+      if (path === "/admin/me") return send(200, adminIdentity(a));
+      if (path === "/admin/orders-to-action") return can(a, "orders:read") ? send(200, { toPack: 3, toDispatch: 2, outForDelivery: 1, awaitingTransfer: 1, paymentExceptions: 0 }) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+      if (path === "/admin/reviews") return can(a, "reviews:moderate") ? send(200, { data: [], page: { total: 4, nextCursor: null } }) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+    }
     if (path === "/me/orders") return needsAuth(req) ? send(200, { data: [{ id: SEEDED.id, orderNumber: SEEDED.orderNumber, status: SEEDED.status, paymentStatus: "paid", currency: "NGN", totalMinor: SEEDED.totalMinor, itemCount: 1, placedAt: SEEDED.placedAt, createdAt: SEEDED.createdAt }], page: { nextCursor: null } }) : send(401, { error: { code: "UNAUTHENTICATED", message: "Sign in", requestId: "r" } });
     if (path === `/me/orders/${SEEDED.id}`) return needsAuth(req) ? send(200, SEEDED) : send(401, { error: { code: "UNAUTHENTICATED", message: "Sign in", requestId: "r" } });
     if (path === "/health") return send(200, { ok: true });
@@ -164,6 +190,30 @@ const server = createServer(async (req, res) => {
       return send(204);
     }
     if (path === "/reviews") return send(201, { id: "rev1", status: "pending" });
+    if (path === "/admin/auth/login") {
+      const role = Object.keys(ADMIN_ROLES).find((r) => String(json.email).startsWith(`${r}@`));
+      if (!role || json.password !== "correct-horse-1") return bad(401, "INVALID_CREDENTIALS");
+      const sid = `s${++adminCounter}`;
+      adminSessions.set(sid, { role, email: json.email, revoked: false });
+      res.setHeader("Set-Cookie", `jh_admin_refresh=${sid}; Path=/; HttpOnly; SameSite=Lax`);
+      return send(200, adminSession(sid));
+    }
+    if (path === "/admin/auth/refresh") {
+      const sid = adminCookie(req);
+      const s = sid && adminSessions.get(sid);
+      return s && !s.revoked ? send(200, adminSession(sid)) : bad(401, "INVALID_REFRESH_TOKEN");
+    }
+    if (path === "/admin/auth/logout") {
+      const sid = adminCookie(req);
+      if (sid && adminSessions.has(sid)) adminSessions.get(sid).revoked = true;
+      res.setHeader("Set-Cookie", "jh_admin_refresh=; Path=/; HttpOnly; Max-Age=0");
+      return send(204);
+    }
+    const revoke = path.match(/^\/__test\/revoke-admin\/(.+)$/);
+    if (revoke) {
+      if (adminSessions.has(revoke[1])) adminSessions.get(revoke[1]).revoked = true;
+      return send(204);
+    }
     if (path === "/pricing/quote") return send(200, quote(json.items ?? [], json.promotionCodes ?? []));
     if (path === "/delivery/quotes") {
       return send(200, { currency: "NGN", zone: { id: "z", name: "Lagos", state: json.deliveryAddress?.state ?? "Lagos" }, warnings: [], options: [{ method: "same_day", available: true, baseFeeMinor: 300000, feeMinor: 300000, freeDeliveryPromotionId: null, estimate: { earliestDate: "2026-10-21", latestDate: "2026-10-21" } }] });

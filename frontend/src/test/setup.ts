@@ -8,6 +8,18 @@ import { useAdminSession, useCustomerSession } from "@/lib/stores/session";
 import { useSessionHints } from "@/lib/stores/session-hint";
 import { server } from "./server";
 
+// jsdom has no modal <dialog>. This stand-in opens and closes it (and fires "close") so components that use one can be tested.
+if (typeof HTMLDialogElement !== "undefined" && !HTMLDialogElement.prototype.showModal) {
+  HTMLDialogElement.prototype.showModal = function showModal() {
+    this.setAttribute("open", "");
+  };
+  HTMLDialogElement.prototype.close = function close() {
+    if (!this.hasAttribute("open")) return;
+    this.removeAttribute("open");
+    this.dispatchEvent(new Event("close"));
+  };
+}
+
 beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 
 afterEach(async () => {

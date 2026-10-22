@@ -318,6 +318,15 @@ optional rider note (the API needs the city).
 - `DataTable` (cursor paging, selection), `SideDrawer` (URL-addressable via search params, focus trap, dirty-form guard, 100dvh), `FormSection`/`InlineEditor`, `Toast`, `ConfirmDialog`, `useUrlState`, query-key conventions, `ETag`/`If-Match` helper with the 412 "someone else changed this" flow, Lagos time formatting.
 - **Done when:** a seeded owner signs in, sees the nav, a role with fewer permissions sees fewer items, and a 401 returns to login.
 
+**Status: built.** Differences from the plan:
+- **Team is not in the nav:** the API has no admin-user management yet (no invitations or role editing), so there is nothing for it to open. It joins the nav with its API.
+- **The section screens are placeholders** (`/admin/orders`, `/products`, …) that honour permissions and say "This screen is being built"; each folder replaces its placeholder as phase 6 lands. Overview shows what waits on someone (orders to action, reviews to moderate); the full dashboard is phase 6.
+- **Nav badges:** Orders counts what waits on a person (to pack, to dispatch, awaiting transfer, payment exceptions; not orders already with a rider); Reviews counts the pending queue, which needed a small API addition (`page.total` on the first page of `GET /admin/reviews`, see `docs/API.md`). Both refresh on tab focus and every minute; a revoked session is noticed on the next refresh and returns the admin to sign-in.
+- **Shared pieces** (all with component tests; jsdom gets a small `<dialog>` stand-in): `DataTable` (first cell opens the row, optional checkboxes with a mixed state, skeleton rows, inline error with Retry, empty state), `TablePager` and `useCursorStack` (Previous/Next over cursor pages), `SideDrawer` on native `<dialog>` (480px, full-screen on phones, `dvh`, focus trap and return, an unsaved-changes prompt for every way of closing plus the browser's own leave-site prompt), `ConfirmDialog` (focus starts on Cancel), `Toaster`, `FormSection`, `InlineEditor`, `PageHeader`, `useUrlState` (drawer and filters in the address), `adminErrorMessage` (412/428 become "Someone else changed this. Reload to see their version."), and query-key conventions in `lib/admin/keys.ts`.
+- **Not guarded:** in-app link clicks while a form is dirty (the App Router has no navigation blocker); drawers and the browser's tab-close prompt are covered.
+- **Admin is kept out of search engines** (noindex, disallowed in robots.txt) and signing out or losing the session drops all admin data held in the browser.
+- The design's sign-in mentions a 2FA step; it was removed from the product, so the screen is email and password only.
+
 ### Phase 6 — Admin screens (35 days). Order by launch value
 | # | Screen | Days | Notes |
 |---|---|---|---|

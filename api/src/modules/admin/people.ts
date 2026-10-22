@@ -110,7 +110,7 @@ export async function listAdminReviews(db: Db, input: { status?: string | undefi
     after = sql`and (r.created_at, r.id) < (${at}::timestamptz, ${id}::uuid)`;
   }
   const rows = (await db.execute(sql`
-    select r.id, r.product_id, p.title as product_title, r.customer_id, c.phone_e164, r.rating, r.title, r.body, r.location, r.status,
+    select r.id, r.product_id, p.title as product_title, r.customer_id, c.phone_e164, c.email, r.rating, r.title, r.body, r.location, r.status,
       r.verified_buyer, r.created_at, r.moderated_at, oi.options_snapshot as variant, r.created_at::text as cur_at
     from reviews r join products p on p.id = r.product_id join customers c on c.id = r.customer_id
     left join order_items oi on oi.id = r.order_item_id
@@ -119,13 +119,16 @@ export async function listAdminReviews(db: Db, input: { status?: string | undefi
   const page = hasMore ? rows.slice(0, input.limit) : rows;
   const last = page[page.length - 1];
   const mask = (p: string | null) => (p ? `${p.slice(0, 4)}••••${p.slice(-3)}` : null);
+  const maskEmail = (e: string | null) => (e ? `${e.slice(0, 1)}•••${e.slice(e.indexOf('@'))}` : null);
+  // The total for the filter, on the first page only (the nav badge counts the pending queue with it).
+  const total = input.cursor ? null : Number(((await db.execute(sql`select count(*)::int as n from reviews r where ${sql.join(where, sql` and `)}`)) as unknown as { n: number }[])[0]!.n);
   return {
     data: page.map((r) => ({
-      id: r.id as string, productId: r.product_id as string, productTitle: r.product_title as string, customerId: r.customer_id as string, customerPhone: mask(r.phone_e164 as string | null),
+      id: r.id as string, productId: r.product_id as string, productTitle: r.product_title as string, customerId: r.customer_id as string, customerPhone: mask(r.phone_e164 as string | null), customerEmail: maskEmail(r.email as string | null),
       rating: r.rating as number, title: (r.title as string | null) ?? null, body: (r.body as string | null) ?? null, location: (r.location as string | null) ?? null,
       status: r.status as string, verifiedBuyer: r.verified_buyer as boolean, variant: r.variant ?? null, createdAt: iso(r.created_at), moderatedAt: iso(r.moderated_at),
     })),
-    page: { nextCursor: hasMore && last ? encodeCursor({ sort: 'admin-reviews', values: [String(last.cur_at), String(last.id)] }) : null },
+    page: { total, nextCursor: hasMore && last ? encodeCursor({ sort: 'admin-reviews', values: [String(last.cur_at), String(last.id)] }) : null },
   };
 }
 
