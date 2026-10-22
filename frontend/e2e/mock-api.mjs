@@ -137,6 +137,42 @@ const productRow = (p) => {
   return { id: p.id, slug: p.slug, title: p.title, status: p.status, featured: p.featured, publishedAt: null, updatedAt: new Date(p.version).toISOString(), variantCount: act.length, availableQuantity: act.reduce((n, v) => n + Math.max(v.stock.onHand - v.stock.reserved, 0), 0), lowStock: act.some((v) => v.stock.onHand <= 1), minPriceMinor: prices.length ? Math.min(...prices) : null, maxPriceMinor: prices.length ? Math.max(...prices) : null, coverUrl: null };
 };
 
+// ---- admin orders: a small book of orders in different states, reset with the products
+const O = (n) => id(3000 + n);
+const adminOrders = new Map();
+const EVENT_TIMES = ["2026-10-20T09:00:00Z", "2026-10-20T09:05:00Z", "2026-10-20T10:00:00Z"];
+function seedAdminOrders() {
+  adminOrders.clear();
+  const mk = (n, o) => adminOrders.set(O(n), {
+    id: O(n), number: `JH-${10480 + n}`, status: "placed", paymentStatus: "paid", method: "card", deliveryMethod: "delivery", recipient: "Adaeze Okafor", phone: "+2348030000000", email: "adaeze@example.com",
+    area: "Lekki", state: "Lagos", subtotal: 20_000_000, discount: 0, fee: 0, createdAt: "2026-10-20T09:00:00Z", rider: null, riderPhone: null, notes: [], refunds: [], promos: [],
+    items: [{ title: "Bone Straight HD Frontal", options: { Length: '12"', Lace: "13×4 HD" }, sku: "BS-12-13", qty: 1, unit: 20_000_000 }],
+    timeline: [], ...o,
+  });
+  mk(1, { status: "placed", timeline: [[null, "pending_payment"], ["pending_payment", "placed"]], items: [{ title: "Bone Straight HD Frontal", options: { Length: '12"', Lace: "13×4 HD" }, sku: "BS-12-13", qty: 1, unit: 20_000_000 }, { title: "Silk Sleep Bonnet", options: {}, sku: "SB-CH", qty: 2, unit: 500_000 }], subtotal: 21_000_000, discount: 1_000_000, promos: [{ code: "FLASH15" }] });
+  mk(2, { status: "pending_payment", paymentStatus: "pending", method: "bank_transfer", recipient: "Tolu Bello", phone: "+2348031111111", email: null, area: "Yaba", createdAt: "2026-10-20T10:15:00Z", timeline: [[null, "pending_payment"]] });
+  mk(3, { status: "out_for_delivery", recipient: "Ngozi Eze", phone: "+2348032222222", area: "Ikeja", rider: "Musa", riderPhone: "+2348099999999", timeline: [[null, "pending_payment"], ["pending_payment", "placed"], ["placed", "packed"], ["packed", "out_for_delivery"]] });
+  mk(4, { status: "delivered", deliveryMethod: "pickup", recipient: "Chioma Nwosu", phone: "+2348033333333", area: null, state: null, timeline: [[null, "pending_payment"], ["pending_payment", "placed"], ["placed", "packed"], ["packed", "delivered"]] });
+  mk(5, { status: "packed", recipient: "Amaka Obi", phone: "+2348034444444", area: "Victoria Island", timeline: [[null, "pending_payment"], ["pending_payment", "placed"], ["placed", "packed"]] });
+}
+const orderTotal = (o) => o.subtotal - o.discount + o.fee;
+const orderRow = (o) => ({
+  id: o.id, orderNumber: o.number, status: o.status, paymentStatus: o.paymentStatus, totalMinor: orderTotal(o), currency: "NGN", deliveryMethod: o.deliveryMethod, phone: o.phone, email: o.email, recipientName: o.recipient,
+  area: o.area, state: o.state, hasAccount: false, itemCount: o.items.reduce((n, i) => n + i.qty, 0), items: o.items.map((i) => ({ title: i.title, quantity: i.qty, image: null })), placedAt: o.paymentStatus === "paid" ? o.createdAt : null, createdAt: o.createdAt,
+});
+const allowedFor = (o) => (o.paymentStatus !== "paid" ? [] : o.status === "placed" ? ["packed"] : o.status === "packed" ? [o.deliveryMethod === "pickup" ? "delivered" : "out_for_delivery"] : o.status === "out_for_delivery" ? ["delivered"] : []);
+const orderDetail = (o) => ({
+  order: { id: o.id, orderNumber: o.number, status: o.status, paymentStatus: o.paymentStatus, email: o.email, phoneE164: o.phone, currency: "NGN", subtotalMinor: o.subtotal, discountMinor: o.discount, deliveryFeeMinor: o.fee, taxMinor: 0, totalMinor: orderTotal(o), deliveryMethod: o.deliveryMethod,
+    deliveryAddressSnapshot: { recipientName: o.recipient, line1: "14 Admiralty Way", area: o.area, city: o.state ?? "Lagos", state: o.state ?? "Lagos" }, appliedPromotions: o.promos, placedAt: o.paymentStatus === "paid" ? o.createdAt : null, createdAt: o.createdAt, updatedAt: o.createdAt },
+  customer: { id: null, phone: o.phone, email: o.email, status: null, paidOrders: 3, lifetimeValueMinor: 61_200_000 },
+  items: o.items.map((i, n) => ({ id: `${o.id}-i${n}`, titleSnapshot: i.title, skuSnapshot: i.sku, optionsSnapshot: i.options, quantity: i.qty, unitPriceMinor: i.unit, discountMinor: 0, lineTotalMinor: i.unit * i.qty, image: null })),
+  timeline: o.timeline.map(([from, to, note], n) => ({ id: `${o.id}-t${n}`, fromStatus: from, toStatus: to, actorType: "system", actorId: null, note: note ?? null, createdAt: EVENT_TIMES[Math.min(n, 2)] })),
+  payments: [{ id: `${o.id}-p`, provider: "paystack", reference: `ref-${o.number}`, method: o.method, status: o.paymentStatus === "paid" || o.paymentStatus === "refunded" ? "succeeded" : "pending", amountMinor: orderTotal(o), currency: "NGN", paidAt: null, createdAt: o.createdAt }],
+  delivery: o.deliveryMethod === "pickup" ? null : { carrier: null, riderName: o.rider, riderPhoneE164: o.riderPhone, trackingReference: null, estimatedDeliveryAt: null, zone: "Same-day" },
+  refunds: o.refunds, notes: o.notes, allowedTransitions: allowedFor(o),
+});
+seedAdminOrders();
+
 // Orders placed during a test run, keyed by id. A recipient named "Fail Test" gets a payment that has already failed.
 const orders = new Map();
 let counter = 0;
@@ -186,6 +222,27 @@ const server = createServer(async (req, res) => {
         res.setHeader("ETag", etagOfProduct(p));
         return send(200, productDetail(p));
       }
+      if (path === "/admin/orders") {
+        if (!can(a, "orders:read")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+        const q = (url.searchParams.get("q") ?? "").toLowerCase();
+        const statuses = (url.searchParams.get("status") ?? "").split(",").filter(Boolean);
+        const method = url.searchParams.get("method");
+        const from = url.searchParams.get("from");
+        const cursor = Number(url.searchParams.get("cursor") ?? 0);
+        const limit = Number(url.searchParams.get("limit") ?? 20);
+        const base = [...adminOrders.values()].filter((o) => (!q || [o.number, o.recipient, o.phone].some((x) => x.toLowerCase().includes(q))) && (!method || o.method === method) && (!from || o.createdAt >= from)).sort((x, y) => y.createdAt.localeCompare(x.createdAt));
+        const counts = {};
+        for (const o of base) counts[o.status] = (counts[o.status] ?? 0) + 1;
+        const matching = base.filter((o) => !statuses.length || statuses.includes(o.status));
+        const page = matching.slice(cursor, cursor + limit);
+        return send(200, { counts: cursor ? null : counts, data: page.map(orderRow), page: { nextCursor: cursor + limit < matching.length ? String(cursor + limit) : null } });
+      }
+      const adminOrder = path.match(/^\/admin\/orders\/([^/]+)$/);
+      if (adminOrder) {
+        if (!can(a, "orders:read")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+        const o = adminOrders.get(adminOrder[1]);
+        return o ? send(200, orderDetail(o)) : send(404, { error: { code: "NOT_FOUND", message: "Order not found.", requestId: "r" } });
+      }
       if (path === "/admin/reviews") return can(a, "reviews:moderate") ? send(200, { data: [], page: { total: 4, nextCursor: null } }) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
     }
     if (path === "/me/orders") return needsAuth(req) ? send(200, { data: [{ id: SEEDED.id, orderNumber: SEEDED.orderNumber, status: SEEDED.status, paymentStatus: "paid", currency: "NGN", totalMinor: SEEDED.totalMinor, itemCount: 1, placedAt: SEEDED.placedAt, createdAt: SEEDED.createdAt }], page: { nextCursor: null } }) : send(401, { error: { code: "UNAUTHENTICATED", message: "Sign in", requestId: "r" } });
@@ -218,8 +275,9 @@ const server = createServer(async (req, res) => {
       return found ? send(200, { data: found }) : send(404, { error: { code: "NOT_FOUND", message: "Not found", requestId: "r" } });
     }
   }
-  if ((path.startsWith("/admin/") && !path.startsWith("/admin/auth/") || path.startsWith("/__test/touch-product/") || path === "/__test/reset-products") && ["PATCH", "PUT", "POST", "DELETE"].includes(req.method)) {
+  if ((path.startsWith("/admin/") && !path.startsWith("/admin/auth/") || path.startsWith("/__test/touch-product/") || path === "/__test/reset-products" || path === "/__test/reset-orders") && ["PATCH", "PUT", "POST", "DELETE"].includes(req.method)) {
     if (path === "/__test/reset-products") { seedAdminProducts(); return send(204); }
+    if (path === "/__test/reset-orders") { seedAdminOrders(); return send(204); }
     const touchPath = path.match(/^\/__test\/touch-product\/(.+)$/);
     if (touchPath) { const p = adminProducts.get(touchPath[1]); if (p) p.version += 5000; return send(204); }
     const a = adminFrom(req);
@@ -246,6 +304,43 @@ const server = createServer(async (req, res) => {
       adminProducts.set(p.id, p);
       res.setHeader("ETag", etagOfProduct(p));
       return send(201, productDetail(p));
+    }
+    const orderPath = path.match(/^\/admin\/orders\/([^/]+)\/(status|notes|confirm-transfer|refunds|cancel|delivery)$/);
+    if (orderPath) {
+      const o = adminOrders.get(orderPath[1]);
+      if (!o) return fail(404, "NOT_FOUND", "Order not found.");
+      const [, , action] = orderPath;
+      const need = { status: "orders:fulfil", notes: "orders:read", "confirm-transfer": "orders:write", refunds: "orders:refund", cancel: "orders:cancel", delivery: "orders:fulfil" }[action];
+      if (!can(a, need) && !(need === "orders:fulfil" && can(a, "orders:write"))) return fail(403, "FORBIDDEN", "You do not have permission to do that.");
+      const event = (to, note) => o.timeline.push([o.status, to, note]);
+      if (action === "notes") { o.notes.push({ id: `${o.id}-n${o.notes.length}`, at: new Date().toISOString(), adminUserId: id(600), note: json.note }); return send(204); }
+      if (action === "delivery") { if ("riderName" in json) o.rider = json.riderName; if ("riderPhoneE164" in json) o.riderPhone = json.riderPhoneE164; return send(200, { riderName: o.rider }); }
+      if (action === "status") {
+        if (!allowedFor(o).includes(json.status)) return fail(409, "INVALID_TRANSITION", `An order that is ${o.status.replaceAll("_", " ")} cannot move to ${json.status.replaceAll("_", " ")}.`);
+        event(json.status); o.status = json.status;
+        return send(200, orderDetail(o));
+      }
+      if (action === "confirm-transfer") {
+        if (o.paymentStatus === "paid") return send(200, { outcome: "already_paid", mode: "none", status: o.status, paymentStatus: o.paymentStatus });
+        if (!json.manualReason) return fail(409, "TRANSFER_NOT_CONFIRMED", "The payment provider has not received this transfer. Provide a reason to confirm it manually.");
+        if (json.manualReason.length < 10) return fail(422, "VALIDATION_FAILED", "manualReason is too short");
+        event("placed"); o.status = "placed"; o.paymentStatus = "paid";
+        return send(200, { outcome: "paid", mode: "manual", status: "placed", paymentStatus: "paid" });
+      }
+      if (action === "cancel") {
+        if (!["pending_payment", "placed", "packed"].includes(o.status)) return fail(409, "INVALID_TRANSITION", "This order can no longer be cancelled.");
+        event("cancelled", json.reason); o.status = "cancelled";
+        return send(200, orderDetail(o));
+      }
+      if (action === "refunds") {
+        if (!req.headers["idempotency-key"]) return fail(400, "VALIDATION_FAILED", "Idempotency-Key is required");
+        const left = orderTotal(o) - o.refunds.reduce((n, r) => n + r.amountMinor, 0);
+        const amount = json.amountMinor ?? left;
+        if (amount > left) return fail(422, "REFUND_REJECTED", "That is more than is left to refund.");
+        o.refunds.push({ id: `${o.id}-r${o.refunds.length}`, paymentAttemptId: `${o.id}-p`, amountMinor: amount, reason: json.reason, status: "processing", createdAt: new Date().toISOString() });
+        if (amount === left) { event("refunded", "REFUNDED_IN_FULL"); o.status = "refunded"; o.paymentStatus = "refunded"; } else event(o.status, "PARTIAL_REFUND");
+        return send(201, { ok: true, amountMinor: amount });
+      }
     }
     const target = path.match(/^\/admin\/products\/([^/]+)(\/(variants|publish|archive))?$/);
     if (target && adminProducts.has(target[1])) {

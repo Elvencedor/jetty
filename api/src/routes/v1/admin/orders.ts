@@ -1,4 +1,4 @@
-import type { ServerRoute } from '@hapi/hapi';
+import type { Request, ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
 import { advanceOrder, allowedNext, cancelOrder, confirmTransfer, updateDelivery, type CancelRequest, type DeliveryDetails, FULFILMENT_STATUSES, getAdminOrder, listAdminOrders, type OrderListInput } from '../../../modules/admin/orders.js';
 import { runIdempotent } from '../../../lib/idempotency.js';
@@ -9,6 +9,15 @@ import { withUrl } from '../../../modules/media/urls.js';
 import { audited, db, guard, NO_STORE, pageQuery, uuidParam } from './shared.js';
 
 const note = Joi.string().trim().min(1).max(1000);
+
+type Detail = Awaited<ReturnType<typeof getAdminOrder>>;
+
+/** An order as the admin screens get it: item photos as URLs, and what can happen to it next. */
+const present = (request: Request, detail: Detail) => ({
+  ...detail,
+  items: detail.items.map((i) => ({ ...i, image: withUrl(request.server.app.storage, i.image) })),
+  allowedTransitions: detail.order.paymentStatus === 'paid' ? allowedNext(detail.order.status, detail.order.deliveryMethod) : [],
+});
 
 export const adminOrderRoutes: ServerRoute[] = [
   {
@@ -22,7 +31,11 @@ export const adminOrderRoutes: ServerRoute[] = [
         query: Joi.object({
           ...pageQuery,
           q: Joi.string().trim().min(1).max(100),
-          status: Joi.string().valid('pending_payment', 'placed', 'packed', 'out_for_delivery', 'delivered', 'cancelled', 'refunded', 'payment_exception'),
+          // One status, or several joined with commas (the screens' tabs group them).
+          status: Joi.string()
+            .pattern(/^(pending_payment|placed|packed|out_for_delivery|delivered|cancelled|refunded|payment_exception)(,(pending_payment|placed|packed|out_for_delivery|delivered|cancelled|refunded|payment_exception))*$/)
+            .messages({ 'string.pattern.base': 'status must be one or more order statuses, comma-separated' }),
+          method: Joi.string().valid('card', 'bank_transfer'),
           paymentStatus: Joi.string().valid('pending', 'paid', 'failed', 'refunded'),
           from: Joi.date().iso(),
           to: Joi.date().iso().greater(Joi.ref('from')),
@@ -30,7 +43,8 @@ export const adminOrderRoutes: ServerRoute[] = [
       },
     },
     handler: async (request, h) => {
-      const page = await listAdminOrders(db(request), request.query as unknown as OrderListInput);
+      const query = request.query as unknown as Omit<OrderListInput, 'status'> & { status?: string };
+      const page = await listAdminOrders(db(request), { ...query, status: query.status ? (query.status.split(',') as OrderListInput['status']) : undefined });
       const storage = request.server.app.storage;
       return h.response({ ...page, data: page.data.map((o) => ({ ...o, items: o.items.map((i) => ({ ...i, image: withUrl(storage, i.image) })) })) }).header('Cache-Control', NO_STORE);
     },
@@ -40,11 +54,7 @@ export const adminOrderRoutes: ServerRoute[] = [
     path: '/admin/orders/{id}',
     options: { ...guard('orders:read'), description: 'Order detail with items, payments, timeline and notes', tags: ['api', 'admin'], validate: { params: uuidParam('id') } },
     handler: async (request, h) => {
-      const detail = await getAdminOrder(db(request), (request.params as { id: string }).id);
-      const { order } = detail;
-      return h
-        .response({ ...detail, allowedTransitions: order.paymentStatus === 'paid' ? allowedNext(order.status, order.deliveryMethod) : [] })
-        .header('Cache-Control', NO_STORE);
+      return h.response(present(request, await getAdminOrder(db(request), (request.params as { id: string }).id))).header('Cache-Control', NO_STORE);
     },
   },
   {
@@ -60,7 +70,7 @@ export const adminOrderRoutes: ServerRoute[] = [
       const { id } = request.params as { id: string };
       const body = request.payload as { status: (typeof FULFILMENT_STATUSES)[number]; note?: string };
       await audited(request, (tx) => advanceOrder(tx, request.auth.credentials.adminId!, id, body.status, body.note), (result) => ({ action: 'order.status', resourceType: 'order', resourceId: id, before: { status: result.from }, after: { status: result.to, note: body.note } }));
-      return h.response(await getAdminOrder(db(request), id).then((d) => ({ ...d, allowedTransitions: allowedNext(d.order.status, d.order.deliveryMethod) }))).header('Cache-Control', NO_STORE);
+      return h.response(present(request, await getAdminOrder(db(request), id))).header('Cache-Control', NO_STORE);
     },
   },
   {
@@ -145,8 +155,7 @@ export const adminOrderRoutes: ServerRoute[] = [
       const { id } = request.params as { id: string };
       const body = request.payload as CancelRequest;
       await audited(request, (tx) => cancelOrder(tx, request.auth.credentials.adminId!, id, body), (r) => ({ action: 'order.cancel', resourceType: 'order', resourceId: id, before: { status: r.from }, after: { status: 'cancelled', reason: body.reason, paid: r.paid, restocked: r.restocked } }));
-      const detail = await getAdminOrder(db(request), id);
-      return h.response({ ...detail, allowedTransitions: detail.order.paymentStatus === 'paid' ? allowedNext(detail.order.status, detail.order.deliveryMethod) : [] }).header('Cache-Control', NO_STORE);
+      return h.response(present(request, await getAdminOrder(db(request), id))).header('Cache-Control', NO_STORE);
     },
   },
   {

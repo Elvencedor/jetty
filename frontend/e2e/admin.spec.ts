@@ -39,8 +39,8 @@ test("a role with fewer permissions sees fewer sections, and cannot open the oth
   await page.goto("/admin/settings");
   await expect(page.getByText("You don't have access to this section")).toBeVisible();
   // A section it can use is there (its screen is still being built).
-  await page.goto("/admin/orders");
-  await expect(page.getByRole("heading", { level: 1, name: "Orders" })).toBeVisible();
+  await page.goto("/admin/customers");
+  await expect(page.getByRole("heading", { level: 1, name: "Customers" })).toBeVisible();
   await expect(page.getByText("This screen is being built")).toBeVisible();
 });
 

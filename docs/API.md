@@ -671,3 +671,13 @@ filter, which the admin nav uses as the "pending reviews" badge (`?status=pendin
   frontal) and `active` (false hides the value from shoppers while keeping it for staff; its variants should be sent inactive).
   `priceDeltaMinor` is a difference from the product's base price kept for the editor; what a customer pays is each
   variant's own `priceMinor`.
+
+## Admin order screens
+
+- `GET /admin/orders`: `status` accepts several statuses joined with commas (`placed,packed`), and `method` (`card` or
+  `bank_transfer`) filters by how the order was paid. The first page (no `cursor`) carries `counts`, the number of orders in
+  each status under the *other* filters, for the filter pills; later pages have `counts: null`. Rows add `area` (the delivery
+  area, or the city) and `state`.
+- `GET /admin/orders/{id}`: `customer` gains `paidOrders` and `lifetimeValueMinor` (paid and refunded orders, matched by
+  account, or by phone number for guests), items gain `image` (`{ objectKey, url }` or `null`), and `allowedTransitions` is
+  empty for an unpaid order. The status and cancel endpoints return the same shape.
