@@ -193,6 +193,15 @@ function seedAdminSettings() {
 }
 seedAdminSettings();
 
+// ---- admin customers
+const CUSTOMERS = [
+  { id: id(800), name: "Adaeze Okafor", area: "Lekki", state: "Lagos", phone: "+2348030000000", email: "adaeze@example.com", orderCount: 7, ltv: 61_200_000, lastOrderAt: "2026-10-20T09:00:00Z", createdAt: "2026-03-02T10:00:00Z", segments: ["vip", "returning"] },
+  { id: id(801), name: "Tolu Bello", area: "Yaba", state: "Lagos", phone: "+2348031111111", email: null, orderCount: 1, ltv: 17_600_000, lastOrderAt: "2026-10-18T09:00:00Z", createdAt: "2026-10-18T08:00:00Z", segments: ["new"] },
+  { id: id(802), name: null, area: null, state: null, phone: null, email: "quiet@example.com", orderCount: 0, ltv: 0, lastOrderAt: null, createdAt: "2026-09-01T08:00:00Z", segments: [] },
+  { id: id(803), name: "Ngozi Eze", area: "Ikeja", state: "Lagos", phone: "+2348032222222", email: "ngozi@example.com", orderCount: 2, ltv: 9_250_000, lastOrderAt: "2026-04-01T09:00:00Z", createdAt: "2026-02-01T08:00:00Z", segments: ["returning", "lapsed"] },
+];
+const customerRow = (c) => ({ id: c.id, name: c.name, area: c.area, state: c.state, phone: c.phone, email: c.email, status: "active", phoneVerified: !!c.phone, orderCount: c.orderCount, lifetimeValueMinor: c.ltv, lastOrderAt: c.lastOrderAt, createdAt: c.createdAt, segments: c.segments });
+
 // Orders placed during a test run, keyed by id. A recipient named "Fail Test" gets a payment that has already failed.
 const orders = new Map();
 let counter = 0;
@@ -249,6 +258,26 @@ const server = createServer(async (req, res) => {
         if (!can(a, "settings:read")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
         if (settingGet[1] === "delivery-zones") return send(200, { zones: adminZones });
         return adminSettings[settingGet[1]] ? send(200, adminSettings[settingGet[1]]) : send(404, { error: { code: "NOT_FOUND", message: "Unknown setting.", requestId: "r" } });
+      }
+      if (path === "/admin/customers/segments") return can(a, "customers:read") ? send(200, { everyone: 1842, segments: [{ key: "vip", label: "VIP", rule: "5 or more orders, or ₦1,000,000 spent", count: 64 }, { key: "new", label: "New", rule: "First order in the last 30 days", count: 231 }, { key: "returning", label: "Returning", rule: "2 or more orders", count: 610 }, { key: "lapsed", label: "Lapsed", rule: "No order in the last 120 days", count: 402 }] }) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+      if (path === "/admin/customers") {
+        if (!can(a, "customers:read")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+        const q = (url.searchParams.get("q") ?? "").toLowerCase();
+        const segment = url.searchParams.get("segment");
+        const rows = CUSTOMERS.filter((c) => (!segment || c.segments.includes(segment)) && (!q || [c.phone, c.email].some((x) => x && x.toLowerCase().includes(q))));
+        return send(200, { data: rows.map(customerRow), page: { nextCursor: null } });
+      }
+      const customerGet = path.match(/^\/admin\/customers\/([^/]+)$/);
+      if (customerGet) {
+        if (!can(a, "customers:read")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+        const c = CUSTOMERS.find((x) => x.id === customerGet[1]);
+        if (!c) return send(404, { error: { code: "NOT_FOUND", message: "Customer not found.", requestId: "r" } });
+        return send(200, {
+          customer: { id: c.id, phone: c.phone, email: c.email, status: "active", phoneVerifiedAt: null, emailVerifiedAt: null, createdAt: c.createdAt },
+          lastOrder: c.name ? { name: c.name, area: c.area, state: c.state, addressLine: "14 Admiralty Way" } : null,
+          orderCount: c.orderCount, lifetimeValueMinor: c.ltv, lastOrderAt: c.lastOrderAt,
+          recentOrders: c.orderCount ? [{ id: O(1), orderNumber: "JH-10481", status: "placed", paymentStatus: "paid", totalMinor: 20_000_000, createdAt: "2026-10-20T09:00:00Z" }, { id: O(4), orderNumber: "JH-10484", status: "delivered", paymentStatus: "paid", totalMinor: 9_250_000, createdAt: "2026-09-02T09:00:00Z" }] : [],
+        });
       }
       if (path === "/admin/dashboard" || path === "/admin/analytics/revenue") {
         if (!can(a, "analytics:read")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });

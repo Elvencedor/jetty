@@ -714,3 +714,9 @@ Paystack account as before.
   (`percentageCharge`) is 0 and the fee bearer is `subaccount`; neither has a screen. Confirm both with whoever owns the
   Paystack account before going live. A failure after Paystack creates the subaccount but before our record is saved leaves
   an unused subaccount at Paystack; connecting again creates a new one.
+
+## Customer screens
+
+`GET /admin/customers` rows gain `name`, `area` and `state`, and `GET /admin/customers/{id}` gains `lastOrder`
+(`{ name, area, state, addressLine }`). Accounts have no name of their own, so these come from the customer's most recent
+order (`recipientName` and its address); they are null for a customer who has not ordered.

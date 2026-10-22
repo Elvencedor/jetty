@@ -132,6 +132,19 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
       assert.ok(!JSON.stringify(one.body).includes('passwordHash'));
     });
 
+    it('names a customer from their latest order, and has no name for one who has not ordered', async () => {
+      const all = await call('GET', '/admin/customers?q=00002');
+      const quiet = all.body.data[0];
+      assert.deepEqual([quiet.name, quiet.area, quiet.state], [null, null, null]);
+      assert.equal((await call('GET', `/admin/customers/${quiet.id}`)).body.lastOrder, null);
+
+      await t.db.insert(orders).values({ orderNumber: 'JH-M-N', customerId: quiet.id, phoneE164: '+2348077700002', subtotalMinor: 5000, totalMinor: 5000, deliveryAddressSnapshot: { recipientName: 'Ada Okafor', addressLine1: '14 Admiralty Way', area: 'Lekki', city: 'Lagos', state: 'Lagos' }, deliveryMethod: 'next_day', termsAcceptedAt: new Date() });
+      const named = (await call('GET', '/admin/customers?q=00002')).body.data[0];
+      assert.deepEqual([named.name, named.area, named.state], ['Ada Okafor', 'Lekki', 'Lagos']);
+      const detail = await call('GET', `/admin/customers/${quiet.id}`);
+      assert.deepEqual(detail.body.lastOrder, { name: 'Ada Okafor', area: 'Lekki', state: 'Lagos', addressLine: '14 Admiralty Way' });
+    });
+
     it('moderates reviews: pending queue, approve makes it public, hide removes it', async () => {
       const created = await api.inject({ method: 'POST', url: '/api/v1/reviews', payload: { orderItemId: itemId, rating: 5, title: 'Great', body: 'Love it' }, headers: { authorization: `Bearer ${((await api.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { email: 'mgmt1@example.com', password: 'correct horse battery' } })).result as Json).accessToken}` } });
       assert.equal(created.statusCode, 201, JSON.stringify(created.result));

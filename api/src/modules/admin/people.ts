@@ -43,6 +43,14 @@ export async function customerSegments(db: Db) {
   return { everyone: row!.everyone!, segments: SEGMENTS.map((g) => ({ ...g, count: row![g.key]! })) };
 }
 
+/** Who the customer last said they were and where: accounts have no name of their own, so it comes from their latest order. */
+const latestOrder = sql`
+  select o.delivery_address_snapshot->>'recipientName' as recipient,
+    coalesce(nullif(o.delivery_address_snapshot->>'area', ''), o.delivery_address_snapshot->>'city') as area,
+    o.delivery_address_snapshot->>'state' as state,
+    o.delivery_address_snapshot->>'addressLine1' as line1
+  from orders o where o.customer_id = c.id order by o.created_at desc limit 1`;
+
 const iso = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
 
 /** Lifetime value counts paid orders only, net of fully refunded ones. */
@@ -65,8 +73,9 @@ export async function listAdminCustomers(db: Db, input: { q?: string | undefined
   }
   const rows = (await db.execute(sql`
     select c.id, c.phone_e164, c.email, c.status, c.phone_verified_at, c.created_at, s.order_count, s.ltv, s.first_order_at, s.last_order_at,
-      ${spend ? sql`s.ltv::text` : sql`c.created_at::text`} as cur_a
+      ${spend ? sql`s.ltv::text` : sql`c.created_at::text`} as cur_a, lo.recipient, lo.area, lo.state
     from customers c cross join lateral (${stats}) s
+    left join lateral (${latestOrder}) lo on true
     where ${sql.join(where, sql` and `)} ${after}
     order by ${spend ? sql`s.ltv desc, c.id desc` : sql`c.created_at desc, c.id desc`} limit ${input.limit + 1}`)) as unknown as Record<string, unknown>[];
   const hasMore = rows.length > input.limit;
@@ -74,7 +83,8 @@ export async function listAdminCustomers(db: Db, input: { q?: string | undefined
   const last = page[page.length - 1];
   return {
     data: page.map((r) => ({
-      id: r.id as string, phone: (r.phone_e164 as string | null) ?? null, email: (r.email as string | null) ?? null, status: r.status as string,
+      id: r.id as string, name: (r.recipient as string | null) ?? null, area: (r.area as string | null) ?? null, state: (r.state as string | null) ?? null,
+      phone: (r.phone_e164 as string | null) ?? null, email: (r.email as string | null) ?? null, status: r.status as string,
       phoneVerified: Boolean(r.phone_verified_at), orderCount: r.order_count as number, lifetimeValueMinor: Number(r.ltv), lastOrderAt: iso(r.last_order_at), createdAt: iso(r.created_at),
       segments: segmentsOf({ orderCount: r.order_count as number, ltv: Number(r.ltv), firstOrderAt: r.first_order_at ? new Date(r.first_order_at as string) : null, lastOrderAt: r.last_order_at ? new Date(r.last_order_at as string) : null }),
     })),
@@ -85,12 +95,15 @@ export async function listAdminCustomers(db: Db, input: { q?: string | undefined
 export async function getAdminCustomer(db: Db, id: string) {
   const [c] = await db.select({ id: customers.id, phone: customers.phoneE164, email: customers.email, status: customers.status, phoneVerifiedAt: customers.phoneVerifiedAt, emailVerifiedAt: customers.emailVerifiedAt, createdAt: customers.createdAt }).from(customers).where(eq(customers.id, id));
   if (!c) throw notFound('Customer not found.');
-  const [[agg], recent] = await Promise.all([
+  const [[agg], recent, [last]] = await Promise.all([
     db.execute(sql`select s.order_count, s.ltv, s.last_order_at from customers c cross join lateral (${stats}) s where c.id = ${id}`) as unknown as Promise<Record<string, unknown>[]>,
     db.execute(sql`select id, order_number, status, payment_status, total_minor, created_at from orders where customer_id = ${id} order by created_at desc limit 10`) as unknown as Promise<Record<string, unknown>[]>,
+    db.execute(sql`select lo.recipient, lo.area, lo.state, lo.line1 from customers c cross join lateral (${latestOrder}) lo where c.id = ${id}`) as unknown as Promise<Record<string, unknown>[]>,
   ]);
   return {
     customer: c,
+    /** From the latest order: the name given, and where it went. Null for a customer who has not ordered. */
+    lastOrder: last ? { name: (last.recipient as string | null) ?? null, area: (last.area as string | null) ?? null, state: (last.state as string | null) ?? null, addressLine: (last.line1 as string | null) ?? null } : null,
     orderCount: agg!.order_count as number,
     lifetimeValueMinor: Number(agg!.ltv),
     lastOrderAt: iso(agg!.last_order_at),
