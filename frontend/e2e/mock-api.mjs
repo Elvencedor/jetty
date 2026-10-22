@@ -202,6 +202,21 @@ const CUSTOMERS = [
 ];
 const customerRow = (c) => ({ id: c.id, name: c.name, area: c.area, state: c.state, phone: c.phone, email: c.email, status: "active", phoneVerified: !!c.phone, orderCount: c.orderCount, lifetimeValueMinor: c.ltv, lastOrderAt: c.lastOrderAt, createdAt: c.createdAt, segments: c.segments });
 
+// ---- admin reviews
+let adminReviews = [];
+function seedReviews() {
+  const r = (n, over) => ({ id: id(950 + n), productId: V(1), productTitle: "Bone Straight HD Frontal", productSlug: "bone-straight", orderNumber: `JH-102${n}`, image: null, customerPhone: null, customerEmail: "a•••@example.com", rating: 5, title: "Lace disappeared on my skin", body: "Installed it myself in under an hour.", location: "Lekki", status: "pending", verifiedBuyer: true, variant: { Length: '20"', Density: "180%" }, createdAt: `2026-10-2${n}T09:00:00Z`, moderatedAt: null, ...over });
+  adminReviews = [
+    r(1, {}),
+    r(2, { productTitle: "Pixie Curl Bob", rating: 4, title: "Cute and light", body: "Very soft. Call me on 0803 000 0000 if you need a model!", variant: { Colour: "1B" }, location: "Abuja" }),
+    r(3, { productTitle: "Kinky Curly Glueless", rating: 2, title: "Arrived later than promised", body: "Hair is lovely but delivery took 6 days instead of 4.", location: "Port Harcourt" }),
+    r(4, { productTitle: "Silk Sleep Bonnet", title: "Fits over a 26\" wig", body: "Roomy and soft.", variant: { Colour: "Champagne" } }),
+    r(5, { status: "approved", title: "My third unit from Jetty", body: "Consistent quality." }),
+    r(6, { status: "hidden", rating: 1, title: "Rude", body: "…" }),
+  ];
+}
+seedReviews();
+
 // Orders placed during a test run, keyed by id. A recipient named "Fail Test" gets a payment that has already failed.
 const orders = new Map();
 let counter = 0;
@@ -328,7 +343,14 @@ const server = createServer(async (req, res) => {
         const o = adminOrders.get(adminOrder[1]);
         return o ? send(200, orderDetail(o)) : send(404, { error: { code: "NOT_FOUND", message: "Order not found.", requestId: "r" } });
       }
-      if (path === "/admin/reviews") return can(a, "reviews:moderate") ? send(200, { data: [], page: { total: 4, nextCursor: null } }) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+      if (path === "/admin/reviews/summary") return can(a, "reviews:moderate") ? send(200, { count: 2140, average: 4.8, distribution: [{ stars: 5, count: 1755 }, { stars: 4, count: 257 }, { stars: 3, count: 64 }, { stars: 2, count: 43 }, { stars: 1, count: 21 }] }) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+      if (path === "/admin/reviews") {
+        if (!can(a, "reviews:moderate")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+        const status = url.searchParams.get("status");
+        const rows = adminReviews.filter((x) => !status || x.status === status);
+        const limit = Number(url.searchParams.get("limit") ?? 20);
+        return send(200, { data: rows.slice(0, limit), page: { total: url.searchParams.get("cursor") ? null : rows.length, nextCursor: null } });
+      }
     }
     if (path === "/me/orders") return needsAuth(req) ? send(200, { data: [{ id: SEEDED.id, orderNumber: SEEDED.orderNumber, status: SEEDED.status, paymentStatus: "paid", currency: "NGN", totalMinor: SEEDED.totalMinor, itemCount: 1, placedAt: SEEDED.placedAt, createdAt: SEEDED.createdAt }], page: { nextCursor: null } }) : send(401, { error: { code: "UNAUTHENTICATED", message: "Sign in", requestId: "r" } });
     if (path === `/me/orders/${SEEDED.id}`) return needsAuth(req) ? send(200, SEEDED) : send(401, { error: { code: "UNAUTHENTICATED", message: "Sign in", requestId: "r" } });
@@ -360,10 +382,11 @@ const server = createServer(async (req, res) => {
       return found ? send(200, { data: found }) : send(404, { error: { code: "NOT_FOUND", message: "Not found", requestId: "r" } });
     }
   }
-  if ((path.startsWith("/admin/") && !path.startsWith("/admin/auth/") || path.startsWith("/__test/touch-product/") || path === "/__test/reset-products" || path === "/__test/reset-orders" || path === "/__test/reset-settings") && ["PATCH", "PUT", "POST", "DELETE"].includes(req.method)) {
+  if ((path.startsWith("/admin/") && !path.startsWith("/admin/auth/") || path.startsWith("/__test/touch-product/") || path === "/__test/reset-products" || path === "/__test/reset-orders" || path === "/__test/reset-settings" || path === "/__test/reset-reviews") && ["PATCH", "PUT", "POST", "DELETE"].includes(req.method)) {
     if (path === "/__test/reset-products") { seedAdminProducts(); return send(204); }
     if (path === "/__test/reset-orders") { seedAdminOrders(); return send(204); }
     if (path === "/__test/reset-settings") { seedAdminSettings(); return send(204); }
+    if (path === "/__test/reset-reviews") { seedReviews(); return send(204); }
     const touchPath = path.match(/^\/__test\/touch-product\/(.+)$/);
     if (touchPath) { const p = adminProducts.get(touchPath[1]); if (p) p.version += 5000; return send(204); }
     const a = adminFrom(req);
@@ -401,6 +424,14 @@ const server = createServer(async (req, res) => {
       if (!bank || !ACCOUNTS[json.accountNumber]) return fail(422, "ACCOUNT_NOT_FOUND", "We could not find that account. Check the bank and the account number.");
       payout = { subaccountCode: "ACCT_mock", businessName: json.businessName, bankCode: bank.code, bankName: bank.name, accountName: ACCOUNTS[json.accountNumber], accountLast4: json.accountNumber.slice(-4), updatedAt: new Date().toISOString() };
       return send(200, { configured: true, mode: "test", ...payout });
+    }
+    const reviewPatch = path.match(/^\/admin\/reviews\/([^/]+)$/);
+    if (reviewPatch && req.method === "PATCH") {
+      if (!can(a, "reviews:moderate")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");
+      const r = adminReviews.find((x) => x.id === reviewPatch[1]);
+      if (!r) return fail(404, "NOT_FOUND", "Review not found.");
+      r.status = json.status;
+      return send(200, { id: r.id, status: r.status });
     }
     const settingPatch = path.match(/^\/admin\/settings\/([^/]+)$/);
     if (settingPatch && req.method === "PATCH") {

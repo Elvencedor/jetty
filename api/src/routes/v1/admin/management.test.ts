@@ -155,6 +155,7 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
       assert.equal(queue.body.data[0].id, reviewId);
       assert.match(queue.body.data[0].customerPhone, /^\+234••••001$/);
       assert.equal(queue.body.data[0].productTitle, 'Mgmt Wig');
+      assert.deepEqual([queue.body.data[0].productSlug, queue.body.data[0].orderNumber, queue.body.data[0].image], ['mgmt-wig', 'JH-M-0', null], 'the card can name the product and the order, and has no photo until the product has one');
       assert.equal(queue.body.data[0].customerEmail, 'm•••@example.com', 'the reviewer is shown masked, by email now that accounts are email-first');
       assert.equal(queue.body.page.total, 1, 'the first page carries the queue size, for the nav badge');
       assert.equal((await call('GET', `/admin/reviews?status=pending&cursor=${encodeURIComponent('x')}`, undefined, support)).body?.page?.total ?? null, null, 'later pages skip the count');
@@ -164,9 +165,11 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
       assert.equal(await publicCount(), 0);
       assert.equal((await call('PATCH', `/admin/reviews/${reviewId}`, { status: 'approved' }, support)).body.status, 'approved');
       assert.equal(await publicCount(), 1);
+      assert.deepEqual((await call('GET', '/admin/reviews/summary', undefined, support)).body, { count: 1, average: 5, distribution: [{ stars: 5, count: 1 }, { stars: 4, count: 0 }, { stars: 3, count: 0 }, { stars: 2, count: 0 }, { stars: 1, count: 0 }] });
       assert.equal(((await api.inject({ url: '/api/v1/products/mgmt-wig' })).result as Json).data.rating.count, 1);
       await call('PATCH', `/admin/reviews/${reviewId}`, { status: 'hidden' }, manager);
       assert.equal(await publicCount(), 0);
+      assert.deepEqual([(await call('GET', '/admin/reviews/summary', undefined, support)).body.count, (await call('GET', '/admin/reviews/summary', undefined, support)).body.average], [0, null], 'hidden reviews leave the store rating');
       assert.equal((await call('PATCH', `/admin/reviews/${reviewId}`, { status: 'pending' })).status, 422, 'cannot be returned to pending');
       assert.equal((await t.db.select().from(reviews).where(eq(reviews.id, reviewId)))[0]!.status, 'hidden');
       const actions = (await t.db.select().from(adminAuditLog).where(eq(adminAuditLog.resourceId, reviewId))).map((a) => a.action);

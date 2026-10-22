@@ -368,6 +368,14 @@ optional rider note (the API needs the city).
 - **Names:** an account has no name of its own, so the name and area come from the customer's latest order (customers who have not ordered show their email or phone).
 - **Not built, because the API has nothing behind them:** Export CSV, Fit profile, Send a coupon, marketing consent switches, internal note, Export data, Disable account, the guest and erasure-request states; search by name (the API searches phone and email); the Tags use the four segments the API returns.
 - **API changes it needed:** list rows gain `name`, `area` and `state`, and the detail gains `lastOrder` (see `docs/API.md`).
+**Reviews: built** (`/admin/reviews?status=published|hidden`; Waiting is the default), following `design/screens/admin/07-reviews.md` and the reference mockup.
+- **Queue:** Waiting / Published / Hidden pills with counts, review cards (product photo and link, what they bought and the order, stars as text with "4 out of 5 stars", masked reviewer and place, time, title, body), "Show more".
+- **Flags** are computed in the browser and written in words: phone number, email address or link in the text, and low ratings ("low rating about delivery, consider replying" when the text mentions delivery).
+- **Approve and Hide** replace the card with an Undo row for five seconds. The API does not let a decision be reversed, so nothing is sent until the five seconds are up, or the page is left (then it is sent at once). The nav badge and counts refresh after.
+- **Keyboard:** J and K move through the queue, A approves, H hides, with a Shortcuts note; they are ignored while a field or dialog has focus.
+- **Store rating card:** the average, the number of published reviews and the five-to-one bars, from the new summary endpoint.
+- **Not built:** Questions (P2), photos on reviews, Pin to top, Reply publicly, and the Asking-for-reviews settings (no API); the reviewer's initials (only a masked contact is available).
+- **API changes it needed:** `GET /admin/reviews/summary`, and review rows gain `productSlug`, `orderNumber` and `image` (see `docs/API.md`).
 | 4 | **Promotions** | 5 | List with derived status; the builder as a 4-step wizard (Type → Rule as a plain-English sentence → Who & limits → Schedule), validations from the design (percent 1–90, code 4–20 chars), live plain-English summary (PADM-03); activate/deactivate; edit-while-live warning. Gift type, placements, calendar and live phone preview are P1/P2 |
 | 5 | **Reviews** | 2 | Queue tabs, approve/hide with 5s undo, J/K/A/H shortcuts. Flags, pinning and request settings are P1 |
 | 6 | **Customers** | 2 | Search, sort by newest/spend, row drawer with stats and recent orders; segment tiles when **A9** exists. Consent, notes, disable and export are P1 |

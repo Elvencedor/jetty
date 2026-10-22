@@ -1,10 +1,11 @@
 import type { ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
 import { createContent, getContent, listContent, updateContent, type ContentInput } from '../../../modules/admin/content.js';
-import { customerSegments, getAdminCustomer, listAdminCustomers, SEGMENTS, listAdminReviews, moderateReview } from '../../../modules/admin/people.js';
+import { customerSegments, getAdminCustomer, listAdminCustomers, SEGMENTS, listAdminReviews, moderateReview, reviewSummary } from '../../../modules/admin/people.js';
 import { listZones, upsertZones, zoneSchema, type ZoneInput } from '../../../modules/admin/zones.js';
 import { CONTENT_STATUSES, CONTENT_TYPES } from '../../../modules/content/content.js';
 import { getSetting, isSettingKey, SETTING_KEYS, SETTINGS, updateSetting } from '../../../modules/settings/settings.js';
+import { withUrl } from '../../../modules/media/urls.js';
 import { fromJoi, notFound } from '../../../lib/errors.js';
 import { audited, db, guard, NO_STORE, pageQuery, slugSchema, uuidParam } from './shared.js';
 
@@ -97,7 +98,17 @@ export const adminManagementRoutes: ServerRoute[] = [
       tags: ['api', 'admin'],
       validate: { query: Joi.object({ ...pageQuery, status: Joi.string().valid('pending', 'approved', 'rejected', 'hidden'), productId: Joi.string().uuid() }) },
     },
-    handler: async (request, h) => h.response(await listAdminReviews(db(request), request.query as never)).header('Cache-Control', NO_STORE),
+    handler: async (request, h) => {
+      const page = await listAdminReviews(db(request), request.query as never);
+      const storage = request.server.app.storage;
+      return h.response({ ...page, data: page.data.map((r) => ({ ...r, image: withUrl(storage, r.image) })) }).header('Cache-Control', NO_STORE);
+    },
+  },
+  {
+    method: 'GET',
+    path: '/admin/reviews/summary',
+    options: { ...guard('reviews:moderate'), description: 'The store rating from published reviews', tags: ['api', 'admin'] },
+    handler: async (request, h) => h.response(await reviewSummary(db(request))).header('Cache-Control', NO_STORE),
   },
   {
     method: 'PATCH',

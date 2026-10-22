@@ -720,3 +720,11 @@ Paystack account as before.
 `GET /admin/customers` rows gain `name`, `area` and `state`, and `GET /admin/customers/{id}` gains `lastOrder`
 (`{ name, area, state, addressLine }`). Accounts have no name of their own, so these come from the customer's most recent
 order (`recipientName` and its address); they are null for a customer who has not ordered.
+
+## Review screens
+
+`GET /admin/reviews/summary` (`reviews:moderate`) returns the store rating from published reviews:
+`{ count, average, distribution: [{ stars, count }] }` (`average` is null with no reviews; `distribution` runs 5 to 1).
+Rows of `GET /admin/reviews` gain `productSlug`, `orderNumber` (null if the order line is gone) and `image`
+(`{ objectKey, url }` or null: the product's cover). A moderation decision still cannot be returned to `pending`; the screen
+holds a decision for five seconds before sending it, so Undo needs no API support.

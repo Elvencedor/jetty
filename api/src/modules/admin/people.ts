@@ -124,9 +124,12 @@ export async function listAdminReviews(db: Db, input: { status?: string | undefi
   }
   const rows = (await db.execute(sql`
     select r.id, r.product_id, p.title as product_title, r.customer_id, c.phone_e164, c.email, r.rating, r.title, r.body, r.location, r.status,
-      r.verified_buyer, r.created_at, r.moderated_at, oi.options_snapshot as variant, r.created_at::text as cur_at
+      r.verified_buyer, r.created_at, r.moderated_at, oi.options_snapshot as variant, r.created_at::text as cur_at,
+      o.order_number, p.slug as product_slug,
+      (select pm.object_key from product_media pm where pm.product_id = p.id order by pm.is_cover desc, pm.sort_order, pm.created_at limit 1) as cover_key
     from reviews r join products p on p.id = r.product_id join customers c on c.id = r.customer_id
     left join order_items oi on oi.id = r.order_item_id
+    left join orders o on o.id = oi.order_id
     where ${sql.join(where, sql` and `)} ${after} order by r.created_at desc, r.id desc limit ${input.limit + 1}`)) as unknown as Record<string, unknown>[];
   const hasMore = rows.length > input.limit;
   const page = hasMore ? rows.slice(0, input.limit) : rows;
@@ -139,9 +142,22 @@ export async function listAdminReviews(db: Db, input: { status?: string | undefi
     data: page.map((r) => ({
       id: r.id as string, productId: r.product_id as string, productTitle: r.product_title as string, customerId: r.customer_id as string, customerPhone: mask(r.phone_e164 as string | null), customerEmail: maskEmail(r.email as string | null),
       rating: r.rating as number, title: (r.title as string | null) ?? null, body: (r.body as string | null) ?? null, location: (r.location as string | null) ?? null,
+      productSlug: r.product_slug as string, orderNumber: (r.order_number as string | null) ?? null, image: r.cover_key ? { objectKey: r.cover_key as string } : null,
       status: r.status as string, verifiedBuyer: r.verified_buyer as boolean, variant: r.variant ?? null, createdAt: iso(r.created_at), moderatedAt: iso(r.moderated_at),
     })),
     page: { total, nextCursor: hasMore && last ? encodeCursor({ sort: 'admin-reviews', values: [String(last.cur_at), String(last.id)] }) : null },
+  };
+}
+
+/** The store's rating from published reviews: the average, how many, and how many gave each number of stars. */
+export async function reviewSummary(db: Db) {
+  const rows = (await db.execute(sql`select rating, count(*)::int as n from reviews where status = 'approved' group by rating`)) as unknown as { rating: number; n: number }[];
+  const count = rows.reduce((n, r) => n + r.n, 0);
+  const total = rows.reduce((n, r) => n + r.rating * r.n, 0);
+  return {
+    count,
+    average: count ? Math.round((total / count) * 10) / 10 : null,
+    distribution: [5, 4, 3, 2, 1].map((stars) => ({ stars, count: rows.find((r) => r.rating === stars)?.n ?? 0 })),
   };
 }
 
