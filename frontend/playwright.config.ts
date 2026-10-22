@@ -5,6 +5,8 @@ const PORT = 3100;
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
+  // The fixture API and one production server answer every worker; more than three starve the session refresh in slow runs.
+  workers: 3,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["list"]] : "list",
   use: { baseURL: `http://localhost:${PORT}`, trace: "retain-on-failure" },
