@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { Dashboard } from "./dashboard/Dashboard";
 import { PageHeader } from "./PageHeader";
 import { Skeleton } from "@/components/ui";
 import { adminKeys } from "@/lib/admin/keys";
@@ -16,8 +17,13 @@ const TILES = [
   { key: "paymentExceptions", label: "Payment exceptions" },
 ] as const;
 
-/** The landing page. For now it shows what is waiting on someone; the full dashboard arrives with the next phase. */
+/** The landing page: the dashboard for roles that can read analytics, otherwise just what is waiting on them. */
 export function Overview() {
+  const held = useAdminSession((s) => s.user?.permissions) ?? [];
+  return permits(held, "analytics:read") ? <Dashboard /> : <WaitingOnYou />;
+}
+
+function WaitingOnYou() {
   const admin = useAdminSession((s) => s.user);
   const held = admin?.permissions ?? [];
   const orders = useQuery({ queryKey: adminKeys.ordersToAction, queryFn: ({ signal }) => getOrdersToAction({ signal }), enabled: permits(held, "orders:read") });

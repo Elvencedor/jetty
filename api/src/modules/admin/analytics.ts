@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import { unprocessable } from '../../lib/errors.js';
+import { lifecycleSql } from './promotions.js';
 
 const DAY = 86_400_000;
 const MAX_RANGE_DAYS = 366;
@@ -41,11 +42,18 @@ async function sessions(db: Db, r: Range): Promise<number | null> {
 
 async function topProducts(db: Db, r: Range, limit: number) {
   const rows = (await db.execute(sql`
-    select oi.product_id, coalesce(p.title, max(oi.title_snapshot)) as title, sum(oi.quantity)::int as units, sum(oi.line_total_minor)::bigint as revenue
+    select oi.product_id, coalesce(p.title, max(oi.title_snapshot)) as title, sum(oi.quantity)::int as units, sum(oi.line_total_minor)::bigint as revenue,
+      (select object_key from product_media pm where pm.product_id = oi.product_id order by pm.is_cover desc, pm.sort_order, pm.created_at limit 1) as cover_key,
+      (select coalesce(sum(greatest(i.on_hand_quantity - i.reserved_quantity, 0)), 0)::int from product_variants v join inventory i on i.variant_id = v.id where v.product_id = oi.product_id and v.active) as available,
+      coalesce((select bool_or(i.low_stock_threshold is not null and i.on_hand_quantity - i.reserved_quantity <= i.low_stock_threshold) from product_variants v join inventory i on i.variant_id = v.id where v.product_id = oi.product_id and v.active), false) as low
     from order_items oi join orders o on o.id = oi.order_id left join products p on p.id = oi.product_id
     where o.payment_status = 'paid' and o.placed_at >= ${iso(r.from)}::timestamptz and o.placed_at < ${iso(r.to)}::timestamptz
     group by oi.product_id, p.title order by revenue desc, units desc limit ${limit}`)) as unknown as Record<string, unknown>[];
-  return rows.map((x) => ({ productId: (x.product_id as string | null) ?? null, title: x.title as string, units: x.units as number, revenueMinor: Number(x.revenue) }));
+  return rows.map((x) => ({
+    productId: (x.product_id as string | null) ?? null, title: x.title as string, units: x.units as number, revenueMinor: Number(x.revenue),
+    /** Only the stored key until the route adds a URL. */
+    image: x.cover_key ? { objectKey: x.cover_key as string } : null, availableQuantity: x.available as number, lowStock: x.low as boolean,
+  }));
 }
 
 /** A product in several categories counts toward each, so category figures can add up to more than total sales. */
@@ -72,8 +80,49 @@ export async function actionCounts(db: Db) {
   return { toPack: row!.to_pack!, toDispatch: row!.to_dispatch!, outForDelivery: row!.out_for_delivery!, awaitingTransfer: row!.awaiting_transfer!, paymentExceptions: row!.payment_exceptions! };
 }
 
+
+/** Distinct sessions that reached each step of the shop, and paid orders at the end. Null steps when no events were recorded. */
+async function funnel(db: Db, r: Range, purchased: number) {
+  const rows = (await db.execute(sql`
+    select event_name, count(distinct session_id)::int as n from analytics_events
+    where occurred_at >= ${iso(r.from)}::timestamptz and occurred_at < ${iso(r.to)}::timestamptz and session_id is not null
+    group by event_name`)) as unknown as { event_name: string; n: number }[];
+  if (rows.length === 0) return null;
+  const n = (name: string) => rows.find((x) => x.event_name === name)?.n ?? 0;
+  return { sessions: n('session_start'), viewedProduct: n('product_view'), addedToBag: n('add_to_bag'), checkout: n('checkout_start'), purchased };
+}
+
+/** Buyers in the period: new if this was their first paid order ever, returning otherwise. Guests are told apart by phone number. Plus where the orders went. */
+async function customerMix(db: Db, r: Range) {
+  const [mix] = (await db.execute(sql`
+    with paid as (select coalesce(customer_id::text, phone_e164) as who, placed_at from orders where payment_status = 'paid'),
+      first as (select who, min(placed_at) as first_at from paid group by who),
+      buyers as (select distinct who from paid where placed_at >= ${iso(r.from)}::timestamptz and placed_at < ${iso(r.to)}::timestamptz)
+    select count(*) filter (where f.first_at >= ${iso(r.from)}::timestamptz)::int as new_buyers, count(*) filter (where f.first_at < ${iso(r.from)}::timestamptz)::int as returning_buyers
+    from buyers b join first f using (who)`)) as unknown as { new_buyers: number; returning_buyers: number }[];
+  const states = (await db.execute(sql`
+    select delivery_address_snapshot->>'state' as state, count(*)::int as n from orders
+    where payment_status = 'paid' and placed_at >= ${iso(r.from)}::timestamptz and placed_at < ${iso(r.to)}::timestamptz and nullif(delivery_address_snapshot->>'state', '') is not null
+    group by 1 order by n desc, 1 limit 3`)) as unknown as { state: string; n: number }[];
+  const [total] = (await db.execute(sql`select count(*)::int as n from orders where payment_status = 'paid' and placed_at >= ${iso(r.from)}::timestamptz and placed_at < ${iso(r.to)}::timestamptz`)) as unknown as { n: number }[];
+  return { newBuyers: mix!.new_buyers, returningBuyers: mix!.returning_buyers, topStates: states.map((x) => ({ state: x.state, orders: x.n, sharePct: Math.round((x.n / total!.n) * 100) })) };
+}
+
+/** Promotions running now, with the orders and sales they were used on in the period. */
+async function liveCampaigns(db: Db, r: Range, limit: number) {
+  const rows = (await db.execute(sql`
+    select p.id, p.name, p.kind, p.ends_at, exists (select 1 from promotion_codes pc where pc.promotion_id = p.id) as has_code,
+      count(o.id)::int as orders, coalesce(sum(o.total_minor), 0)::bigint as revenue
+    from promotions p
+    left join promotion_redemptions pr on pr.promotion_id = p.id
+    left join orders o on o.id = pr.order_id and o.payment_status = 'paid' and o.placed_at >= ${iso(r.from)}::timestamptz and o.placed_at < ${iso(r.to)}::timestamptz
+    where ${lifecycleSql} = 'live'
+    group by p.id order by revenue desc, p.created_at desc limit ${limit}`)) as unknown as Record<string, unknown>[];
+  return rows.map((x) => ({ id: x.id as string, name: x.name as string, kind: x.kind as string, viaCode: x.has_code as boolean, endsAt: x.ends_at ? new Date(x.ends_at as string).toISOString() : null, orders: x.orders as number, revenueMinor: Number(x.revenue) }));
+}
+
 export async function dashboard(db: Db, p: Periods) {
-  const [cur, prev, curSessions, prevSessions, top, categories, actions] = await Promise.all([
+  const [cur, prev, curSessions, prevSessions, top, categories, actions, mix, campaigns] = await Promise.all([
     sales(db, p.current),
     sales(db, p.previous),
     sessions(db, p.current),
@@ -81,7 +130,10 @@ export async function dashboard(db: Db, p: Periods) {
     topProducts(db, p.current, 5),
     salesByCategory(db, p.current),
     actionCounts(db),
+    customerMix(db, p.current),
+    liveCampaigns(db, p.current, 4),
   ]);
+  const steps = await funnel(db, p.current, cur.orders);
   const aov = (s: { orders: number; revenue: number }) => (s.orders ? Math.round(s.revenue / s.orders) : 0);
   // Orders can exceed sessions if events are blocked by the browser, so the rate is capped at 100%.
   const rate = (orders: number, n: number | null) => (n === null ? null : Math.min(Math.round((orders / n) * 10000) / 100, 100));
@@ -98,6 +150,9 @@ export async function dashboard(db: Db, p: Periods) {
     actionCounts: actions,
     topProducts: top,
     salesByCategory: categories,
+    funnel: steps,
+    customers: mix,
+    campaigns,
   };
 }
 

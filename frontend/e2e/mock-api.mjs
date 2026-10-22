@@ -222,6 +222,34 @@ const server = createServer(async (req, res) => {
         res.setHeader("ETag", etagOfProduct(p));
         return send(200, productDetail(p));
       }
+      if (path === "/admin/dashboard" || path === "/admin/analytics/revenue") {
+        if (!can(a, "analytics:read")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+        const to = new Date(url.searchParams.get("to") ?? Date.now());
+        const from = new Date(url.searchParams.get("from") ?? to.getTime() - 30 * 86_400_000);
+        const days = Math.max(1, Math.round((to - from) / 86_400_000));
+        if (path === "/admin/analytics/revenue") {
+          const series = (offset) => Array.from({ length: days }, (_, i) => ({ bucket: new Date(from.getTime() - offset * days * 86_400_000 + i * 86_400_000).toISOString().slice(0, 10), orders: 4 + (i % 5), revenueMinor: (4 + (i % 5)) * 21_000_000 + (offset ? 0 : i * 500_000) }));
+          return send(200, { interval: "day", current: series(0), previous: series(1) });
+        }
+        // A range that ends in the past (a custom one) has no sales: it shows the empty states.
+        const quiet = to.getTime() < Date.now() - 86_400_000 * 2;
+        const cmp = (current, previous, changePct) => ({ current, previous, changePct });
+        return send(200, {
+          range: { from: from.toISOString(), to: to.toISOString(), previous: { from: from.toISOString(), to: from.toISOString() } },
+          kpis: quiet
+            ? { revenueMinor: cmp(0, 0, null), orders: cmp(0, 0, null), averageOrderValueMinor: cmp(0, 0, null), conversionRatePct: cmp(null, null, null), sessions: cmp(null, null, null) }
+            : { revenueMinor: cmp(4_860_000_000, 4_105_000_000, 18.4), orders: cmp(231, 206, 12.1), averageOrderValueMinor: cmp(21_040_000, 19_930_000, 5.6), conversionRatePct: cmp(2.4, 2.7, -11.1), sessions: cmp(9640, 9100, 5.9) },
+          actionCounts: { toPack: 3, toDispatch: 2, outForDelivery: 1, awaitingTransfer: 1, paymentExceptions: 0 },
+          topProducts: quiet ? [] : [
+            { productId: V(1), title: "Bone Straight HD Frontal", units: 64, revenueMinor: 1_240_000_000, image: null, availableQuantity: 38, lowStock: false },
+            { productId: V(2), title: "Kinky Curly Glueless", units: 39, revenueMinor: 620_000_000, image: null, availableQuantity: 6, lowStock: true },
+          ],
+          salesByCategory: [],
+          funnel: quiet ? null : { sessions: 9640, viewedProduct: 5210, addedToBag: 1180, checkout: 448, purchased: 231 },
+          customers: quiet ? { newBuyers: 0, returningBuyers: 0, topStates: [] } : { newBuyers: 142, returningBuyers: 89, topStates: [{ state: "Lagos", orders: 157, sharePct: 68 }, { state: "FCT", orders: 39, sharePct: 17 }] },
+          campaigns: quiet ? [] : [{ id: id(900), name: "BOGO · Bob wigs", kind: "buy_x_get_y", viaCode: false, endsAt: "2026-10-31T22:59:00Z", orders: 74, revenueMinor: 580_000_000 }, { id: id(901), name: "FLASH15 · Frontals", kind: "percentage", viaCode: true, endsAt: null, orders: 22, revenueMinor: 340_000_000 }],
+        });
+      }
       if (path === "/admin/orders") {
         if (!can(a, "orders:read")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
         const q = (url.searchParams.get("q") ?? "").toLowerCase();

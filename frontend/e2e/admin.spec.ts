@@ -23,7 +23,7 @@ test("an owner signs in and sees every section, with badges for what waits on so
   // 3 to pack + 2 to dispatch + 1 awaiting transfer; 4 reviews waiting.
   await expect(nav(page).getByRole("link", { name: /^Orders/ })).toContainText("6");
   await expect(nav(page).getByRole("link", { name: /^Reviews/ })).toContainText("4");
-  await expect(page.getByRole("heading", { level: 1, name: "Hello, owner" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: /^Hey owner/ })).toBeVisible();
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
 });
@@ -83,7 +83,7 @@ test("the session survives a reload, and when the server ends it the admin is re
   await signIn(page, "owner@example.com");
   await expect(page).toHaveURL(/\/admin$/);
   await page.reload();
-  await expect(page.getByRole("heading", { level: 1, name: "Hello, owner" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: /^Hey owner/ })).toBeVisible();
 
   // The server revokes this session (another admin disabled it, say). The next request that needs it fails with 401,
   // the refresh cookie is refused too, and the admin lands on the sign-in page.

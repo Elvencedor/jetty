@@ -681,3 +681,16 @@ filter, which the admin nav uses as the "pending reviews" badge (`?status=pendin
 - `GET /admin/orders/{id}`: `customer` gains `paidOrders` and `lifetimeValueMinor` (paid and refunded orders, matched by
   account, or by phone number for guests), items gain `image` (`{ objectKey, url }` or `null`), and `allowedTransitions` is
   empty for an unpaid order. The status and cancel endpoints return the same shape.
+
+## Dashboard additions
+
+`GET /admin/dashboard` also returns, for the current period:
+
+- `funnel`: distinct sessions that reached each step (`sessions`, `viewedProduct`, `addedToBag`, `checkout`) and `purchased`
+  (paid orders), or `null` when no browsing events were recorded.
+- `customers`: `newBuyers` (their first paid order was in the period), `returningBuyers` (they had paid before; guests are
+  recognised by phone number) and `topStates` (up to three: `state`, `orders`, `sharePct` of paid orders).
+- `campaigns`: up to four live promotions with `orders` and `revenueMinor` (paid orders they were used on in the period),
+  `viaCode`, `kind` and `endsAt`.
+- `topProducts` (here and on `/admin/analytics/products`) gain `image` (`{ objectKey, url }` or `null`), `availableQuantity`
+  and `lowStock`.
