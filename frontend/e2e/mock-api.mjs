@@ -220,13 +220,13 @@ seedReviews();
 // ---- admin promotions (dates are relative to now so the calendar always has something in this month)
 let promos = [];
 const day = 86_400_000;
-const iso = (offset) => new Date(Date.now() + offset * day).toISOString();
+const isoOffset = (offset) => new Date(Date.now() + offset * day).toISOString();
 function seedPromos() {
-  const p = (n, over) => ({ id: id(970 + n), name: "Promo", kind: "percentage", status: "active", configuration: { version: 1, percent: 10 }, scope: {}, startsAt: null, endsAt: null, priority: 0, stackable: false, totalUsageLimit: null, perCustomerLimit: 1, usageCount: 0, firstOrderOnly: false, minimumSubtotalMinor: null, codes: [], createdAt: iso(-20 + n), ...over });
+  const p = (n, over) => ({ id: id(970 + n), name: "Promo", kind: "percentage", status: "active", configuration: { version: 1, percent: 10 }, scope: {}, startsAt: null, endsAt: null, priority: 0, stackable: false, totalUsageLimit: null, perCustomerLimit: 1, usageCount: 0, firstOrderOnly: false, minimumSubtotalMinor: null, codes: [], createdAt: isoOffset(-20 + n), ...over });
   promos = [
-    p(1, { name: "BOGO · Bob wigs", kind: "buy_x_get_y", configuration: { version: 1, buy: 1, get: 1, percentOff: 100 }, startsAt: iso(-3), endsAt: iso(5), usageCount: 74 }),
-    p(2, { name: "FLASH15 · Frontals", status: "active", startsAt: iso(2), endsAt: iso(4), codes: [{ id: "c1", code: "FLASH15", maxRedemptions: null, active: true }] }),
-    p(3, { name: "Summer sale", kind: "fixed_amount", configuration: { version: 1, amountMinor: 500_000 }, startsAt: iso(-30), endsAt: iso(-10), usageCount: 31 }),
+    p(1, { name: "BOGO · Bob wigs", kind: "buy_x_get_y", configuration: { version: 1, buy: 1, get: 1, percentOff: 100 }, startsAt: isoOffset(-3), endsAt: isoOffset(5), usageCount: 74 }),
+    p(2, { name: "FLASH15 · Frontals", status: "active", startsAt: isoOffset(2), endsAt: isoOffset(4), codes: [{ id: "c1", code: "FLASH15", maxRedemptions: null, active: true }] }),
+    p(3, { name: "Summer sale", kind: "fixed_amount", configuration: { version: 1, amountMinor: 500_000 }, startsAt: isoOffset(-30), endsAt: isoOffset(-10), usageCount: 31 }),
     p(4, { name: "Free delivery weekend", kind: "free_delivery", configuration: { version: 1 }, status: "draft" }),
   ];
 }
@@ -234,6 +234,26 @@ const lifecycle = (x) => (x.status === "draft" ? "draft" : x.status === "inactiv
 const promoRow = (x) => ({ id: x.id, name: x.name, kind: x.kind, status: lifecycle(x), startsAt: x.startsAt, endsAt: x.endsAt, priority: x.priority, stackable: x.stackable, type: x.codes.length ? "code" : "automatic", usage: { redemptions: x.usageCount, openHolds: 0, limit: x.totalUsageLimit }, createdAt: x.createdAt });
 const promoDetail = (x) => ({ promotion: { ...x, lifecycle: lifecycle(x), codes: undefined }, codes: x.codes, stats: { redemptions: x.usageCount, discountMinor: x.usageCount * 1_500_000, orderRevenueMinor: x.usageCount * 21_000_000, openHolds: 0 } });
 seedPromos();
+
+// ---- admin storefront content
+let content = [];
+let contentCounter = 0;
+function seedContent() {
+  contentCounter = 0;
+  const c = (type, title, body, over = {}) => ({ id: id(1000 + ++contentCounter), contentType: type, slug: `${type}-${contentCounter}`, title, body, status: "published", startsAt: null, endsAt: null, sortOrder: contentCounter * 10, updatedAt: "2026-10-20T09:00:00Z", ...over });
+  content = [
+    c("home_layout", "Home layout", { sections: [{ type: "stories", enabled: true }, { type: "hero", enabled: true }, { type: "flash", enabled: false }, { type: "products", enabled: true }, { type: "length", enabled: true }, { type: "tiles", enabled: true }, { type: "trust", enabled: true }] }),
+    c("announcement", "Free delivery over ₦250,000", { text: "Free delivery over ₦250,000", linkUrl: "/shop" }),
+    c("announcement", "Weekend sale", { text: "Weekend sale: 10% off frontals" }, { status: "draft" }),
+    c("banner", "Wigs you will love", { headline: "Wigs you will love", tone: "pink", ctaLabel: "Shop now", ctaUrl: "/shop" }),
+    c("banner", "New bobs", { headline: "New bobs", tone: "blush" }),
+    c("story", "New in", { title: "New in", linkUrl: "/shop?sort=newest" }),
+    c("page", "Returns policy", { markdown: "# Returns\n\nYou have **7 days** to return an unworn wig." }, { slug: "returns" }),
+    c("page", "Delivery", { markdown: "# Delivery\n\nNext-day in Lagos." }, { slug: "delivery" }),
+    c("page", "Terms", { markdown: "# Terms\n\nDraft." }, { slug: "terms", status: "draft" }),
+  ];
+}
+seedContent();
 
 // Orders placed during a test run, keyed by id. A recipient named "Fail Test" gets a payment that has already failed.
 const orders = new Map();
@@ -321,6 +341,11 @@ const server = createServer(async (req, res) => {
       if (promoGet) {
         const x = promos.find((q) => q.id === promoGet[1]);
         return can(a, "promotions:read") ? (x ? send(200, promoDetail(x)) : send(404, { error: { code: "NOT_FOUND", message: "Promotion not found.", requestId: "r" } })) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+      }
+      if (path === "/admin/content") {
+        if (!can(a, "content:read") && !can(a, "content:write")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+        const type = url.searchParams.get("type");
+        return send(200, { data: content.filter((x) => !type || x.contentType === type), page: { nextCursor: null } });
       }
       if (path === "/admin/dashboard" || path === "/admin/analytics/revenue") {
         if (!can(a, "analytics:read")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
@@ -410,10 +435,11 @@ const server = createServer(async (req, res) => {
       return found ? send(200, { data: found }) : send(404, { error: { code: "NOT_FOUND", message: "Not found", requestId: "r" } });
     }
   }
-  if ((path.startsWith("/admin/") && !path.startsWith("/admin/auth/") || path.startsWith("/__test/touch-product/") || path === "/__test/reset-products" || path === "/__test/reset-orders" || path === "/__test/reset-promotions" || path === "/__test/reset-settings" || path === "/__test/reset-reviews") && ["PATCH", "PUT", "POST", "DELETE"].includes(req.method)) {
+  if ((path.startsWith("/admin/") && !path.startsWith("/admin/auth/") || path.startsWith("/__test/touch-product/") || path === "/__test/reset-products" || path === "/__test/reset-orders" || path === "/__test/reset-promotions" || path === "/__test/reset-content" || path === "/__test/reset-settings" || path === "/__test/reset-reviews") && ["PATCH", "PUT", "POST", "DELETE"].includes(req.method)) {
     if (path === "/__test/reset-products") { seedAdminProducts(); return send(204); }
     if (path === "/__test/reset-orders") { seedAdminOrders(); return send(204); }
     if (path === "/__test/reset-promotions") { seedPromos(); return send(204); }
+    if (path === "/__test/reset-content") { seedContent(); return send(204); }
     if (path === "/__test/reset-settings") { seedAdminSettings(); return send(204); }
     if (path === "/__test/reset-reviews") { seedReviews(); return send(204); }
     const touchPath = path.match(/^\/__test\/touch-product\/(.+)$/);
@@ -477,6 +503,20 @@ const server = createServer(async (req, res) => {
       if (promoAct[2]) x.status = promoAct[2] === "activate" ? "active" : "inactive";
       else { const { codes, ...rest } = json; Object.assign(x, rest); if (codes) for (const c of codes) if (!x.codes.some((y) => y.code === c.code.toUpperCase())) x.codes.push({ id: `c${x.codes.length}`, code: c.code.toUpperCase(), maxRedemptions: null, active: true }); }
       return send(200, promoDetail(x));
+    }
+    if (path === "/admin/content" && req.method === "POST") {
+      if (!can(a, "content:write")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");
+      const x = { id: id(1100 + ++contentCounter), slug: `${json.contentType}-${contentCounter}`, sortOrder: 0, startsAt: null, endsAt: null, status: "draft", updatedAt: new Date().toISOString(), ...json };
+      content.push(x);
+      return send(201, x);
+    }
+    const contentPatch = path.match(/^\/admin\/content\/([^/]+)$/);
+    if (contentPatch && req.method === "PATCH") {
+      if (!can(a, "content:write")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");
+      const x = content.find((q) => q.id === contentPatch[1]);
+      if (!x) return fail(404, "NOT_FOUND", "Content entry not found.");
+      Object.assign(x, json, { updatedAt: new Date().toISOString() });
+      return send(200, x);
     }
     const settingPatch = path.match(/^\/admin\/settings\/([^/]+)$/);
     if (settingPatch && req.method === "PATCH") {
