@@ -14,6 +14,9 @@ export const SORTS: { value: ProductSort; label: string }[] = [
   { value: "bestSelling", label: "Best selling" },
 ];
 
+/** A length as shown: a bare number gets the inch mark (14 → 14"), a label that already has one is left alone (14" stays 14"). */
+export const lengthText = (label: string) => (/^\d+(\.\d+)?$/.test(label.trim()) ? `${label.trim()}"` : label);
+
 export type ListView = "grid" | "list";
 
 export type ListState = {
@@ -118,7 +121,7 @@ export function activeFilters(state: ListState, labels: Partial<Record<FacetOpti
       const remaining = (state.options[name] ?? []).filter((k) => k !== key);
       const options = { ...state.options, [name]: remaining };
       if (!remaining.length) delete options[name];
-      out.push({ key: `${name}:${key}`, label: labels[name]?.[key] ?? (name === "length" ? `${key}"` : pretty(key)), without: { ...state, options } });
+      out.push({ key: `${name}:${key}`, label: labels[name]?.[key] ?? (name === "length" ? lengthText(key) : pretty(key)), without: { ...state, options } });
     }
   }
   if (state.minPriceNaira !== undefined || state.maxPriceNaira !== undefined) {

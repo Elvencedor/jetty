@@ -39,7 +39,8 @@ const matrixBody = Joi.object({
       Joi.object({
         name: text(40).required(),
         values: Joi.array()
-          .items(Joi.object({ label: text(60).required(), valueKey: Joi.string().trim().lowercase().pattern(/^[a-z0-9][a-z0-9._-]{0,39}$/).required(), priceDeltaMinor: Joi.number().integer().min(0).max(1_000_000_000), swatch: Joi.string().pattern(/^#[0-9a-fA-F]{6}$/).allow(null) }))
+          .items(Joi.object({ label: text(60).required(), valueKey: Joi.string().trim().lowercase().pattern(/^[a-z0-9][a-z0-9._-]{0,39}$/).required(), // Negative differences are real (a closure costs less than a frontal); the price a customer pays is the variant's own.
+          priceDeltaMinor: Joi.number().integer().min(-1_000_000_000).max(1_000_000_000), active: Joi.boolean(), swatch: Joi.string().pattern(/^#[0-9a-fA-F]{6}$/).allow(null) }))
           .min(1)
           .max(50)
           .required(),

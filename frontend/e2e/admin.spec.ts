@@ -47,7 +47,8 @@ test("a role with fewer permissions sees fewer sections, and cannot open the oth
 test("an unknown admin path is not found, and the admin is kept out of search engines", async ({ page, request }) => {
   await signIn(page, "owner@example.com");
   await page.goto("/admin/not-a-section");
-  await expect(page.getByRole("heading", { name: /couldn.t find that page/i })).toBeVisible();
+  // The admin shows its skeleton until the session is confirmed; the not-found page follows.
+  await expect(page.getByRole("heading", { name: /couldn.t find that page/i })).toBeVisible({ timeout: 15_000 });
   expect(await (await request.get("/robots.txt")).text()).toMatch(/Disallow: \/admin/);
   await page.goto("/admin");
   await expect(page.locator('meta[name="robots"][content*="noindex"]').first()).toBeAttached();

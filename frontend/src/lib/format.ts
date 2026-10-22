@@ -151,3 +151,14 @@ export function timeAgo(input: string | Date, now: Date = new Date()): string {
 export function formatDate(input: string | Date): string {
   return new Intl.DateTimeFormat("en-GB", { timeZone: LAGOS_TZ, day: "numeric", month: "short", year: "numeric" }).format(typeof input === "string" ? new Date(input) : input);
 }
+
+/** ₦145k, ₦78.5k, ₦950: thousands with at most one decimal, for chips and cards where the exact amount is not needed. */
+export function formatNairaK(amountMinor: number): string {
+  const naira = Math.abs(amountMinor) / 100;
+  const sign = amountMinor < 0 ? "−" : "";
+  if (naira < 1000) return `${sign}₦${Math.round(naira)}`;
+  return `${sign}₦${(naira / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+}
+
+/** ₦145k–₦335k, or one figure when both ends are the same. */
+export const formatNairaKRange = (min: number, max: number) => (min === max ? formatNairaK(min) : `${formatNairaK(min)}–${formatNairaK(max)}`);

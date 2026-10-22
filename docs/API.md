@@ -661,3 +661,13 @@ that variant is on sale, otherwise `null` (so the card's "From ₦X" and its "wa
 `GET /admin/reviews` rows carry `customerEmail` (masked, e.g. `a•••@example.com`) beside `customerPhone`, since customers
 are email-first now. The **first page** (no `cursor`) also carries `page.total`: the number of reviews matching the
 filter, which the admin nav uses as the "pending reviews" badge (`?status=pending&limit=1`). Later pages have `total: null`.
+
+## Admin catalogue additions (product screens)
+
+- `GET /admin/products`: the first page carries `summary` (`products`, `variants`, `lowStock`: not archived, live variants,
+  products with a variant at or below its warning level) for the page header; later pages have `summary: null`. Rows carry
+  `maxPriceMinor` beside `minPriceMinor`, for a price range on the card.
+- `PUT /admin/products/{id}/variants`: option values accept a **negative** `priceDeltaMinor` (a closure costs less than a
+  frontal) and `active` (false hides the value from shoppers while keeping it for staff; its variants should be sent inactive).
+  `priceDeltaMinor` is a difference from the product's base price kept for the editor; what a customer pays is each
+  variant's own `priceMinor`.

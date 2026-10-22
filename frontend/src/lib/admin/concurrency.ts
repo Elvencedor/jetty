@@ -24,3 +24,6 @@ export function adminErrorMessage(err: unknown): string {
 
 /** A save refused because the record moved on: show the message with a Reload action, not a retry. */
 export const isStaleRecord = (err: unknown) => isApiError(err) && (err.status === 412 || err.status === 428);
+
+/** The ETag the API derives from a record's `updatedAt`, for editing a row straight from a list without loading it first. */
+export const etagOf = (updatedAt: string) => `"${Date.parse(updatedAt)}"`;

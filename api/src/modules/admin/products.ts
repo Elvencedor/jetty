@@ -34,6 +34,16 @@ export const slugify = (s: string) =>
 export type ProductListInput = { q?: string | undefined; status?: 'draft' | 'active' | 'archived' | undefined; stock?: 'out' | 'low' | undefined; limit: number; cursor?: string | undefined };
 
 /** Keyset on (updated_at desc, id desc). Counts only active variants; stock is on-hand minus reserved. */
+/** Products (not archived), their live variants, and how many of those products have a variant running low. */
+async function catalogSummary(db: Db) {
+  const [row] = (await db.execute(sql`
+    select count(distinct p.id)::int as products, count(v.id)::int as variants,
+      count(distinct p.id) filter (where i.low_stock_threshold is not null and i.on_hand_quantity - i.reserved_quantity <= i.low_stock_threshold)::int as low
+    from products p left join product_variants v on v.product_id = p.id and v.active left join inventory i on i.variant_id = v.id
+    where p.status <> 'archived'`)) as unknown as { products: number; variants: number; low: number }[];
+  return { products: row!.products, variants: row!.variants, lowStock: row!.low };
+}
+
 export async function listAdminProducts(db: Db, input: ProductListInput, storage?: ObjectStorage) {
   const where = [sql`true`];
   if (input.status) where.push(sql`p.status = ${input.status}`);
@@ -50,13 +60,14 @@ export async function listAdminProducts(db: Db, input: ProductListInput, storage
   }
   const rows = (await db.execute(sql`
     select p.id, p.slug, p.title, p.status, p.featured, p.published_at, p.updated_at, p.updated_at::text as cur_at,
-      s.variant_count, s.available, s.min_price, s.low,
+      s.variant_count, s.available, s.min_price, s.max_price, s.low,
       m.object_key as cover_key
     from products p
     cross join lateral (
       select count(*)::int as variant_count,
         coalesce(sum(greatest(coalesce(i.on_hand_quantity - i.reserved_quantity, 0), 0)), 0)::int as available,
         min(v.price_minor) as min_price,
+        max(v.price_minor) as max_price,
         coalesce(bool_or(i.low_stock_threshold is not null and i.on_hand_quantity - i.reserved_quantity <= i.low_stock_threshold), false) as low
       from product_variants v left join inventory i on i.variant_id = v.id
       where v.product_id = p.id and v.active
@@ -69,6 +80,8 @@ export async function listAdminProducts(db: Db, input: ProductListInput, storage
   const page = hasMore ? rows.slice(0, input.limit) : rows;
   const last = page[page.length - 1];
   return {
+    // Catalogue-wide figures for the page header, sent with the first page only.
+    summary: input.cursor ? null : await catalogSummary(db),
     data: page.map((r) => ({
       id: r.id as string,
       slug: r.slug as string,
@@ -81,6 +94,7 @@ export async function listAdminProducts(db: Db, input: ProductListInput, storage
       availableQuantity: r.available as number,
       lowStock: r.low as boolean,
       minPriceMinor: r.min_price === null ? null : Number(r.min_price),
+      maxPriceMinor: r.max_price === null ? null : Number(r.max_price),
       coverObjectKey: (r.cover_key as string | null) ?? null,
       coverUrl: r.cover_key ? withUrl(storage, { objectKey: r.cover_key as string })!.url : null,
     })),
@@ -247,7 +261,7 @@ export async function setProductStatus(db: Db, id: string, status: 'active' | 'a
 // -------------------------------------------------------------- variant matrix
 
 export type MatrixInput = {
-  options: { name: string; values: { label: string; valueKey: string; priceDeltaMinor?: number | undefined; swatch?: string | null | undefined }[] }[];
+  options: { name: string; values: { label: string; valueKey: string; priceDeltaMinor?: number | undefined; /** False hides the value from shoppers while keeping it for staff; default true. */ active?: boolean | undefined; swatch?: string | null | undefined }[] }[];
   variants: {
     id?: string | undefined;
     sku: string;
@@ -308,8 +322,8 @@ export async function replaceMatrix(db: Db, adminId: string | null, productId: s
         for (const [vi, v] of o.values.entries()) {
           const [row] = await tx
             .insert(productOptionValues)
-            .values({ optionId, label: v.label, valueKey: v.valueKey, priceDeltaMinor: v.priceDeltaMinor ?? 0, swatch: v.swatch ?? null, sortOrder: vi, active: true })
-            .onConflictDoUpdate({ target: [productOptionValues.optionId, productOptionValues.valueKey], set: { label: v.label, priceDeltaMinor: v.priceDeltaMinor ?? 0, swatch: v.swatch ?? null, sortOrder: vi, active: true } })
+            .values({ optionId, label: v.label, valueKey: v.valueKey, priceDeltaMinor: v.priceDeltaMinor ?? 0, swatch: v.swatch ?? null, sortOrder: vi, active: v.active ?? true })
+            .onConflictDoUpdate({ target: [productOptionValues.optionId, productOptionValues.valueKey], set: { label: v.label, priceDeltaMinor: v.priceDeltaMinor ?? 0, swatch: v.swatch ?? null, sortOrder: vi, active: v.active ?? true } })
             .returning({ id: productOptionValues.id });
           valueId.set(`${o.name}\u0000${v.valueKey}`, row!.id);
           liveValueIds.push(row!.id);

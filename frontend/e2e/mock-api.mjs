@@ -111,6 +111,32 @@ const adminFrom = (req) => {
 };
 const can = (s, perm) => ADMIN_ROLES[s.role].includes("*") || ADMIN_ROLES[s.role].includes(perm);
 
+// Admin catalogue: one editable product kept in memory. Its ETag is its version; `If-Match` must match it.
+const V = (n) => id(2000 + n);
+const adminProducts = new Map();
+function seedAdminProducts() {
+  adminProducts.clear();
+  const mk = (idn, title, slug, status, featured, variants, options) => adminProducts.set(V(idn), { id: V(idn), title, slug, status, featured, description: "Soft and full.", version: 1_700_000_000_000 + idn, categoryIds: [], media: [], options, variants });
+  const o = (name, values) => ({ id: `opt-${name}`, name, values: values.map(([label, key, delta, swatch], i) => ({ id: `val-${key}`, label, valueKey: key, priceDeltaMinor: delta, swatch: swatch ?? null, active: true })) });
+  const opts = () => [o("Length", [['12"', "12", 0], ['14"', "14", 1000000]]), o("Lace", [["4×4 closure", "4x4-closure", -2000000], ["13×4 HD", "13x4-hd", 0]]), o("Colour", [["Natural 1B", "natural-1b", 0, "#1e1612"]])];
+  const base = 14500000;
+  const rows = [["12", "4x4-closure", base - 2000000, 3], ["12", "13x4-hd", base, 0], ["14", "4x4-closure", base - 1000000, 8], ["14", "13x4-hd", base + 1000000, 1]];
+  mk(1, "Bone Straight HD Frontal", "bone-straight-hd-frontal", "active", true, rows.map(([l, c, p, n], i) => ({ id: V(100 + i), sku: `BS-${l}-${c.toUpperCase()}`, optionValues: { Length: l, Lace: c, Colour: "natural-1b" }, priceMinor: p, compareAtPriceMinor: null, active: true, stock: { onHand: n, reserved: 0, lowStockThreshold: null } })), opts());
+  mk(2, "Silk Sleep Bonnet", "silk-sleep-bonnet", "draft", false, [{ id: V(200), sku: "BONNET-1", optionValues: {}, priceMinor: 1200000, compareAtPriceMinor: null, active: true, stock: { onHand: 40, reserved: 0, lowStockThreshold: null } }], []);
+}
+seedAdminProducts();
+const etagOfProduct = (p) => `"${p.version}"`;
+const productDetail = (p) => ({
+  product: { id: p.id, slug: p.slug, title: p.title, description: p.description, status: p.status, featured: p.featured, badgeOverride: null, seoTitle: null, seoDescription: null, details: null, categoryIds: p.categoryIds, collectionIds: [], updatedAt: new Date(p.version).toISOString() },
+  options: p.options, media: p.media,
+  variants: p.variants.map((v) => ({ ...v, stock: { ...v.stock, available: Math.max(v.stock.onHand - v.stock.reserved, 0) } })),
+});
+const productRow = (p) => {
+  const act = p.variants.filter((v) => v.active);
+  const prices = act.map((v) => v.priceMinor);
+  return { id: p.id, slug: p.slug, title: p.title, status: p.status, featured: p.featured, publishedAt: null, updatedAt: new Date(p.version).toISOString(), variantCount: act.length, availableQuantity: act.reduce((n, v) => n + Math.max(v.stock.onHand - v.stock.reserved, 0), 0), lowStock: act.some((v) => v.stock.onHand <= 1), minPriceMinor: prices.length ? Math.min(...prices) : null, maxPriceMinor: prices.length ? Math.max(...prices) : null, coverUrl: null };
+};
+
 // Orders placed during a test run, keyed by id. A recipient named "Fail Test" gets a payment that has already failed.
 const orders = new Map();
 let counter = 0;
@@ -125,6 +151,7 @@ const server = createServer(async (req, res) => {
   const origin = req.headers.origin ?? "*";
   res.setHeader("Access-Control-Allow-Origin", origin);
   res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Expose-Headers", "ETag, X-Request-Id, Retry-After");
   res.setHeader("Access-Control-Allow-Headers", "content-type,authorization,idempotency-key,if-match,x-request-id");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
   if (req.method === "OPTIONS") return void res.writeHead(204).end();
@@ -141,6 +168,24 @@ const server = createServer(async (req, res) => {
       if (!a) return send(401, { error: { code: "UNAUTHENTICATED", message: "Authentication is required.", requestId: "r" } });
       if (path === "/admin/me") return send(200, adminIdentity(a));
       if (path === "/admin/orders-to-action") return can(a, "orders:read") ? send(200, { toPack: 3, toDispatch: 2, outForDelivery: 1, awaitingTransfer: 1, paymentExceptions: 0 }) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+      if (path === "/admin/categories") return can(a, "catalog:read") ? send(200, { data: [{ id: id(40), name: "Frontal wigs", slug: "frontal", parentId: null, active: true }, { id: id(41), name: "Hair care", slug: "hair-care", parentId: null, active: true }] }) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+      if (path === "/admin/products") {
+        if (!can(a, "catalog:read")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+        const q = (url.searchParams.get("q") ?? "").toLowerCase();
+        const status = url.searchParams.get("status");
+        const stock = url.searchParams.get("stock");
+        const rows = [...adminProducts.values()].map(productRow).filter((r) => (!q || r.title.toLowerCase().includes(q)) && (!status || r.status === status) && (stock !== "out" || r.availableQuantity <= 0));
+        const live = [...adminProducts.values()].filter((p) => p.status !== "archived");
+        const summary = { products: live.length, variants: live.reduce((n, p) => n + p.variants.filter((v) => v.active).length, 0), lowStock: live.filter((p) => p.variants.some((v) => v.active && v.stock.onHand <= 1)).length };
+        return send(200, { summary, data: rows, page: { nextCursor: null } });
+      }
+      const adminProduct = path.match(/^\/admin\/products\/([^/]+)$/);
+      if (adminProduct) {
+        const p = adminProducts.get(adminProduct[1]);
+        if (!p) return send(404, { error: { code: "NOT_FOUND", message: "Product not found.", requestId: "r" } });
+        res.setHeader("ETag", etagOfProduct(p));
+        return send(200, productDetail(p));
+      }
       if (path === "/admin/reviews") return can(a, "reviews:moderate") ? send(200, { data: [], page: { total: 4, nextCursor: null } }) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
     }
     if (path === "/me/orders") return needsAuth(req) ? send(200, { data: [{ id: SEEDED.id, orderNumber: SEEDED.orderNumber, status: SEEDED.status, paymentStatus: "paid", currency: "NGN", totalMinor: SEEDED.totalMinor, itemCount: 1, placedAt: SEEDED.placedAt, createdAt: SEEDED.createdAt }], page: { nextCursor: null } }) : send(401, { error: { code: "UNAUTHENTICATED", message: "Sign in", requestId: "r" } });
@@ -172,6 +217,59 @@ const server = createServer(async (req, res) => {
       const found = PRODUCTS.find((p) => p.slug === product[1]);
       return found ? send(200, { data: found }) : send(404, { error: { code: "NOT_FOUND", message: "Not found", requestId: "r" } });
     }
+  }
+  if ((path.startsWith("/admin/") && !path.startsWith("/admin/auth/") || path.startsWith("/__test/touch-product/") || path === "/__test/reset-products") && ["PATCH", "PUT", "POST", "DELETE"].includes(req.method)) {
+    if (path === "/__test/reset-products") { seedAdminProducts(); return send(204); }
+    const touchPath = path.match(/^\/__test\/touch-product\/(.+)$/);
+    if (touchPath) { const p = adminProducts.get(touchPath[1]); if (p) p.version += 5000; return send(204); }
+    const a = adminFrom(req);
+    if (!a) return send(401, { error: { code: "UNAUTHENTICATED", message: "Authentication is required.", requestId: "r" } });
+    const json = body ? JSON.parse(body) : {};
+    const fail = (status, code, message) => send(status, { error: { code, message, requestId: "r" } });
+    const touch = (p) => { p.version += 1000; res.setHeader("ETag", etagOfProduct(p)); };
+    const inv = path.match(/^\/admin\/inventory\/([^/]+)$/);
+    if (inv && req.method === "PATCH") {
+      for (const p of adminProducts.values()) {
+        const v = p.variants.find((x) => x.id === inv[1]);
+        if (!v) continue;
+        const target = json.mode === "set" ? json.quantity : v.stock.onHand + json.quantity;
+        if (target < v.stock.reserved) return fail(409, "STOCK_BELOW_RESERVED", "Units are held by open orders; on-hand cannot go below that.");
+        v.stock.onHand = target;
+        if (json.lowStockThreshold !== undefined) v.stock.lowStockThreshold = json.lowStockThreshold;
+        return send(200, { variantId: v.id, onHand: v.stock.onHand, reserved: v.stock.reserved, available: v.stock.onHand - v.stock.reserved, lowStockThreshold: v.stock.lowStockThreshold });
+      }
+      return fail(404, "NOT_FOUND", "Variant not found.");
+    }
+    if (path === "/admin/products" && req.method === "POST") {
+      const n = adminProducts.size + 1;
+      const p = { id: V(300 + n), title: json.title, slug: json.title.toLowerCase().replace(/[^a-z0-9]+/g, "-"), status: "draft", featured: false, description: null, version: 1_700_000_000_000 + 300 + n, categoryIds: [], media: [], options: [], variants: [] };
+      adminProducts.set(p.id, p);
+      res.setHeader("ETag", etagOfProduct(p));
+      return send(201, productDetail(p));
+    }
+    const target = path.match(/^\/admin\/products\/([^/]+)(\/(variants|publish|archive))?$/);
+    if (target && adminProducts.has(target[1])) {
+      const p = adminProducts.get(target[1]);
+      const sub = target[3];
+      const needsMatch = (req.method === "PATCH" && !sub) || sub === "variants";
+      if (needsMatch) {
+        if (!req.headers["if-match"]) return fail(428, "PRECONDITION_REQUIRED", "If-Match is required.");
+        if (req.headers["if-match"] !== etagOfProduct(p)) return fail(412, "PRECONDITION_FAILED", "This record changed.");
+      }
+      if (sub === "publish") { if (!p.variants.some((v) => v.active)) return fail(422, "PRODUCT_NOT_PUBLISHABLE", "Needs an active variant."); p.status = "active"; }
+      else if (sub === "archive") p.status = "archived";
+      else if (sub === "variants") {
+        const prior = new Map(p.variants.map((v) => [v.id, v]));
+        p.options = json.options.map((o) => ({ id: `opt-${o.name}`, name: o.name, values: o.values.map((v) => ({ id: `val-${v.valueKey}`, label: v.label, valueKey: v.valueKey, priceDeltaMinor: v.priceDeltaMinor ?? 0, swatch: v.swatch ?? null, active: v.active ?? true })) }));
+        p.variants = json.variants.map((v, i) => { const old = v.id ? prior.get(v.id) : null; return { id: old?.id ?? V(1000 + adminProducts.size * 100 + i + Math.floor(Math.random() * 1e6)), sku: v.sku, optionValues: v.optionValues, priceMinor: v.priceMinor, compareAtPriceMinor: v.compareAtPriceMinor ?? null, active: v.active ?? true, stock: old ? old.stock : { onHand: v.stock ?? 0, reserved: 0, lowStockThreshold: null } }; });
+      } else {
+        for (const k of ["title", "description", "featured"]) if (k in json) p[k] = json[k];
+        if (json.categoryIds) p.categoryIds = json.categoryIds;
+      }
+      touch(p);
+      return send(200, productDetail(p));
+    }
+    return fail(404, "NOT_FOUND", "Not found.");
   }
   if (req.method === "POST") {
     const json = body ? JSON.parse(body) : {};

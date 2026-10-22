@@ -27,11 +27,15 @@ function Item({ toast }: { toast: Toast }) {
   );
 }
 
-/** Where toasts appear: bottom right on wide screens, bottom edge on phones. One per admin layout. */
-export function Toaster() {
+/**
+ * Where toasts appear: bottom right on wide screens, bottom edge on phones. The admin layout has one, and each open
+ * drawer carries its own: while a modal dialog is open everything outside it is inert (unreadable to assistive
+ * technology and hidden behind the backdrop), so a message about what you just did in the drawer has to live inside it.
+ */
+export function Toaster({ label = "Notifications" }: { label?: string } = {}) {
   const toasts = useToasts((s) => s.toasts);
   return (
-    <section aria-label="Notifications" className="pointer-events-none fixed inset-x-3 bottom-3 z-50 sm:left-auto sm:w-96">
+    <section aria-label={label} className="pointer-events-none fixed inset-x-3 bottom-3 z-50 sm:left-auto sm:w-96">
       {toasts.length ? <ul className="flex flex-col gap-2">{toasts.map((t) => <Item key={t.id} toast={t} />)}</ul> : null}
     </section>
   );

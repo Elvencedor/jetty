@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useUnsavedGuard } from "@/lib/admin/useUnsavedGuard";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { Toaster } from "./Toaster";
 
 type Props = {
   open: boolean;
@@ -11,6 +12,8 @@ type Props = {
   onClose: () => void;
   title: string;
   subtitle?: string;
+  /** A small muted title ("Edit product") when the content brings its own heading. */
+  compactTitle?: boolean;
   /** True while the form inside has changes that are not saved: closing then asks first. */
   dirty?: boolean;
   children: ReactNode;
@@ -24,7 +27,7 @@ type Props = {
  * visible screen (`dvh`). Pair with `useUrlState("order")` so the open drawer is part of the address.
  * With `dirty` set, every way of closing (X, Esc, the scrim) first asks whether to discard.
  */
-export function SideDrawer({ open, onClose, title, subtitle, dirty = false, children, footer }: Props) {
+export function SideDrawer({ open, onClose, title, subtitle, compactTitle = false, dirty = false, children, footer }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const [asking, setAsking] = useState(false);
@@ -53,14 +56,15 @@ export function SideDrawer({ open, onClose, title, subtitle, dirty = false, chil
       >
         {open ? (
           <div className="flex h-dvh flex-col">
-            <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
+            <header className={compactTitle ? "flex items-center justify-between gap-3 border-b border-line-soft py-2 pl-[18px] pr-2" : "flex items-start justify-between gap-3 border-b border-line px-5 py-4"}>
               <div className="min-w-0">
-                <h2 id={titleId} className="truncate font-display text-heading-sm font-extrabold">{title}</h2>
+                <h2 id={titleId} className={compactTitle ? "truncate text-label font-bold text-muted" : "truncate font-display text-heading-sm font-extrabold"}>{title}</h2>
                 {subtitle ? <p className="text-body-sm text-muted">{subtitle}</p> : null}
               </div>
               <button type="button" aria-label="Close" onClick={requestClose} className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-surface-tint hover:bg-surface-blush"><X aria-hidden="true" size={18} /></button>
             </header>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">{children}</div>
+            <div className={compactTitle ? "min-h-0 flex-1 overflow-y-auto overscroll-contain" : "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4"}>{children}</div>
+            <Toaster label="Drawer notifications" />
             {footer ? <footer className="flex justify-end gap-2 border-t border-line bg-surface px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{footer}</footer> : null}
           </div>
         ) : null}

@@ -13,7 +13,7 @@ import { Button, Chip, EmptyState } from "@/components/ui";
 import { getListing, getProducts, type ListScope } from "@/lib/api/catalog";
 import { type FacetOption, type Facets, type ProductCard as Card, type ProductSort } from "@/lib/api/types";
 import { cn } from "@/lib/cn";
-import { activeFilters, clearFilters, countActiveFilters, hrefFor, SORTS, toApiParams, type ListState, type ListView } from "@/lib/catalog/params";
+import { activeFilters, clearFilters, countActiveFilters, hrefFor, lengthText, SORTS, toApiParams, type ListState, type ListView } from "@/lib/catalog/params";
 import { useStoreHydrated } from "@/lib/stores/hydrated";
 import { useUiPrefs } from "@/lib/stores/ui-prefs";
 import { FilterSheet } from "./FilterSheet";
@@ -89,7 +89,7 @@ export function Listing({ title, crumbs, path, scope, state, initial, facets }: 
     }
   }
 
-  const labels = useMemo(() => (facets ? Object.fromEntries(Object.entries(facets.options).map(([name, values]) => [name, Object.fromEntries(values.map((v) => [v.valueKey, name === "length" ? `${v.label}"` : v.label]))])) : {}), [facets]);
+  const labels = useMemo(() => (facets ? Object.fromEntries(Object.entries(facets.options).map(([name, values]) => [name, Object.fromEntries(values.map((v) => [v.valueKey, name === "length" ? lengthText(v.label) : v.label]))])) : {}), [facets]);
   const chips = activeFilters(state, labels);
   const filterCount = countActiveFilters(state);
   const total = initial.total;
