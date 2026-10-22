@@ -8,6 +8,7 @@ import { ProductView } from "@/components/product/ProductView";
 import { Reviews } from "@/components/product/Reviews";
 import { Skeleton } from "@/components/ui";
 import { getProductCached, getReviewsCached } from "@/lib/catalog/data";
+import { absoluteUrl, SITE_NAME } from "@/lib/site";
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -26,7 +27,7 @@ export async function generateMetadata({ params }: PageProps<"/p/[slug]">): Prom
     const title = product.seo.title || product.title;
     const description = product.seo.description || product.description || undefined;
     const image = product.media.find((m) => m.isCover && m.url)?.url ?? product.media.find((m) => m.url)?.url;
-    return { title, description, openGraph: { title, description, ...(image ? { images: [image] } : {}) } };
+    return { title, description, alternates: { canonical: `/p/${slug}` }, openGraph: { type: "website", title, description, url: `/p/${slug}`, ...(image ? { images: [image] } : {}) }, twitter: { card: image ? "summary_large_image" : "summary" } };
   } catch {
     return { title: "Product" };
   }
@@ -47,6 +48,8 @@ async function Content({ params, searchParams }: Pick<PageProps<"/p/[slug]">, "p
     "@context": "https://schema.org",
     "@type": "Product",
     name: product.title,
+    url: absoluteUrl(`/p/${product.slug}`),
+    brand: { "@type": "Brand", name: SITE_NAME },
     description: product.description ?? undefined,
     image: product.media.filter((m) => m.url).map((m) => m.url),
     ...(prices.length ? { offers: { "@type": "AggregateOffer", priceCurrency: "NGN", lowPrice: Math.min(...prices) / 100, highPrice: Math.max(...prices) / 100, availability: product.variants.some((v) => v.availability.inStock) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock" } } : {}),

@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
+import { preconnect } from "react-dom";
 import { Bricolage_Grotesque, Figtree } from "next/font/google";
 import { Providers } from "@/components/providers";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 const display = Bricolage_Grotesque({
@@ -18,11 +20,12 @@ const body = Figtree({
 });
 
 export const metadata: Metadata = {
-  title: {
-    default: "Jetty's Hair",
-    template: "%s | Jetty's Hair",
-  },
-  description: "Shop premium wigs and hair care, delivered across Nigeria.",
+  metadataBase: new URL(SITE_URL),
+  title: { default: SITE_NAME, template: `%s | ${SITE_NAME}` },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  openGraph: { type: "website", siteName: SITE_NAME, locale: "en_NG", title: SITE_NAME, description: SITE_DESCRIPTION },
+  twitter: { card: "summary_large_image" },
 };
 
 export const viewport: Viewport = {
@@ -31,7 +34,20 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+/** Origins the browser talks to straight away (the API for prices and delivery, the CDN for photos): connect early. */
+function warmConnections() {
+  for (const url of [process.env.NEXT_PUBLIC_API_BASE_URL, process.env.NEXT_PUBLIC_MEDIA_HOST ? `https://${process.env.NEXT_PUBLIC_MEDIA_HOST}` : undefined]) {
+    if (!url) continue;
+    try {
+      preconnect(new URL(url).origin);
+    } catch {
+      // A malformed address is a configuration problem reported elsewhere; skip the hint.
+    }
+  }
+}
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
+  warmConnections();
   return (
     <html lang="en" className={`${display.variable} ${body.variable} h-full antialiased`}>
       <body className="flex min-h-screen-safe flex-col">

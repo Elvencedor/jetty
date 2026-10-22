@@ -15,6 +15,7 @@ import {
   maskPhone,
   normaliseNigerianPhone,
   timeAgo,
+  formatDate,
 } from "./format";
 
 describe("money", () => {
@@ -132,5 +133,12 @@ describe("timeAgo", () => {
     expect(timeAgo(ago(15), now)).toBe("2 wks ago");
     expect(timeAgo(ago(95), now)).toBe("3 mo ago");
     expect(timeAgo(ago(500), now)).toBe("Jun 2025");
+  });
+});
+
+describe("formatDate", () => {
+  it("gives the Lagos calendar day, which can differ from the UTC one", () => {
+    expect(formatDate("2026-10-20T10:00:00Z")).toBe("20 Oct 2026");
+    expect(formatDate("2026-10-20T23:30:00Z")).toBe("21 Oct 2026");
   });
 });

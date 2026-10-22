@@ -146,3 +146,8 @@ export function timeAgo(input: string | Date, now: Date = new Date()): string {
   if (days < 365) return `${Math.floor(days / 30)} mo ago`;
   return new Intl.DateTimeFormat("en-GB", { timeZone: LAGOS_TZ, month: "short", year: "numeric" }).format(date);
 }
+
+/** A calendar date in Lagos time with no time of day: "20 Oct 2026". */
+export function formatDate(input: string | Date): string {
+  return new Intl.DateTimeFormat("en-GB", { timeZone: LAGOS_TZ, day: "numeric", month: "short", year: "numeric" }).format(typeof input === "string" ? new Date(input) : input);
+}

@@ -1,5 +1,6 @@
 import { apiFetch, apiUrl } from "@/lib/api/client";
 import type { AnalyticsEventName, AnalyticsProperties } from "@/lib/api/types";
+import { analyticsAllowed } from "@/lib/stores/consent";
 import { touchIdentity } from "./identity";
 
 /**
@@ -26,7 +27,8 @@ function enqueue(name: AnalyticsEventName, properties: AnalyticsProperties) {
 }
 
 export function track(name: AnalyticsEventName, properties: AnalyticsProperties = {}): void {
-  if (typeof window === "undefined") return;
+  // Nothing is recorded, or even given an identity, until the visitor has agreed to analytics.
+  if (typeof window === "undefined" || !analyticsAllowed()) return;
   enqueue(name, properties);
   if (!listening) {
     listening = true;
@@ -52,7 +54,7 @@ export function flush({ unloading = false }: { unloading?: boolean } = {}): void
   }
 }
 
-/** Test helper: forget everything queued without sending it. */
+/** Forgets everything queued without sending it: for tests, and for when the visitor withdraws consent. */
 export function resetAnalyticsQueue(): void {
   clearTimeout(timer);
   timer = undefined;

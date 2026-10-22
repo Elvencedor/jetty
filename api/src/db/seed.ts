@@ -1,12 +1,14 @@
 import { eq, sql } from 'drizzle-orm';
 import { hashPassword } from '../lib/password.js';
 import { createDatabase, type Db } from './client.js';
+import { STARTER_PAGES } from './starter-pages.js';
 import {
   adminRoles,
   adminUserRoles,
   adminUsers,
   categories,
   collections,
+  contentEntries,
   deliveryZones,
 } from './schema/index.js';
 
@@ -57,6 +59,11 @@ export async function seed(db: Db, { ownerEmail, ownerPassword }: SeedOptions = 
     }
 
     // Fees are business data: seed the zone inactive so the owner must set rates before enabling it.
+    // Starter info pages. An existing page (edited or not) is never touched.
+    for (const page of STARTER_PAGES) {
+      await tx.insert(contentEntries).values({ contentType: 'page', slug: page.slug, title: page.title, status: page.status, body: { markdown: page.markdown } }).onConflictDoNothing();
+    }
+
     const [zone] = await tx.select({ id: deliveryZones.id }).from(deliveryZones).limit(1);
     if (!zone) {
       await tx.insert(deliveryZones).values({

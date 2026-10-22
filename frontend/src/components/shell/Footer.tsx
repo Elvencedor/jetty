@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { PaymentMethod, StoreSettings } from "@/lib/api/types";
+import { PrivacyChoiceButton } from "./PrivacyChoiceButton";
 
 const LINKS = [
   { href: "/track", label: "Track order" },
@@ -7,6 +8,10 @@ const LINKS = [
   { href: "/pages/size-guide", label: "Cap size guide" },
   { href: "/pages/faqs", label: "FAQs" },
   { href: "/pages/care-guide", label: "Care guide" },
+  { href: "/pages/delivery", label: "Delivery" },
+  { href: "/pages/contact", label: "Contact" },
+  { href: "/pages/terms", label: "Terms" },
+  { href: "/pages/privacy", label: "Privacy" },
 ];
 const PAYMENT_LABEL: Record<PaymentMethod, string> = { card: "Visa · Mastercard · Verve", bank_transfer: "Bank transfer" };
 
@@ -28,6 +33,7 @@ export function Footer({ settings }: { settings: StoreSettings | null }) {
         ) : null}
         <nav aria-label="Help" className="flex flex-wrap gap-x-3.5 gap-y-1.5 border-t border-surface-inverse-raised pt-2 text-label">
           {LINKS.map((l) => <Link key={l.href} href={l.href} className="text-on-inverse-muted underline-offset-2 hover:underline">{l.label}</Link>)}
+          <PrivacyChoiceButton className="text-on-inverse-muted underline-offset-2 hover:underline" />
           {store?.contactEmail ? <a href={`mailto:${store.contactEmail}`} className="text-on-inverse-muted underline-offset-2 hover:underline">{store.contactEmail}</a> : null}
         </nav>
         {store?.showroomAddress ? <p className="text-caption text-on-inverse-muted">{store.showroomAddress}</p> : null}

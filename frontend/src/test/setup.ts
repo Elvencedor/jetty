@@ -3,6 +3,7 @@ import { cleanup } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll } from "vitest";
 import { useAnalyticsIdentity } from "@/lib/analytics/identity";
 import { useCartStore } from "@/lib/stores/cart";
+import { useConsent } from "@/lib/stores/consent";
 import { useAdminSession, useCustomerSession } from "@/lib/stores/session";
 import { useSessionHints } from "@/lib/stores/session-hint";
 import { server } from "./server";
@@ -20,6 +21,7 @@ afterEach(async () => {
   useCartStore.setState({ lines: [], promotionCodes: [] });
   useAnalyticsIdentity.setState({ anonymousId: null, session: null });
   useSessionHints.setState({ customer: false, admin: false });
+  useConsent.setState({ analytics: "unset" });
   window.localStorage.clear();
   window.sessionStorage.clear();
 });

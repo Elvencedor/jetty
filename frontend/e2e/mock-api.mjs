@@ -2,7 +2,7 @@
 // shapes as docs/API.md. Run by Playwright's webServer; start by hand with `node e2e/mock-api.mjs`.
 import { createServer } from "node:http";
 
-const PORT = Number(process.env.MOCK_API_PORT ?? 4000);
+const PORT = Number(process.env.MOCK_API_PORT ?? 4010);
 const id = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const money = (amountMinor) => ({ amountMinor, currency: "NGN" });
 const stock = (n) => ({ inStock: n > 0, availableQuantity: n, lowStock: n > 0 && n <= 3 });
@@ -122,6 +122,12 @@ const server = createServer(async (req, res) => {
     if (path === "/health") return send(200, { ok: true });
     if (path === "/storefront/home") return send(200, { data: home });
     if (path === "/storefront/settings") return send(200, { data: settings });
+    const pageMatch = path.match(/^\/content\/pages\/([^/]+)$/);
+    if (pageMatch) {
+      const pages = { returns: { title: "Returns and refunds", markdown: "## Returning an item\n\nYou can return an item within **7 days** of delivery.\n\n[Track an order](/track) or read the [FAQs](https://example.com/faqs).\n\n<script>alert(1)</script>" }, contact: { title: "Contact us", markdown: "We are happy to help." } };
+      const found = pages[pageMatch[1]];
+      return found ? send(200, { data: { slug: pageMatch[1], ...found, updatedAt: "2026-10-01T00:00:00Z" } }) : send(404, { error: { code: "NOT_FOUND", message: "Not found", requestId: "r" } });
+    }
     if (path === "/categories") return send(200, { data: { categories: [{ id: "c1", slug: "frontal", name: "Frontal wigs", children: [] }], collections: [{ id: "k1", slug: "new-arrivals", name: "New arrivals", description: null }] } });
     if (path === "/products") return send(200, listing(url));
     if (path === "/products/facets") return send(200, { data: facets });

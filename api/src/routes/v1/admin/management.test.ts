@@ -4,6 +4,7 @@ import type { Server } from '@hapi/hapi';
 import { eq } from 'drizzle-orm';
 import { adminAuditLog, deliveryZones, inventory, orderItems, orders, productVariants, products, reviews } from '../../../db/schema/index.js';
 import { createLogger } from '../../../lib/logger.js';
+import { STARTER_PAGES } from '../../../db/starter-pages.js';
 import { createServer } from '../../../server.js';
 import { adminTestEnv, signInAdmin } from '../../../testing/admin.js';
 import { createTestDatabase, TEST_DATABASE_URL, type TestDatabase } from '../../../testing/database.js';
@@ -83,14 +84,14 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
     });
 
     it('serves pages by slug, keeps slugs unique per type, and lists with filters', async () => {
-      const page = await call('POST', '/admin/content', { contentType: 'page', title: 'Returns Policy', slug: 'returns', body: { markdown: '# Returns\n7 days.' }, status: 'published' });
+      const page = await call('POST', '/admin/content', { contentType: 'page', title: 'Warranty', slug: 'warranty', body: { markdown: '# Warranty\n30 days.' }, status: 'published' });
       assert.equal(page.status, 201);
-      assert.equal((await publicGet('/content/pages/returns')).body.data.title, 'Returns Policy');
-      assert.equal((await call('POST', '/admin/content', { contentType: 'page', title: 'Dup', slug: 'returns', body: { markdown: 'x' } })).status, 409);
+      assert.equal((await publicGet('/content/pages/warranty')).body.data.title, 'Warranty');
+      assert.equal((await call('POST', '/admin/content', { contentType: 'page', title: 'Dup', slug: 'warranty', body: { markdown: 'x' } })).status, 409);
       const a = await call('POST', '/admin/content', { contentType: 'announcement', title: 'Promo bar', body: { text: 'A' } });
       const b = await call('POST', '/admin/content', { contentType: 'announcement', title: 'Promo bar', body: { text: 'B' } });
       assert.notEqual(a.body.slug, b.body.slug, 'auto slugs de-duplicate');
-      assert.equal((await call('GET', '/admin/content?type=page')).body.data.length, 1);
+      assert.equal((await call('GET', '/admin/content?type=page&limit=100')).body.data.length, STARTER_PAGES.length + 1, 'the starter pages from the seed, plus this one');
       assert.equal((await call('GET', '/admin/content?status=draft&type=announcement')).body.data.length, 2);
       assert.equal((await call('GET', `/admin/content/${a.body.id}`)).body.title, 'Promo bar');
       assert.equal((await call('PATCH', `/admin/content/${a.body.id}`, { body: { text: '' } })).status, 422);

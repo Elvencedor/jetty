@@ -1,8 +1,8 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { isApiError } from "@/lib/api/client";
-import { getCategories, getListing, getProduct, getReviews, getScopedFacets, type ListParams, type ListScope } from "@/lib/api/catalog";
+import { getCategories, getListing, getProduct, getProducts, getReviews, getScopedFacets, type ListParams, type ListScope } from "@/lib/api/catalog";
 import type { CategoryNode } from "@/lib/api/types";
-import { getHome, getStoreSettings } from "@/lib/api/content";
+import { getHome, getPage, getStoreSettings } from "@/lib/api/content";
 
 /**
  * Server-side reads, cached for a few minutes (the API changes slowly and the storefront must stay fast when it
@@ -74,4 +74,46 @@ export async function getReviewsCached(productId: string, rating: number | undef
   cacheLife("minutes");
   cacheTag("reviews", `reviews:${productId}`);
   return getReviews(productId, { ...(rating ? { rating } : {}), limit: 5 });
+}
+
+/** A published static page, or null if there is none (a missing page is an answer, so it is cached too). */
+export async function getPageCached(slug: string) {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag("pages", `page:${slug}`);
+  try {
+    return await getPage(slug);
+  } catch (err) {
+    if (isApiError(err) && err.status === 404) return null;
+    throw err;
+  }
+}
+
+/** Static pages worth listing in the sitemap; only the ones that are published end up there. */
+export const KNOWN_PAGES = ["returns", "delivery", "faqs", "size-guide", "care-guide", "contact", "terms", "privacy"] as const;
+
+/** Product pages are listed a hundred at a time; this caps a runaway catalogue (and the API calls to build one sitemap). */
+const SITEMAP_MAX_PRODUCTS = 5000;
+
+/** Everything the sitemap lists, gathered in one cached pass (an hour is plenty for a sitemap). */
+export async function getSitemapData() {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("catalog", "pages");
+  const slugs: string[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await getProducts({ limit: 100, ...(cursor ? { cursor } : {}) });
+    slugs.push(...page.data.map((p) => p.slug));
+    cursor = page.page.nextCursor ?? undefined;
+  } while (cursor && slugs.length < SITEMAP_MAX_PRODUCTS);
+
+  const tree = await getCategories();
+  const pages = (await Promise.all(KNOWN_PAGES.map((slug) => getPageCached(slug).catch(() => null)))).flatMap((p) => (p ? [{ slug: p.slug, updatedAt: p.updatedAt }] : []));
+  return {
+    products: slugs,
+    categories: flatten(tree.categories).map((c) => c.slug),
+    collections: tree.collections.map((c) => c.slug),
+    pages,
+  };
 }

@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { AnnouncementBar } from "@/components/shell/AnnouncementBar";
+import { ConsentNotice } from "@/components/shell/ConsentNotice";
 import { BottomTabBar } from "@/components/shell/BottomTabBar";
 import { Footer } from "@/components/shell/Footer";
 import { Header } from "@/components/shell/Header";
@@ -23,13 +24,16 @@ async function StoreFooter() {
 export default function StoreLayout({ children }: LayoutProps<"/">) {
   return (
     <>
-      <Suspense fallback={null}>
+      {/* The fallback holds the bar's height, so the header does not jump when it arrives. */}
+      <Suspense fallback={<div aria-hidden="true" className="h-9 bg-surface-inverse" />}>
         <Announcements />
       </Suspense>
       <Header />
       <main id="main" className="flex flex-1 flex-col">
         {children}
       </main>
+      {/* Below the content, so it never pushes down what is already on screen. */}
+      <ConsentNotice />
       <Suspense fallback={<div className="mx-4 mt-5 h-64 rounded-card bg-surface-inverse" />}>
         <StoreFooter />
       </Suspense>

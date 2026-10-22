@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { flush, resetAnalyticsQueue, track } from "./index";
 import { SESSION_IDLE_MS, touchIdentity, useAnalyticsIdentity } from "./identity";
+import { useConsent } from "@/lib/stores/consent";
 
 const mock = vi.hoisted(() => ({ sent: [] as { path: string; body: { events: Record<string, unknown>[] } }[], failNext: false }));
 const sent = mock.sent;
@@ -20,6 +21,8 @@ vi.mock("@/lib/api/client", () => ({
 beforeEach(() => {
   vi.useFakeTimers();
   sent.length = 0;
+  // Most tests are about what is sent once the visitor has agreed.
+  useConsent.setState({ analytics: "granted" });
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -126,5 +129,24 @@ describe("tracking", () => {
     } finally {
       globalThis.window = original;
     }
+  });
+});
+
+describe("consent", () => {
+  it("records and sends nothing until the visitor agrees, and not after they decline", () => {
+    for (const choice of ["unset", "denied"] as const) {
+      useConsent.setState({ analytics: choice });
+      track("product_view", { productId: "p1" });
+      flush();
+      expect(sent).toHaveLength(0);
+      expect(useAnalyticsIdentity.getState().anonymousId).toBeNull();
+    }
+  });
+
+  it("sends once they agree", () => {
+    useConsent.setState({ analytics: "granted" });
+    track("product_view", { productId: "p1" });
+    flush();
+    expect(sent[0]!.body.events.map((e) => e.name)).toEqual(["session_start", "product_view"]);
   });
 });

@@ -15,14 +15,14 @@ export default defineConfig({
   ],
   webServer: [
     // The API is stood in for by a small fixture server, so these tests need no database.
-    { command: "node e2e/mock-api.mjs", url: "http://localhost:4000/api/v1/health", reuseExistingServer: !process.env.CI, timeout: 30_000 },
+    { command: "node e2e/mock-api.mjs", url: "http://localhost:4010/api/v1/health", reuseExistingServer: !process.env.CI, timeout: 30_000 },
     {
       // A production build is what ships, so that is what is tested.
       command: `npm run build && npx next start --port ${PORT}`,
       url: `http://localhost:${PORT}`,
       reuseExistingServer: !process.env.CI,
       timeout: 240_000,
-      env: { API_BASE_URL: "http://localhost:4000/api/v1", NEXT_PUBLIC_API_BASE_URL: "http://localhost:4000/api/v1" },
+      env: { API_BASE_URL: "http://localhost:4010/api/v1", NEXT_PUBLIC_API_BASE_URL: "http://localhost:4010/api/v1" },
     },
   ],
 });

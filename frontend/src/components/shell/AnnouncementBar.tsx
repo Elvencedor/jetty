@@ -29,7 +29,7 @@ export function AnnouncementBar({ items }: { items: Announcement[] }) {
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
     >
-      <p aria-live={paused ? "polite" : "off"} className="mx-auto flex max-w-store items-center justify-center gap-2 px-4 py-2 text-center text-caption font-semibold">
+      <p aria-live={paused ? "polite" : "off"} className="mx-auto flex h-9 max-w-store items-center justify-center gap-2 px-4 text-center text-caption font-semibold">
         <span>{current.text}</span>
         {safeLink ? (
           <Link href={safeLink} className="underline underline-offset-2">
