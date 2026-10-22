@@ -18,11 +18,13 @@ function Item({ toast }: { toast: Toast }) {
   }, [toast.id, toast.tone, dismiss]);
   const Icon = ICON[toast.tone];
   return (
-    <li role={toast.tone === "error" ? "alert" : "status"} className={cn("pointer-events-auto flex items-start gap-3 rounded-lg border border-line px-4 py-3 text-body-sm font-semibold shadow-panel", TONE[toast.tone])}>
+    <li>
+      <div role={toast.tone === "error" ? "alert" : "status"} className={cn("pointer-events-auto flex items-start gap-3 rounded-lg border border-line px-4 py-3 text-body-sm font-semibold shadow-panel", TONE[toast.tone])}>
       <Icon aria-hidden="true" size={18} className="mt-0.5 shrink-0" />
       <span className="flex-1">{toast.message}</span>
       {toast.action ? <button type="button" onClick={() => { toast.action!.onClick(); dismiss(toast.id); }} className="shrink-0 underline">{toast.action.label}</button> : null}
       <button type="button" aria-label="Dismiss" onClick={() => dismiss(toast.id)} className="-m-1 inline-flex size-7 shrink-0 items-center justify-center rounded-full hover:bg-black/5"><X aria-hidden="true" size={14} /></button>
+      </div>
     </li>
   );
 }

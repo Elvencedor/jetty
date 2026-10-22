@@ -217,6 +217,24 @@ function seedReviews() {
 }
 seedReviews();
 
+// ---- admin promotions (dates are relative to now so the calendar always has something in this month)
+let promos = [];
+const day = 86_400_000;
+const iso = (offset) => new Date(Date.now() + offset * day).toISOString();
+function seedPromos() {
+  const p = (n, over) => ({ id: id(970 + n), name: "Promo", kind: "percentage", status: "active", configuration: { version: 1, percent: 10 }, scope: {}, startsAt: null, endsAt: null, priority: 0, stackable: false, totalUsageLimit: null, perCustomerLimit: 1, usageCount: 0, firstOrderOnly: false, minimumSubtotalMinor: null, codes: [], createdAt: iso(-20 + n), ...over });
+  promos = [
+    p(1, { name: "BOGO · Bob wigs", kind: "buy_x_get_y", configuration: { version: 1, buy: 1, get: 1, percentOff: 100 }, startsAt: iso(-3), endsAt: iso(5), usageCount: 74 }),
+    p(2, { name: "FLASH15 · Frontals", status: "active", startsAt: iso(2), endsAt: iso(4), codes: [{ id: "c1", code: "FLASH15", maxRedemptions: null, active: true }] }),
+    p(3, { name: "Summer sale", kind: "fixed_amount", configuration: { version: 1, amountMinor: 500_000 }, startsAt: iso(-30), endsAt: iso(-10), usageCount: 31 }),
+    p(4, { name: "Free delivery weekend", kind: "free_delivery", configuration: { version: 1 }, status: "draft" }),
+  ];
+}
+const lifecycle = (x) => (x.status === "draft" ? "draft" : x.status === "inactive" ? "inactive" : x.endsAt && Date.parse(x.endsAt) <= Date.now() ? "ended" : x.startsAt && Date.parse(x.startsAt) > Date.now() ? "scheduled" : "live");
+const promoRow = (x) => ({ id: x.id, name: x.name, kind: x.kind, status: lifecycle(x), startsAt: x.startsAt, endsAt: x.endsAt, priority: x.priority, stackable: x.stackable, type: x.codes.length ? "code" : "automatic", usage: { redemptions: x.usageCount, openHolds: 0, limit: x.totalUsageLimit }, createdAt: x.createdAt });
+const promoDetail = (x) => ({ promotion: { ...x, lifecycle: lifecycle(x), codes: undefined }, codes: x.codes, stats: { redemptions: x.usageCount, discountMinor: x.usageCount * 1_500_000, orderRevenueMinor: x.usageCount * 21_000_000, openHolds: 0 } });
+seedPromos();
+
 // Orders placed during a test run, keyed by id. A recipient named "Fail Test" gets a payment that has already failed.
 const orders = new Map();
 let counter = 0;
@@ -293,6 +311,16 @@ const server = createServer(async (req, res) => {
           orderCount: c.orderCount, lifetimeValueMinor: c.ltv, lastOrderAt: c.lastOrderAt,
           recentOrders: c.orderCount ? [{ id: O(1), orderNumber: "JH-10481", status: "placed", paymentStatus: "paid", totalMinor: 20_000_000, createdAt: "2026-10-20T09:00:00Z" }, { id: O(4), orderNumber: "JH-10484", status: "delivered", paymentStatus: "paid", totalMinor: 9_250_000, createdAt: "2026-09-02T09:00:00Z" }] : [],
         });
+      }
+      if (path === "/admin/collections") return can(a, "catalog:read") || can(a, "promotions:read") ? send(200, { data: [{ id: id(60), name: "Bob wigs", slug: "bob-wigs", active: true }, { id: id(61), name: "Frontals", slug: "frontals", active: true }] }) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+      if (path === "/admin/promotions") {
+        if (!can(a, "promotions:read")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+        return send(200, { data: [...promos].reverse().map(promoRow), page: { nextCursor: null } });
+      }
+      const promoGet = path.match(/^\/admin\/promotions\/([^/]+)$/);
+      if (promoGet) {
+        const x = promos.find((q) => q.id === promoGet[1]);
+        return can(a, "promotions:read") ? (x ? send(200, promoDetail(x)) : send(404, { error: { code: "NOT_FOUND", message: "Promotion not found.", requestId: "r" } })) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
       }
       if (path === "/admin/dashboard" || path === "/admin/analytics/revenue") {
         if (!can(a, "analytics:read")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
@@ -382,9 +410,10 @@ const server = createServer(async (req, res) => {
       return found ? send(200, { data: found }) : send(404, { error: { code: "NOT_FOUND", message: "Not found", requestId: "r" } });
     }
   }
-  if ((path.startsWith("/admin/") && !path.startsWith("/admin/auth/") || path.startsWith("/__test/touch-product/") || path === "/__test/reset-products" || path === "/__test/reset-orders" || path === "/__test/reset-settings" || path === "/__test/reset-reviews") && ["PATCH", "PUT", "POST", "DELETE"].includes(req.method)) {
+  if ((path.startsWith("/admin/") && !path.startsWith("/admin/auth/") || path.startsWith("/__test/touch-product/") || path === "/__test/reset-products" || path === "/__test/reset-orders" || path === "/__test/reset-promotions" || path === "/__test/reset-settings" || path === "/__test/reset-reviews") && ["PATCH", "PUT", "POST", "DELETE"].includes(req.method)) {
     if (path === "/__test/reset-products") { seedAdminProducts(); return send(204); }
     if (path === "/__test/reset-orders") { seedAdminOrders(); return send(204); }
+    if (path === "/__test/reset-promotions") { seedPromos(); return send(204); }
     if (path === "/__test/reset-settings") { seedAdminSettings(); return send(204); }
     if (path === "/__test/reset-reviews") { seedReviews(); return send(204); }
     const touchPath = path.match(/^\/__test\/touch-product\/(.+)$/);
@@ -432,6 +461,22 @@ const server = createServer(async (req, res) => {
       if (!r) return fail(404, "NOT_FOUND", "Review not found.");
       r.status = json.status;
       return send(200, { id: r.id, status: r.status });
+    }
+    if (path === "/admin/promotions" && req.method === "POST") {
+      if (!can(a, "promotions:write")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");
+      if (json.codes?.some((c) => promos.some((x) => x.codes.some((y) => y.code === c.code.toUpperCase())))) return fail(409, "CODE_TAKEN", "One of these codes is already used by another promotion.");
+      const x = { id: id(990 + promos.length), status: "draft", priority: 0, usageCount: 0, createdAt: new Date().toISOString(), ...json, codes: (json.codes ?? []).map((c, i) => ({ id: `c${i}`, code: c.code.toUpperCase(), maxRedemptions: null, active: true })) };
+      promos.push(x);
+      return send(201, promoDetail(x));
+    }
+    const promoAct = path.match(/^\/admin\/promotions\/([^/]+)(?:\/(activate|deactivate))?$/);
+    if (promoAct && ["PATCH", "POST"].includes(req.method)) {
+      if (!can(a, "promotions:write")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");
+      const x = promos.find((q) => q.id === promoAct[1]);
+      if (!x) return fail(404, "NOT_FOUND", "Promotion not found.");
+      if (promoAct[2]) x.status = promoAct[2] === "activate" ? "active" : "inactive";
+      else { const { codes, ...rest } = json; Object.assign(x, rest); if (codes) for (const c of codes) if (!x.codes.some((y) => y.code === c.code.toUpperCase())) x.codes.push({ id: `c${x.codes.length}`, code: c.code.toUpperCase(), maxRedemptions: null, active: true }); }
+      return send(200, promoDetail(x));
     }
     const settingPatch = path.match(/^\/admin\/settings\/([^/]+)$/);
     if (settingPatch && req.method === "PATCH") {
