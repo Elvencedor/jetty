@@ -97,6 +97,7 @@ const ADMIN_ROLES = {
   owner: ["*"],
   support: ["orders:read", "customers:read", "reviews:moderate"],
   editor: ["content:write", "catalog:read"],
+  manager: ["settings:read", "orders:read"],
 };
 const adminSessions = new Map();
 let adminCounter = 0;
@@ -117,7 +118,7 @@ const adminProducts = new Map();
 function seedAdminProducts() {
   adminProducts.clear();
   const mk = (idn, title, slug, status, featured, variants, options) => adminProducts.set(V(idn), { id: V(idn), title, slug, status, featured, description: "Soft and full.", version: 1_700_000_000_000 + idn, categoryIds: [], media: [], options, variants });
-  const o = (name, values) => ({ id: `opt-${name}`, name, values: values.map(([label, key, delta, swatch], i) => ({ id: `val-${key}`, label, valueKey: key, priceDeltaMinor: delta, swatch: swatch ?? null, active: true })) });
+  const o = (name, values) => ({ id: `opt-${name}`, name, values: values.map(([label, key, delta, swatch]) => ({ id: `val-${key}`, label, valueKey: key, priceDeltaMinor: delta, swatch: swatch ?? null, active: true })) });
   const opts = () => [o("Length", [['12"', "12", 0], ['14"', "14", 1000000]]), o("Lace", [["4×4 closure", "4x4-closure", -2000000], ["13×4 HD", "13x4-hd", 0]]), o("Colour", [["Natural 1B", "natural-1b", 0, "#1e1612"]])];
   const base = 14500000;
   const rows = [["12", "4x4-closure", base - 2000000, 3], ["12", "13x4-hd", base, 0], ["14", "4x4-closure", base - 1000000, 8], ["14", "13x4-hd", base + 1000000, 1]];
@@ -173,6 +174,21 @@ const orderDetail = (o) => ({
 });
 seedAdminOrders();
 
+// ---- admin settings: the store, payments and policies, and two delivery zones
+const adminSettings = {};
+let adminZones = [];
+function seedAdminSettings() {
+  adminSettings.store = { name: "Jetty's Hair", contactEmail: "hello@example.com", contactPhone: "+2348031234567", whatsappNumber: "+2348031234567", showroomAddress: "Lekki Phase 1, Lagos", showroomHours: "Mon–Sat, 9am–7pm" };
+  adminSettings.policies = { returnWindowDays: 7, podMaxOrderMinor: null };
+  adminSettings.payments = { enabledMethods: ["card", "bank_transfer"], cardHoldMinutes: 30, transferHoldMinutes: 120 };
+  const zone = (n, over) => ({ id: id(700 + n), timezone: "Africa/Lagos", sameDayCutoffLocal: null, sameDayFeeMinor: null, nextDayFeeMinor: null, nationwideFeeMinor: null, pickupEnabled: false, active: true, areas: [], ...over });
+  adminZones = [
+    zone(1, { name: "Lagos Mainland", state: "Lagos", areas: ["Yaba", "Ikeja", "Surulere"], sameDayFeeMinor: 350_000, sameDayCutoffLocal: "14:00", nextDayFeeMinor: 200_000, pickupEnabled: true }),
+    zone(2, { name: "Abuja", state: "FCT", nextDayFeeMinor: 500_000, nationwideFeeMinor: 800_000 }),
+  ];
+}
+seedAdminSettings();
+
 // Orders placed during a test run, keyed by id. A recipient named "Fail Test" gets a payment that has already failed.
 const orders = new Map();
 let counter = 0;
@@ -221,6 +237,12 @@ const server = createServer(async (req, res) => {
         if (!p) return send(404, { error: { code: "NOT_FOUND", message: "Product not found.", requestId: "r" } });
         res.setHeader("ETag", etagOfProduct(p));
         return send(200, productDetail(p));
+      }
+      const settingGet = path.match(/^\/admin\/settings\/([^/]+)$/);
+      if (settingGet) {
+        if (!can(a, "settings:read")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+        if (settingGet[1] === "delivery-zones") return send(200, { zones: adminZones });
+        return adminSettings[settingGet[1]] ? send(200, adminSettings[settingGet[1]]) : send(404, { error: { code: "NOT_FOUND", message: "Unknown setting.", requestId: "r" } });
       }
       if (path === "/admin/dashboard" || path === "/admin/analytics/revenue") {
         if (!can(a, "analytics:read")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
@@ -303,9 +325,10 @@ const server = createServer(async (req, res) => {
       return found ? send(200, { data: found }) : send(404, { error: { code: "NOT_FOUND", message: "Not found", requestId: "r" } });
     }
   }
-  if ((path.startsWith("/admin/") && !path.startsWith("/admin/auth/") || path.startsWith("/__test/touch-product/") || path === "/__test/reset-products" || path === "/__test/reset-orders") && ["PATCH", "PUT", "POST", "DELETE"].includes(req.method)) {
+  if ((path.startsWith("/admin/") && !path.startsWith("/admin/auth/") || path.startsWith("/__test/touch-product/") || path === "/__test/reset-products" || path === "/__test/reset-orders" || path === "/__test/reset-settings") && ["PATCH", "PUT", "POST", "DELETE"].includes(req.method)) {
     if (path === "/__test/reset-products") { seedAdminProducts(); return send(204); }
     if (path === "/__test/reset-orders") { seedAdminOrders(); return send(204); }
+    if (path === "/__test/reset-settings") { seedAdminSettings(); return send(204); }
     const touchPath = path.match(/^\/__test\/touch-product\/(.+)$/);
     if (touchPath) { const p = adminProducts.get(touchPath[1]); if (p) p.version += 5000; return send(204); }
     const a = adminFrom(req);
@@ -332,6 +355,21 @@ const server = createServer(async (req, res) => {
       adminProducts.set(p.id, p);
       res.setHeader("ETag", etagOfProduct(p));
       return send(201, productDetail(p));
+    }
+    const settingPatch = path.match(/^\/admin\/settings\/([^/]+)$/);
+    if (settingPatch && req.method === "PATCH") {
+      if (!can(a, "settings:write")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");
+      if (settingPatch[1] === "delivery-zones") {
+        for (const z of json.zones) {
+          const at = adminZones.findIndex((x) => x.id === z.id);
+          if (at >= 0) adminZones[at] = { ...adminZones[at], ...z };
+          else adminZones.push({ id: id(750 + adminZones.length), timezone: "Africa/Lagos", active: true, areas: [], sameDayCutoffLocal: null, sameDayFeeMinor: null, nextDayFeeMinor: null, nationwideFeeMinor: null, pickupEnabled: false, ...z });
+        }
+        return send(200, { zones: adminZones });
+      }
+      if (json.name === "") return fail(422, "VALIDATION_FAILED", "name is not allowed to be empty");
+      adminSettings[settingPatch[1]] = { ...adminSettings[settingPatch[1]], ...json };
+      return send(200, adminSettings[settingPatch[1]]);
     }
     const orderPath = path.match(/^\/admin\/orders\/([^/]+)\/(status|notes|confirm-transfer|refunds|cancel|delivery)$/);
     if (orderPath) {
