@@ -48,6 +48,17 @@ export const storeToSettings = (f: StoreForm): StoreSettings => ({
   showroomHours: f.showroomHours.trim(),
 });
 
+/** What customers would look for and cannot find yet: the contact details left blank. */
+export function missingStoreDetails(s: StoreSettings): string[] {
+  const blank = (v: string) => !v.trim();
+  return [
+    ...(blank(s.whatsappNumber) ? ["WhatsApp number"] : []),
+    ...(blank(s.contactEmail) ? ["support email"] : []),
+    ...(blank(s.contactPhone) ? ["support phone"] : []),
+    ...(blank(s.showroomAddress) ? ["showroom address"] : []),
+  ];
+}
+
 // --------------------------------------------------------------- payments
 
 export const HOLD_OPTIONS = [

@@ -178,7 +178,7 @@ frontend/src/
 | **A12** | Guest order claim after sign-up (ACC-03) | Confirmation "Save your details" card | P1 | Hide the card | M |
 | **A13** | CMS: draft vs published versions, sections with ordering, preview, history | Full storefront editor (06-storefront-editor) | P1 | Reduced editor (§6 phase 6, item 8) | L |
 | **A15** ✅ | Optional customer auth on `POST /pricing/quote` and `/delivery/quotes` | Bag and checkout totals must agree for signed-in customers | Phase 0 | Account-only offers missing from the bag | S |
-| **A14** | Optional: API calls a secured `/api/revalidate` on the frontend after admin mutations | Instant storefront updates | optional | ≤60s staleness | S |
+| **A14** ✅ | Optional: API calls a secured `/api/revalidate` on the frontend after admin mutations | Instant storefront updates | optional | A few minutes of staleness | S |
 
 ---
 
@@ -361,6 +361,7 @@ optional rider note (the API needs the city).
 - **Payments:** the **payout account** card (Connected · live or test mode, bank and last four digits, or a prompt to connect one; Connect/Change opens a drawer that checks the account name with Paystack before it can be saved), switches for card and bank transfer (at least one stays on), how long stock is held for card payments and for transfers.
 - **Returns & policies:** the return window.
 - **Discard / Save changes** footer on each form; Save waits for a change, only the changed fields are sent, success is a toast and a failure appears beside the buttons; leaving with unsaved edits warns.
+- **Reaching the storefront:** the footer, contact page and order confirmation read these details. The storefront caches them for a few minutes; when `STOREFRONT_REVALIDATE_URL` and `REVALIDATE_SECRET` are set on the API (and `REVALIDATE_SECRET` on the storefront), saving them expires that cache at once through `/api/revalidate`. The landing page shows a "Finish setting up" card while the WhatsApp number, support email, support phone or showroom address is blank.
 - **Not built, because the API has nothing behind them:** the Notifications and Tax & currency sections (omitted from the menu, like Team); Free delivery over, Pay on delivery and Instalments/USSD; the Paystack connection status and payout bank; Refund as and the return conditions; policy page links go to Storefront. The same-day cutoff is per zone (as the API stores it), not one global select. Turning a zone off cannot say how many open orders use it (no count), so the warning is general.
 **Customers: built** (`/admin/customers`, drawer `?customer=<id>`; segment and search in the address), following `design/screens/admin/05-customers.md` and the reference mockup.
 - **List:** segment tiles with counts and the rule shown (Everyone, VIP, New, Returning, Lapsed; `aria-pressed`, selected in `primary`), search by phone or email, table with avatar initials, name and area, orders, spent, last order and segment tags; the customer cell is the drawer button.

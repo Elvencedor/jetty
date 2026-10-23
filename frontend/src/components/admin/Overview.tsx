@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { Dashboard } from "./dashboard/Dashboard";
 import { PageHeader } from "./PageHeader";
+import { SetupNudge } from "./SetupNudge";
 import { Skeleton } from "@/components/ui";
 import { adminKeys } from "@/lib/admin/keys";
 import { permits } from "@/lib/admin/permissions";
@@ -33,6 +34,7 @@ function WaitingOnYou() {
   return (
     <>
       <PageHeader title={`Hello, ${name}`} subtitle="Here is what is waiting on you." />
+      <SetupNudge />
       {permits(held, "orders:read") ? (
         <section aria-label="Orders to action" className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
           <div className="flex items-center justify-between"><h2 className="font-display text-heading-xs font-extrabold">Orders to action</h2><Link href="/admin/orders" className="font-bold text-primary-strong">Open</Link></div>

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { PageHeader } from "../PageHeader";
+import { SetupNudge } from "../SetupNudge";
 import { BestSellers, CustomersCard, Funnel, KpiStack, LiveCampaigns, OrdersToAction } from "./Cards";
 import { RevenueCard } from "./RevenueCard";
 import { Button } from "@/components/ui";
@@ -74,6 +75,8 @@ export function Dashboard() {
           </div>
         }
       />
+
+      <SetupNudge />
 
       {picking ? (
         <form onSubmit={applyCustom} className="flex flex-wrap items-end gap-3 rounded-card border border-line bg-surface p-3.5">

@@ -46,6 +46,9 @@ const schema = Joi.object({
   PAYSTACK_BASE_URL: Joi.string().uri({ scheme: ['https', 'http'] }).default('https://api.paystack.co'),
   // Where Paystack redirects the browser after payment; the page must verify server-side.
   PAYSTACK_CALLBACK_URL: Joi.string().uri({ scheme: ['https', 'http'] }).optional(),
+  // Lets an admin's change show on the storefront at once: the API tells the storefront which cached data is stale.
+  STOREFRONT_REVALIDATE_URL: Joi.string().uri({ scheme: ['https', 'http'] }).optional(),
+  REVALIDATE_SECRET: Joi.string().min(16).when('STOREFRONT_REVALIDATE_URL', { is: Joi.exist(), then: Joi.required(), otherwise: Joi.optional() }),
 }).unknown(true);
 
 export type Env = {
@@ -78,6 +81,8 @@ export type Env = {
   EMAIL_FROM: string | undefined;
   PAYSTACK_BASE_URL: string;
   PAYSTACK_CALLBACK_URL: string | undefined;
+  STOREFRONT_REVALIDATE_URL: string | undefined;
+  REVALIDATE_SECRET: string | undefined;
   corsOrigins: string[];
   isProduction: boolean;
 };
@@ -129,6 +134,8 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     EMAIL_FROM: value.EMAIL_FROM,
     PAYSTACK_BASE_URL: value.PAYSTACK_BASE_URL,
     PAYSTACK_CALLBACK_URL: value.PAYSTACK_CALLBACK_URL,
+    STOREFRONT_REVALIDATE_URL: value.STOREFRONT_REVALIDATE_URL,
+    REVALIDATE_SECRET: value.REVALIDATE_SECRET,
     corsOrigins: String(value.CORS_ORIGINS)
       .split(',')
       .map((origin) => origin.trim())

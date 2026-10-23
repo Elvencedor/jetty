@@ -728,3 +728,11 @@ order (`recipientName` and its address); they are null for a customer who has no
 Rows of `GET /admin/reviews` gain `productSlug`, `orderNumber` (null if the order line is gone) and `image`
 (`{ objectKey, url }` or null: the product's cover). A moderation decision still cannot be returned to `pending`; the screen
 holds a decision for five seconds before sending it, so Undo needs no API support.
+
+## Telling the storefront to refresh (A14)
+
+When `STOREFRONT_REVALIDATE_URL` (the storefront's `/api/revalidate`) and `REVALIDATE_SECRET` (16+ characters, the same on both
+sides) are set, the API posts `{ tags }` with the header `x-revalidate-secret` after an admin saves store settings or delivery
+zones (`settings`) or creates or edits content (`home`). The storefront expires those cached reads so the change shows on the
+next visit. It is best effort: a refusal or an unreachable storefront is logged and never fails or slows the admin's save, and
+the storefront's own cache lifetime (a few minutes) is the fallback. Without the variables nothing is sent.

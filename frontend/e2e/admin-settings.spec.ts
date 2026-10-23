@@ -50,6 +50,27 @@ test("store details save only when changed, validate in place, and can be discar
   await expect(page.getByLabel("WhatsApp business number")).toHaveValue("0803 999 0000");
 });
 
+test("the landing page nudges until the contact details are filled in, then goes quiet", async ({ page }) => {
+  await signIn(page, "owner", "/admin/settings/store");
+  await page.getByLabel("WhatsApp business number").fill("");
+  await page.getByLabel("Showroom / pickup address").fill("");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Store details saved" }).first()).toBeAttached();
+
+  await page.goto("/admin");
+  const nudge = page.getByRole("region", { name: "Finish setting up" });
+  await expect(nudge).toContainText("Customers can't see your WhatsApp number or showroom address.");
+  await nudge.getByRole("link", { name: "Add them" }).click();
+  await expect(page).toHaveURL(/\/admin\/settings\/store$/);
+  await page.getByLabel("WhatsApp business number").fill("0803 999 0000");
+  await page.getByLabel("Showroom / pickup address").fill("Lekki Phase 1, Lagos");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Store details saved" }).first()).toBeAttached();
+  await page.goto("/admin");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Finish setting up" })).toHaveCount(0);
+});
+
 test("delivery zones show what checkout charges, can be switched off with a warning, and edited in a drawer", async ({ page }) => {
   await signIn(page, "owner", "/admin/settings/delivery");
   const mainland = page.getByRole("listitem").filter({ hasText: "Lagos Mainland" }).first();

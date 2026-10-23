@@ -19,7 +19,8 @@ export async function getHomeCached() {
 
 export async function getSettingsCached() {
   "use cache";
-  cacheLife("hours");
+  // Minutes, not hours: the API expires this tag when an admin saves (see /api/revalidate), and this is the fallback.
+  cacheLife("minutes");
   cacheTag("settings");
   return getStoreSettings();
 }

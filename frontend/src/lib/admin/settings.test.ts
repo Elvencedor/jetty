@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DeliveryZone } from "@/lib/api/admin-settings";
-import { canSwitchOff, changedFields, cutoffLabel, holdChoices, parseAreas, returnWindowChoices, storeToForm, storeToSettings, validateStore, validateZone, zoneOptions, zoneToForm, zoneToInput } from "./settings";
+import { missingStoreDetails, canSwitchOff, changedFields, cutoffLabel, holdChoices, parseAreas, returnWindowChoices, storeToForm, storeToSettings, validateStore, validateZone, zoneOptions, zoneToForm, zoneToInput } from "./settings";
 
 describe("changedFields", () => {
   it("returns only what differs, and null when nothing does", () => {
@@ -19,6 +19,14 @@ describe("store details", () => {
   it("asks for a name, a sensible email and real phone numbers", () => {
     expect(validateStore({ ...stored, name: " ", contactEmail: "nope", contactPhone: "12", whatsappNumber: "" })).toEqual({ name: "Enter the store's name", contactEmail: "Enter an email like hello@yourshop.com", contactPhone: "Enter a number like 0803 123 4567, or with +country code" });
     expect(validateStore(storeToForm(stored))).toEqual({});
+  });
+});
+
+describe("missingStoreDetails", () => {
+  const full = { name: "J", contactEmail: "a@b.co", contactPhone: "+2348031234567", whatsappNumber: "+2348031234567", showroomAddress: "Lekki", showroomHours: "" };
+  it("names the contact details still blank, and nothing when they are all there", () => {
+    expect(missingStoreDetails(full)).toEqual([]);
+    expect(missingStoreDetails({ ...full, whatsappNumber: "", contactEmail: " ", showroomAddress: "" })).toEqual(["WhatsApp number", "support email", "showroom address"]);
   });
 });
 
