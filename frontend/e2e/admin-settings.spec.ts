@@ -118,8 +118,14 @@ test("payments keep one method on, and policies change the return window", async
 
   await page.getByRole("link", { name: /^Returns & policies/ }).click();
   await page.getByLabel("Return window").selectOption("14");
+  await page.getByLabel("Pay on delivery limit").fill("abc");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("Enter an amount like 300,000, or leave blank")).toBeVisible();
+  await page.getByLabel("Pay on delivery limit").fill("300,000");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Policies saved" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Pay on delivery limit")).toHaveValue("300000");
 });
 
 test("a payout account is connected by checking the account name first, and shown with only its last four digits", async ({ page }) => {
