@@ -7,7 +7,7 @@ import { fromDetail, type MatrixDraft } from "@/lib/admin/matrix";
 import { OptionCard, parseNairaDifference } from "./OptionCard";
 import { ProductCard, productPill } from "./ProductCard";
 
-const row = (over: Partial<AdminProductRow> = {}): AdminProductRow => ({ id: "p1", slug: "s", title: "Bone Straight", status: "active", featured: false, publishedAt: null, updatedAt: "2026-01-01T00:00:00Z", variantCount: 60, availableQuantity: 38, lowStock: false, minPriceMinor: 14_500_000, maxPriceMinor: 33_500_000, coverUrl: null, ...over });
+const row = (over: Partial<AdminProductRow> = {}): AdminProductRow => ({ id: "p1", slug: "s", title: "Bone Straight", status: "active", featured: false, tags: [], publishedAt: null, updatedAt: "2026-01-01T00:00:00Z", variantCount: 60, availableQuantity: 38, lowStock: false, minPriceMinor: 14_500_000, maxPriceMinor: 33_500_000, coverUrl: null, ...over });
 
 describe("ProductCard", () => {
   it("shows the status, price range, variants and a stock meter, and opens on click", async () => {
@@ -54,7 +54,7 @@ describe("parseNairaDifference", () => {
 });
 
 const detail: AdminProductDetail = {
-  product: { id: "p", slug: "s", title: "T", description: null, status: "active", featured: false, badgeOverride: null, seoTitle: null, seoDescription: null, details: null, categoryIds: [], collectionIds: [], updatedAt: "2026-01-01T00:00:00Z" },
+  product: { id: "p", slug: "s", title: "T", description: null, status: "active", featured: false, badgeOverride: null, tags: [], seoTitle: null, seoDescription: null, details: null, categoryIds: [], collectionIds: [], updatedAt: "2026-01-01T00:00:00Z" },
   options: [
     { id: "o1", name: "Length", values: [{ id: "a", label: '12"', valueKey: "12", priceDeltaMinor: 0, swatch: null, active: true }, { id: "b", label: '14"', valueKey: "14", priceDeltaMinor: 1_000_000, swatch: null, active: true }] },
     { id: "o2", name: "Lace", values: [{ id: "c", label: "13×4 HD", valueKey: "13x4-hd", priceDeltaMinor: 0, swatch: null, active: true }, { id: "d", label: "4×4 closure", valueKey: "4x4-closure", priceDeltaMinor: -2_000_000, swatch: null, active: true }] },

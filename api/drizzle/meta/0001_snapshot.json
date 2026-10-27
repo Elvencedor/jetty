@@ -2137,6 +2137,13 @@
           "notNull": true,
           "default": "'{}'::jsonb"
         },
+        "tags": {
+          "name": "tags",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
         "published_at": {
           "name": "published_at",
           "type": "timestamp with time zone",

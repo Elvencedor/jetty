@@ -11,6 +11,7 @@ export type AdminProductRow = {
   title: string;
   status: AdminProductStatus;
   featured: boolean;
+  tags: string[];
   publishedAt: string | null;
   updatedAt: string;
   variantCount: number;
@@ -51,6 +52,7 @@ export type AdminProductDetail = {
     status: AdminProductStatus;
     featured: boolean;
     badgeOverride: string | null;
+    tags: string[];
     seoTitle: string | null;
     seoDescription: string | null;
     details: { details?: string; fit?: string; care?: string; delivery?: string } | null;
@@ -67,6 +69,7 @@ export type AdminProductDetail = {
 export type Versioned<T> = { data: T; etag: string | null };
 
 export type ProductFields = Partial<{
+  tags: string[];
   title: string;
   description: string | null;
   featured: boolean;
