@@ -736,3 +736,36 @@ sides) are set, the API posts `{ tags }` with the header `x-revalidate-secret` a
 zones (`settings`) or creates or edits content (`home`). The storefront expires those cached reads so the change shows on the
 next visit. It is best effort: a refusal or an unreachable storefront is logged and never fails or slows the admin's save, and
 the storefront's own cache lifetime (a few minutes) is the fallback. Without the variables nothing is sent.
+
+## P0 gap closures
+
+**Categories and collections.** `GET /admin/categories` and `GET /admin/collections` rows carry `productCount`. `GET
+/admin/collections/{id}/products` returns `{ data: [{ id, title, status }] }` in display order (drafts included), the read
+side of the existing `PUT`.
+
+**Pictures on content.** `POST /admin/media/content-upload-intents` (`content:write`) `{ contentType, sizeBytes }` returns a
+signed upload for a picture, under the `content/` key prefix (same types and 10 MB limit as product photos; `503` without
+storage). A hero card, story circle or tile body may carry `imageObjectKey` and `imageAlt`: the key must start with
+`content/` and the file must have arrived (`422 UPLOAD_NOT_FOUND`). Admin content responses add `image` (`{ objectKey, url }`
+or `null`).
+
+**Product tags.** Products have `tags` (up to 20, 40 characters each; trimmed, lowercased, single-spaced, no repeats). The
+admin product detail and list return them, create and edit accept them, and the list's `q` search matches them. The column is
+`products.tags jsonb`, added to the initial migration.
+
+**Low-stock alert.** The maintenance pass queues one `stock.low` operations alert (outbox channel `internal`) listing live
+variants whose available stock is at or under their `lowStockThreshold`, at most once every 24 hours while any are low. It is
+emailed to `OPS_ALERT_EMAIL` when set.
+
+**Free gift (PROMO-04, CART-03).** `free_gift` is creatable: `configuration` is `{ version: 1, variantId, quantity (1 to 10,
+default 1) }` and the variant must be active (`422` otherwise). A gift combines with every other promotion and honours scope,
+exclusions, minimum spend and codes. When it applies, quotes and checkout add a line with `gift: { promotionId }`, its normal
+`unitPriceMinor`, `lineTotalMinor: 0` and `discountMinor` equal to its value, so the order total is unchanged and the value
+counts as a saving; `promotions.applied` lists it with `kind: "free_gift"`. Stock the customer's own lines take is not given
+away: a gift that is gone or short is left out with a `GIFT_UNAVAILABLE` warning and its promotion is not counted. At checkout
+the gift is an order item at no charge and its stock is reserved like any other item. `GET /admin/promotions/{id}` adds `gift`
+(`{ variantId, productId, productTitle, sku, optionSummary, priceMinor, quantity }`, or `null`).
+
+**Security headers (frontend).** Every storefront and admin response carries `X-Content-Type-Options`, `X-Frame-Options`,
+`Referrer-Policy`, a `Permissions-Policy` and a `Content-Security-Policy-Report-Only`; the policy is to be tightened and
+enforced after a staging run shows nothing legitimate is flagged.
