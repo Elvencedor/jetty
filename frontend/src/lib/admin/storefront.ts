@@ -73,8 +73,15 @@ export type EntryForm = {
   promotionId: string;
   startsAt: string;
   endsAt: string;
+  /** The uploaded picture (a key the API gave back), a URL to preview it, and what it shows. */
+  imageKey: string;
+  imageUrl: string;
+  imageAlt: string;
 };
-export const emptyEntry = (): EntryForm => ({ main: "", secondary: "", tag: "", tone: "pink", linkLabel: "", linkUrl: "", highlight: false, promotionId: "", startsAt: "", endsAt: "" });
+export const emptyEntry = (): EntryForm => ({ main: "", secondary: "", tag: "", tone: "pink", linkLabel: "", linkUrl: "", highlight: false, promotionId: "", startsAt: "", endsAt: "", imageKey: "", imageUrl: "", imageAlt: "" });
+
+/** The block types that can carry a picture. */
+export const IMAGE_TYPES: ContentType[] = ["banner", "story", "tile"];
 
 export const TONES: { value: Tone; label: string }[] = [{ value: "pink", label: "Pink" }, { value: "blush", label: "Blush" }, { value: "plum", label: "Plum" }, { value: "white", label: "White" }];
 
@@ -85,6 +92,9 @@ export function entryToForm(e: ContentEntry): EntryForm {
   const f = emptyEntry();
   f.startsAt = toLagosInput(e.startsAt);
   f.endsAt = toLagosInput(e.endsAt);
+  f.imageKey = str(b.imageObjectKey);
+  f.imageUrl = e.image?.url ?? "";
+  f.imageAlt = str(b.imageAlt);
   switch (e.contentType) {
     case "announcement": return { ...f, main: str(b.text), linkUrl: str(b.linkUrl), linkLabel: str(b.linkLabel) };
     case "banner": return { ...f, main: str(b.headline), secondary: str(b.subheadline), tag: str(b.tag), tone: (b.tone as Tone) ?? "pink", linkLabel: str(b.ctaLabel), linkUrl: str(b.ctaUrl) };
@@ -95,7 +105,7 @@ export function entryToForm(e: ContentEntry): EntryForm {
   }
 }
 
-export type EntryErrors = Partial<Record<"main" | "linkUrl" | "linkLabel" | "promotionId" | "endsAt" | "startsAt", string>>;
+export type EntryErrors = Partial<Record<"main" | "linkUrl" | "linkLabel" | "promotionId" | "endsAt" | "startsAt" | "imageAlt", string>>;
 
 export const MAIN_LIMIT: Partial<Record<ContentType, number>> = { announcement: 200, banner: 160, story: 40, tile: 60, flash: 80 };
 
@@ -110,6 +120,7 @@ export function validateEntry(type: ContentType, f: EntryForm): EntryErrors {
   if (type === "banner" && f.linkLabel.trim() && !f.linkUrl.trim()) e.linkUrl = "Say where the button goes";
   if (type === "banner" && f.linkUrl.trim() && !f.linkLabel.trim()) e.linkLabel = "Say what the button says";
   if (type === "flash" && !f.promotionId) e.promotionId = "Choose a promotion";
+  if (f.imageKey && !f.imageAlt.trim()) e.imageAlt = "Describe the picture for people who can't see it";
   if (f.startsAt && !fromLagosInput(f.startsAt)) e.startsAt = "Enter a date and time";
   if (f.endsAt && !fromLagosInput(f.endsAt)) e.endsAt = "Enter a date and time";
   const s = fromLagosInput(f.startsAt);
@@ -119,6 +130,7 @@ export function validateEntry(type: ContentType, f: EntryForm): EntryErrors {
 }
 
 const opt = (v: string) => (v.trim() ? v.trim() : undefined);
+const image = (f: EntryForm) => (f.imageKey ? { imageObjectKey: f.imageKey, imageAlt: f.imageAlt.trim() } : {});
 
 /** The API body for the form; empty optional fields are left out so they validate. */
 export function entryToPayload(type: ContentType, f: EntryForm): Pick<ContentInput, "title" | "body" | "startsAt" | "endsAt"> {
@@ -126,9 +138,9 @@ export function entryToPayload(type: ContentType, f: EntryForm): Pick<ContentInp
   const clean = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
   switch (type) {
     case "announcement": return { title: f.main.trim(), body: clean({ text: f.main.trim(), linkUrl: opt(f.linkUrl), linkLabel: opt(f.linkLabel) }), ...schedule };
-    case "banner": return { title: f.main.trim(), body: clean({ headline: f.main.trim(), subheadline: opt(f.secondary), tag: opt(f.tag), tone: f.tone, ctaLabel: opt(f.linkLabel), ctaUrl: opt(f.linkUrl) }), ...schedule };
-    case "story": return { title: f.main.trim(), body: clean({ title: f.main.trim(), linkUrl: f.linkUrl.trim(), highlight: f.highlight || undefined }), ...schedule };
-    case "tile": return { title: f.main.trim(), body: clean({ title: f.main.trim(), subtitle: opt(f.secondary), tone: f.tone, linkUrl: f.linkUrl.trim() }), ...schedule };
+    case "banner": return { title: f.main.trim(), body: clean({ headline: f.main.trim(), subheadline: opt(f.secondary), tag: opt(f.tag), tone: f.tone, ctaLabel: opt(f.linkLabel), ctaUrl: opt(f.linkUrl), ...image(f) }), ...schedule };
+    case "story": return { title: f.main.trim(), body: clean({ title: f.main.trim(), linkUrl: f.linkUrl.trim(), highlight: f.highlight || undefined, ...image(f) }), ...schedule };
+    case "tile": return { title: f.main.trim(), body: clean({ title: f.main.trim(), subtitle: opt(f.secondary), tone: f.tone, linkUrl: f.linkUrl.trim(), ...image(f) }), ...schedule };
     case "flash": return { title: f.main.trim() || "Flash deal", body: clean({ promotionId: f.promotionId, headline: opt(f.main) }), ...schedule };
     default: return { title: f.main.trim(), body: {}, ...schedule };
   }

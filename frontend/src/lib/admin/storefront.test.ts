@@ -68,6 +68,25 @@ describe("entry forms", () => {
   });
 });
 
+describe("pictures", () => {
+  const f = (over = {}) => ({ ...emptyEntry(), ...over });
+  it("asks what a picture shows", () => {
+    expect(validateEntry("banner", f({ main: "Hi", imageKey: "content/a.webp" })).imageAlt).toMatch(/Describe the picture/);
+    expect(validateEntry("banner", f({ main: "Hi", imageKey: "content/a.webp", imageAlt: "A wig" }))).toEqual({});
+    expect(validateEntry("banner", f({ main: "Hi" }))).toEqual({});
+  });
+  it("sends the picture with its description, only for the blocks that can have one", () => {
+    expect(entryToPayload("banner", f({ main: "Hi", imageKey: "content/a.webp", imageAlt: " A wig " })).body).toMatchObject({ imageObjectKey: "content/a.webp", imageAlt: "A wig" });
+    expect(entryToPayload("story", f({ main: "New", linkUrl: "/shop", imageKey: "content/a.webp", imageAlt: "x" })).body).toMatchObject({ imageObjectKey: "content/a.webp" });
+    expect(entryToPayload("tile", f({ main: "T", linkUrl: "/shop" })).body).not.toHaveProperty("imageObjectKey");
+    expect(entryToPayload("announcement", f({ main: "Sale", imageKey: "content/a.webp", imageAlt: "x" })).body).not.toHaveProperty("imageObjectKey");
+  });
+  it("reads a saved picture back into the form", () => {
+    const e = { contentType: "tile", title: "T", body: { title: "T", linkUrl: "/shop", imageObjectKey: "content/a.webp", imageAlt: "Tile" }, startsAt: null, endsAt: null, image: { objectKey: "content/a.webp", url: "https://cdn/x.webp" } } as unknown as ContentEntry;
+    expect(entryToForm(e)).toMatchObject({ imageKey: "content/a.webp", imageUrl: "https://cdn/x.webp", imageAlt: "Tile" });
+  });
+});
+
 describe("ordering", () => {
   it("swaps neighbours by id", () => {
     const items = [{ id: "a" }, { id: "b" }, { id: "c" }];

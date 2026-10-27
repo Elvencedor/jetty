@@ -253,6 +253,7 @@ function seedContent() {
     c("page", "Terms", { markdown: "# Terms\n\nDraft." }, { slug: "terms", status: "draft" }),
   ];
 }
+const withImage = (x) => ({ ...x, image: x.body.imageObjectKey ? { objectKey: x.body.imageObjectKey, url: `http://localhost:${PORT}/api/v1/__media/${x.body.imageObjectKey}` } : null });
 seedContent();
 
 // ---- admin categories and collections
@@ -363,7 +364,7 @@ const server = createServer(async (req, res) => {
       if (path === "/admin/content") {
         if (!can(a, "content:read") && !can(a, "content:write")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
         const type = url.searchParams.get("type");
-        return send(200, { data: content.filter((x) => !type || x.contentType === type), page: { nextCursor: null } });
+        return send(200, { data: content.filter((x) => !type || x.contentType === type).map(withImage), page: { nextCursor: null } });
       }
       if (path === "/admin/dashboard" || path === "/admin/analytics/revenue") {
         if (!can(a, "analytics:read")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
@@ -453,13 +454,14 @@ const server = createServer(async (req, res) => {
       return found ? send(200, { data: found }) : send(404, { error: { code: "NOT_FOUND", message: "Not found", requestId: "r" } });
     }
   }
-  if ((path.startsWith("/admin/") && !path.startsWith("/admin/auth/") || path.startsWith("/__test/touch-product/") || path === "/__test/reset-products" || path === "/__test/reset-orders" || path === "/__test/reset-promotions" || path === "/__test/reset-taxonomy" || path === "/__test/reset-content" || path === "/__test/reset-settings" || path === "/__test/reset-reviews") && ["PATCH", "PUT", "POST", "DELETE"].includes(req.method)) {
+  if ((path.startsWith("/admin/") && !path.startsWith("/admin/auth/") || path.startsWith("/__test/touch-product/") || path === "/__test/reset-products" || path === "/__test/reset-orders" || path === "/__test/reset-promotions" || path === "/__test/reset-taxonomy" || path === "/__test/reset-content" || path === "/__test/reset-settings" || path === "/__test/reset-reviews" || path.startsWith("/__upload/")) && ["PATCH", "PUT", "POST", "DELETE"].includes(req.method)) {
     if (path === "/__test/reset-products") { seedAdminProducts(); return send(204); }
     if (path === "/__test/reset-orders") { seedAdminOrders(); return send(204); }
     if (path === "/__test/reset-promotions") { seedPromos(); return send(204); }
     if (path === "/__test/reset-taxonomy") { seedTaxonomy(); return send(204); }
     if (path === "/__test/reset-content") { seedContent(); return send(204); }
     if (path === "/__test/reset-settings") { seedAdminSettings(); return send(204); }
+    if (path.startsWith("/__upload/")) return send(200);
     if (path === "/__test/reset-reviews") { seedReviews(); return send(204); }
     const touchPath = path.match(/^\/__test\/touch-product\/(.+)$/);
     if (touchPath) { const p = adminProducts.get(touchPath[1]); if (p) p.version += 5000; return send(204); }
@@ -523,11 +525,16 @@ const server = createServer(async (req, res) => {
       else { const { codes, ...rest } = json; Object.assign(x, rest); if (codes) for (const c of codes) if (!x.codes.some((y) => y.code === c.code.toUpperCase())) x.codes.push({ id: `c${x.codes.length}`, code: c.code.toUpperCase(), maxRedemptions: null, active: true }); }
       return send(200, promoDetail(x));
     }
+    if (path === "/admin/media/content-upload-intents" && req.method === "POST") {
+      if (!can(a, "content:write")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");
+      const key = `content/upload-${++contentCounter}.webp`;
+      return send(200, { objectKey: key, upload: { method: "PUT", url: `http://localhost:${PORT}/api/v1/__upload/${key}`, headers: {}, expiresAt: new Date(Date.now() + 300_000).toISOString() } });
+    }
     if (path === "/admin/content" && req.method === "POST") {
       if (!can(a, "content:write")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");
       const x = { id: id(1100 + ++contentCounter), slug: `${json.contentType}-${contentCounter}`, sortOrder: 0, startsAt: null, endsAt: null, status: "draft", updatedAt: new Date().toISOString(), ...json };
       content.push(x);
-      return send(201, x);
+      return send(201, withImage(x));
     }
     const contentPatch = path.match(/^\/admin\/content\/([^/]+)$/);
     if (contentPatch && req.method === "PATCH") {
@@ -535,7 +542,7 @@ const server = createServer(async (req, res) => {
       const x = content.find((q) => q.id === contentPatch[1]);
       if (!x) return fail(404, "NOT_FOUND", "Content entry not found.");
       Object.assign(x, json, { updatedAt: new Date().toISOString() });
-      return send(200, x);
+      return send(200, withImage(x));
     }
     if (path === "/admin/categories" && req.method === "POST") {
       if (!can(a, "catalog:write")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");

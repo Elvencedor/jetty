@@ -6,6 +6,9 @@ import { listZones, upsertZones, zoneSchema, type ZoneInput } from '../../../mod
 import { CONTENT_STATUSES, CONTENT_TYPES } from '../../../modules/content/content.js';
 import { getSetting, isSettingKey, SETTING_KEYS, SETTINGS, updateSetting } from '../../../modules/settings/settings.js';
 import { withUrl } from '../../../modules/media/urls.js';
+import { CONTENT_KEY_PREFIX } from '../../../modules/admin/media.js';
+import type { ObjectStorage } from '../../../modules/media/storage.js';
+import { apiError, unprocessable } from '../../../lib/errors.js';
 import { revalidateStorefront } from '../../../lib/revalidate.js';
 import { fromJoi, notFound } from '../../../lib/errors.js';
 import { audited, db, guard, NO_STORE, pageQuery, slugSchema, uuidParam } from './shared.js';
@@ -20,6 +23,21 @@ const contentFields = {
   sortOrder: Joi.number().integer().min(0).max(10_000),
 };
 
+/** A picture on content must be one this admin uploaded for content, and must really be there. */
+async function assertContentImage(storage: ObjectStorage | undefined, body: unknown) {
+  const key = (body as { imageObjectKey?: unknown } | undefined)?.imageObjectKey;
+  if (typeof key !== 'string' || key === '') return;
+  if (!key.startsWith(CONTENT_KEY_PREFIX) || key.includes('..')) throw unprocessable('VALIDATION_FAILED', 'That picture was not uploaded for content.', [{ path: 'body.imageObjectKey', code: 'any.invalid' }]);
+  if (!storage) throw apiError(503, 'STORAGE_UNAVAILABLE', 'Media uploads are not configured.');
+  if (!(await storage.head(key))) throw unprocessable('UPLOAD_NOT_FOUND', 'The picture has not been uploaded yet.', [{ path: 'body.imageObjectKey', code: 'any.invalid' }]);
+}
+
+/** An entry as the admin screens get it: a picture, if it has one, comes with a URL to show it. */
+const presentEntry = <T extends { body: unknown }>(request: { server: { app: { storage?: ObjectStorage | undefined } } }, entry: T) => {
+  const key = (entry.body as { imageObjectKey?: string } | null)?.imageObjectKey;
+  return { ...entry, image: key ? withUrl(request.server.app.storage, { objectKey: key }) : null };
+};
+
 export const adminManagementRoutes: ServerRoute[] = [
   // ------------------------------------------------------------------ content
   {
@@ -31,13 +49,16 @@ export const adminManagementRoutes: ServerRoute[] = [
       tags: ['api', 'admin'],
       validate: { query: Joi.object({ ...pageQuery, type: Joi.string().valid(...CONTENT_TYPES), status: Joi.string().valid(...CONTENT_STATUSES), q: Joi.string().trim().min(1).max(100) }) },
     },
-    handler: async (request, h) => h.response(await listContent(db(request), request.query as never)).header('Cache-Control', NO_STORE),
+    handler: async (request, h) => {
+      const page = await listContent(db(request), request.query as never);
+      return h.response({ ...page, data: page.data.map((e) => presentEntry(request, e)) }).header('Cache-Control', NO_STORE);
+    },
   },
   {
     method: 'GET',
     path: '/admin/content/{id}',
     options: { ...guard('content:read'), description: 'One content entry', tags: ['api', 'admin'], validate: { params: uuidParam('id') } },
-    handler: async (request, h) => h.response(await getContent(db(request), (request.params as { id: string }).id)).header('Cache-Control', NO_STORE),
+    handler: async (request, h) => h.response(presentEntry(request, await getContent(db(request), (request.params as { id: string }).id))).header('Cache-Control', NO_STORE),
   },
   {
     method: 'POST',
@@ -49,9 +70,10 @@ export const adminManagementRoutes: ServerRoute[] = [
       validate: { payload: Joi.object({ ...contentFields, contentType: Joi.string().valid(...CONTENT_TYPES).required(), title: contentFields.title.required(), body: contentFields.body.required() }) },
     },
     handler: async (request, h) => {
+      await assertContentImage(request.server.app.storage, (request.payload as { body?: unknown }).body);
       const row = await audited(request, (tx) => createContent(tx, request.auth.credentials.adminId!, request.payload as ContentInput), (row) => ({ action: 'content.create', resourceType: 'content', resourceId: row.id, after: { contentType: row.contentType, slug: row.slug, status: row.status } }));
       void revalidateStorefront(request.server.app.env, request.server.app.logger, ['home']);
-      return h.response(row).code(201).header('Cache-Control', NO_STORE);
+      return h.response(presentEntry(request, row)).code(201).header('Cache-Control', NO_STORE);
     },
   },
   {
@@ -60,9 +82,10 @@ export const adminManagementRoutes: ServerRoute[] = [
     options: { ...guard('content:write'), description: 'Edit, schedule, publish or archive a content entry', tags: ['api', 'admin'], validate: { params: uuidParam('id'), payload: Joi.object(contentFields).min(1) } },
     handler: async (request, h) => {
       const { id } = request.params as { id: string };
+      await assertContentImage(request.server.app.storage, (request.payload as { body?: unknown }).body);
       const { after } = await audited(request, (tx) => updateContent(tx, id, request.payload as Partial<ContentInput>), ({ before, after }) => ({ action: 'content.update', resourceType: 'content', resourceId: id, before: { title: before.title, status: before.status, startsAt: before.startsAt, endsAt: before.endsAt, body: before.body }, after: { title: after.title, status: after.status, startsAt: after.startsAt, endsAt: after.endsAt, body: after.body } }));
       void revalidateStorefront(request.server.app.env, request.server.app.logger, ['home']);
-      return h.response(after).header('Cache-Control', NO_STORE);
+      return h.response(presentEntry(request, after)).header('Cache-Control', NO_STORE);
     },
   },
 

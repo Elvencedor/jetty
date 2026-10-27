@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp, Plus } from "lucide-react";
 import { useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { EntryFormPanel } from "./EntryForm";
-import { Button, Skeleton, StatusPill } from "@/components/ui";
+import { Button, Media, Skeleton, StatusPill } from "@/components/ui";
 import { adminErrorMessage } from "@/lib/admin/concurrency";
 import { adminKeys } from "@/lib/admin/keys";
 import { entryStatus, moveEntry } from "@/lib/admin/storefront";
@@ -70,7 +70,7 @@ export function EntrySection({ type, canWrite }: { type: ContentType; canWrite: 
             return (
               <li key={e.id} className="flex flex-col gap-2 rounded-[16px] border border-line bg-surface p-3">
                 <div className="flex items-start justify-between gap-2">
-                  <span className="min-w-0 font-semibold leading-[1.3]">{summary(e)}</span>
+                  <span className="flex min-w-0 items-center gap-2.5">{e.image ? <Media image={e.image.url ? { url: e.image.url } : null} alt="" aspect="4 / 5" sizes="40px" className="w-10 shrink-0 rounded-[10px]" /> : null}<span className="min-w-0 font-semibold leading-[1.3]">{summary(e)}</span></span>
                   <StatusPill tone={s.tone}>{s.label}</StatusPill>
                 </div>
                 {canWrite ? (
