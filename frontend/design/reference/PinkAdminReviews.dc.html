@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Jetty's Hair Admin (Pink) — Reviews</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&amp;family=Figtree:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#FFF7FA}
+a{color:#A3134F}a:hover{color:#7E0E3D}
+</style>
+</helmet>
+<div style="min-height: 1350px; background: #FFF7FA; color: #2B0D1C; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; line-height: 1.45; display: flex; flex-direction: column">
+
+  <header style="background: #FFFFFF; border-bottom: 1px solid #F3D6E2; padding: 12px clamp(16px, 3vw, 36px); display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px">
+    <span style="display: flex; align-items: center; gap: 8px"><span style="width: 34px; height: 34px; border-radius: 11px; background: #D61F69; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">J</span><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">jetty admin</span></span>
+    <nav aria-label="Admin" style="flex: 1 1 520px; display: flex; flex-wrap: wrap; gap: 4px">
+      <sc-for list="{{nav}}" as="n" hint-placeholder-count="9">
+        <a href="{{n.href}}" style="height: 38px; padding: 0 14px; border-radius: 19px; display: flex; align-items: center; text-decoration: none; font-weight: 600; background: {{n.bg}}; color: {{n.fg}}">{{n.label}}</a>
+      </sc-for>
+    </nav>
+    <span aria-label="Signed in as Jetty" style="width: 40px; height: 40px; border-radius: 20px; background: #F2B6CB; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #7E0E3D">JT</span>
+  </header>
+
+  <main style="padding: 24px clamp(16px, 3vw, 36px) 40px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box; width: 100%">
+    <div style="display: flex; flex-direction: column"><h1 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 36px; letter-spacing: -1px">Reviews &amp; questions</h1><span style="color: #74525F">Only verified buyers can review. Nothing goes live until you approve it.</span></div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+      <section style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+        <div role="tablist" style="align-self: flex-start; display: flex; flex-wrap: wrap; padding: 4px; border-radius: 22px; background: #FFFFFF; border: 1px solid #F3D6E2">
+          <sc-for list="{{tabs}}" as="t" hint-placeholder-count="4"><button role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="height: 36px; padding: 0 14px; border-radius: 18px; border: 0; font: inherit; font-weight: 700; background: {{t.bg}}; color: {{t.fg}}; display: flex; align-items: center; gap: 6px">{{t.label}}<span style="padding: 0 6px; border-radius: 9px; background: {{t.cBg}}; color: {{t.cFg}}; font-size: 11px">{{t.n}}</span></button></sc-for>
+        </div>
+
+        <sc-if value="{{empty}}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 40px; border-radius: 24px; background: #FFFFFF; border: 1px dashed #F2A1C2; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center"><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 22px">All caught up</span><span style="color: #74525F">New reviews will show up here for approval.</span></div>
+        </sc-if>
+
+        <sc-for list="{{cards}}" as="r" hint-placeholder-count="3">
+          <article style="padding: 16px; border-radius: 24px; background: #FFFFFF; border: 1px solid #F3D6E2; display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap">
+              <span style="display: flex; align-items: center; gap: 10px"><span style="width: 44px; height: 52px; border-radius: 12px; background: {{r.tone}}"></span><span style="display: flex; flex-direction: column; line-height: 1.3"><a href="PinkAdminProducts.dc.html" style="font-weight: 700; color: #2B0D1C">{{r.product}}</a><span style="font-size: 12px; color: #74525F">Bought {{r.bought}} · order {{r.order}}</span></span></span>
+              <span style="display: flex; flex-direction: column; align-items: flex-end"><span style="color: #D61F69; font-weight: 800; letter-spacing: 1px">{{r.stars}}</span><span style="font-size: 12px; color: #74525F">{{r.who}} · {{r.when}}</span></span>
+            </div>
+            <sc-if value="{{r.hasFlag}}" hint-placeholder-val="{{ false }}"><span style="align-self: flex-start; padding: 4px 10px; border-radius: 10px; background: #FFF4D6; color: #7A5200; font-size: 12px; font-weight: 700">Check: {{r.flag}}</span></sc-if>
+            <span style="font-weight: 700">{{r.title}}</span>
+            <p style="margin: 0; color: #4A2536">{{r.body}}</p>
+            <sc-if value="{{r.hasPhotos}}" hint-placeholder-val="{{ false }}"><div style="display: flex; gap: 6px"><sc-for list="{{r.photos}}" as="p" hint-placeholder-count="2"><span style="width: 72px; height: 88px; border-radius: 12px; background: {{p}}"></span></sc-for></div></sc-if>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; padding-top: 6px; border-top: 1px solid #FBE3EC">
+              <sc-if value="{{r.pending}}" hint-placeholder-val="{{ true }}">
+                <button onClick="{{r.approve}}" style="height: 40px; padding: 0 18px; border-radius: 20px; border: 0; background: #D61F69; color: #FFFFFF; font: inherit; font-weight: 700">Approve</button>
+              </sc-if>
+              <button onClick="{{r.pin}}" aria-pressed="{{r.pinned}}" style="height: 40px; padding: 0 14px; border-radius: 20px; border: 1.5px solid {{r.pinBorder}}; background: {{r.pinBg}}; font: inherit; font-weight: 600; color: #2B0D1C">{{r.pinLabel}}</button>
+              <button style="height: 40px; padding: 0 14px; border-radius: 20px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 600">Reply publicly</button>
+              <span style="flex: 1"></span>
+              <button onClick="{{r.hide}}" style="height: 40px; padding: 0 14px; border-radius: 20px; border: 0; background: #F1EEF0; color: #4A2536; font: inherit; font-weight: 600">Hide</button>
+            </div>
+          </article>
+        </sc-for>
+      </section>
+
+      <aside style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 14px">
+        <div style="padding: 18px; border-radius: 24px; background: #2B0D1C; color: #FFFFFF; display: flex; flex-direction: column; gap: 10px">
+          <span style="color: #FFC2DA">Store rating</span>
+          <span style="display: flex; align-items: baseline; gap: 8px"><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 44px; line-height: 1">4.8</span><span style="color: #FFC2DA">from 2,140 reviews</span></span>
+          <sc-for list="{{bars}}" as="b" hint-placeholder-count="5"><div style="display: grid; grid-template-columns: 16px minmax(0, 1fr) 40px; gap: 8px; align-items: center; font-size: 12px"><span>{{b.s}}</span><span style="height: 8px; border-radius: 4px; background: #4A2536"><span style="display: block; height: 8px; border-radius: 4px; width: {{b.pct}}; background: #D61F69"></span></span><span style="text-align: right">{{b.pct}}</span></div></sc-for>
+        </div>
+        <div style="padding: 18px; border-radius: 24px; background: #FFFFFF; border: 1px solid #F3D6E2; display: flex; flex-direction: column; gap: 12px">
+          <span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">Asking for reviews</span>
+          <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Send the request<select style="height: 44px; padding: 0 12px; border-radius: 14px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"><option>7 days after delivery</option><option>3 days after delivery</option><option>14 days after delivery</option></select></label>
+          <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Send by<select style="height: 44px; padding: 0 12px; border-radius: 14px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"><option>WhatsApp, then email if no reply</option><option>Email only</option></select></label>
+          <sc-for list="{{rules}}" as="m" hint-placeholder-count="3">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 44px"><span style="display: flex; flex-direction: column; line-height: 1.3"><span style="font-weight: 600">{{m.label}}</span><span style="font-size: 12px; color: #74525F">{{m.note}}</span></span><button onClick="{{m.toggle}}" role="switch" aria-checked="{{m.on}}" aria-label="{{m.label}}" style="flex: none; width: 44px; height: 26px; border-radius: 13px; border: 0; padding: 3px; background: {{m.swBg}}; display: inline-flex; justify-content: {{m.swJust}}"><span style="width: 20px; height: 20px; border-radius: 10px; background: #FFFFFF"></span></button></div>
+          </sc-for>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1350}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: 0, status: { 0: 'p', 1: 'p', 2: 'p', 3: 'live', 4: 'p' }, pin: { 3: true }, rules: { 0: true, 1: true, 2: false } }; }
+  renderVals() {
+    const st = this.state;
+    const data = [
+      { product: 'Bone Straight HD Frontal', bought: '20" · 180%', order: '#JH-10211', stars: '★★★★★', who: 'A. O., Lekki', when: '2h ago', title: 'Lace disappeared on my skin', body: 'Installed it myself in under an hour. The hairline is pre-plucked well and the 20" was exactly as pictured.', photos: ['#F7C9DA', '#F2B6CB'], flag: '', tone: '#F7C9DA' },
+      { product: 'Pixie Curl Bob 10"', bought: '1B', order: '#JH-10190', stars: '★★★★☆', who: 'T. B., Abuja', when: '5h ago', title: 'Cute and light', body: 'Very soft. Slight shedding on first wash. Call me on 0803 000 0000 if you need a model!', photos: [], flag: 'contains a phone number', tone: '#F2B6CB' },
+      { product: 'Kinky Curly Glueless', bought: '18" · 150%', order: '#JH-10177', stars: '★★☆☆☆', who: 'K. L., Port Harcourt', when: 'Yesterday', title: 'Arrived later than promised', body: 'Hair is lovely but delivery took 6 days instead of 4.', photos: [], flag: 'low rating about delivery, consider replying', tone: '#EFA9C2' },
+      { product: 'Bone Straight HD Frontal', bought: '24" · 13×6', order: '#JH-09982', stars: '★★★★★', who: 'F. A., Abuja', when: 'Oct 9', title: 'My third unit from Jetty', body: 'Consistent quality every time. The 13×6 gives so much parting space.', photos: ['#FBD9E6'], flag: '', tone: '#F7C9DA' },
+      { product: 'Silk Sleep Bonnet', bought: 'Champagne', order: '#JH-10150', stars: '★★★★★', who: 'N. E., Ikeja', when: 'Yesterday', title: 'Fits over a 26" wig', body: 'Roomy and soft, stays on all night.', photos: [], flag: '', tone: '#FFE0EC' }
+    ];
+    const tabs = [['Waiting', 'p'], ['Published', 'live'], ['Hidden', 'hidden'], ['Questions', 'q']];
+    const want = tabs[st.tab][1];
+    const set = (i, v) => { const x = Object.assign({}, st.status); x[i] = v; this.setState({ status: x }); };
+    const cards = data.map((d, i) => ({ d: d, i: i })).filter((x) => st.status[x.i] === want).map((x) => { const d = x.d, i = x.i, pinned = !!st.pin[i]; return {
+      product: d.product, bought: d.bought, order: d.order, stars: d.stars, who: d.who, when: d.when, title: d.title, body: d.body, tone: d.tone,
+      photos: d.photos, hasPhotos: d.photos.length > 0, hasFlag: !!d.flag, flag: d.flag, pending: want === 'p',
+      approve: () => set(i, 'live'), hide: () => set(i, 'hidden'),
+      pinned: pinned, pinLabel: pinned ? 'Pinned to top' : 'Pin to top of product', pinBorder: pinned ? '#D61F69' : '#EAC9D6', pinBg: pinned ? '#FFF0F6' : '#FFFFFF',
+      pin: () => { const x = Object.assign({}, st.pin); x[i] = !x[i]; this.setState({ pin: x }); } }; });
+    const count = (v) => data.filter((d, i) => st.status[i] === v).length;
+    return {
+      nav: [['Overview', 'PinkAdminDashboard.dc.html'], ['Orders', 'PinkAdminOrders.dc.html'], ['Products', 'PinkAdminProducts.dc.html'], ['Customers', 'PinkAdminCustomers.dc.html'], ['Promotions', 'PinkAdminPromotions.dc.html'], ['Storefront', 'PinkAdminStorefront.dc.html'], ['Reviews', 'PinkAdminReviews.dc.html'], ['Team', 'PinkAdminTeam.dc.html'], ['Settings', 'PinkAdminSettings.dc.html']].map((n) => { const on = n[0] === 'Reviews'; return { label: n[0], href: n[1], bg: on ? '#2B0D1C' : 'transparent', fg: on ? '#FFFFFF' : '#4A2536' }; }),
+      tabs: tabs.map((t, i) => { const on = i === st.tab; return { label: t[0], n: count(t[1]), on: on, bg: on ? '#D61F69' : 'transparent', fg: on ? '#FFFFFF' : '#2B0D1C', cBg: on ? '#FFFFFF' : '#FFF0F6', cFg: '#A3134F', pick: () => this.setState({ tab: i }) }; }),
+      cards: cards, empty: cards.length === 0,
+      bars: [{ s: 5, pct: '82%' }, { s: 4, pct: '12%' }, { s: 3, pct: '3%' }, { s: 2, pct: '2%' }, { s: 1, pct: '1%' }],
+      rules: [
+        { label: 'Only verified buyers', note: 'Reviews must match a delivered order' },
+        { label: 'Thank-you coupon', note: '₦2,000 off next order for a photo review' },
+        { label: 'Auto-approve 5★ without flags', note: 'Saves time; you can still hide later' }
+      ].map((r, i) => { const on = !!st.rules[i]; return { label: r.label, note: r.note, on: on, swBg: on ? '#D61F69' : '#EAC9D6', swJust: on ? 'flex-end' : 'flex-start', toggle: () => { const x = Object.assign({}, st.rules); x[i] = !x[i]; this.setState({ rules: x }); } }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

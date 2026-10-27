@@ -1,0 +1,67 @@
+@import "tailwindcss";
+@import "../../design/tokens.css";
+
+/* The design is light-only; the dark-mode override from the scaffold is intentionally gone. */
+:root {
+  color-scheme: light;
+}
+
+html {
+  /* Sticky add-to-bag and checkout bars must never cover the focused element. */
+  scroll-padding-bottom: 110px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+}
+
+/* Visible focus on every interactive element (the canvas does not draw one). */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+h1, h2, h3, h4 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+/* Never rely on 100vh: mobile browser chrome covers part of it. */
+@utility min-h-screen-safe {
+  min-height: 100dvh;
+}
+
+/* The packing slip (admin orders) is the only thing that prints: it is hidden on screen, and everything else is hidden on paper. */
+.packing-slip {
+  display: none;
+}
+@media print {
+  body > *:not(.packing-slip) {
+    display: none !important;
+  }
+  .packing-slip {
+    display: block;
+    color: #000;
+    font: 14px/1.5 system-ui, sans-serif;
+  }
+  .packing-slip table {
+    width: 100%;
+    margin-top: 16px;
+    border-collapse: collapse;
+  }
+  .packing-slip th,
+  .packing-slip td {
+    border-bottom: 1px solid #999;
+    padding: 6px 4px;
+    text-align: left;
+    vertical-align: top;
+  }
+}

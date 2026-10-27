@@ -1,0 +1,24 @@
+{
+  // Shared defaults for the Node-side workspaces (api, packages/*).
+  // frontend/ keeps the tsconfig.json that Next.js generates and validates
+  // on every build: noUnusedLocals here would fail on its generated
+  // route-validator types, which are not ours to change.
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2022",
+    "strict": true,
+    "noEmit": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true
+  }
+}

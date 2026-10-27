@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Jetty's Hair (Pink) — Checkout</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&amp;family=Figtree:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#FBE3EC}
+a{color:#A3134F}a:hover{color:#7E0E3D}
+</style>
+</helmet>
+<div style="position: relative; width: 390px; min-height: 1500px; background: #FFFFFF; color: #2B0D1C; font-family: 'Figtree', system-ui, sans-serif; font-size: 15px; line-height: 1.5; display: flex; flex-direction: column; padding-bottom: 120px; box-sizing: border-box">
+
+  <header style="padding: 12px 16px; display: flex; align-items: center; justify-content: space-between">
+    <a href="PinkCart.dc.html" aria-label="Back to bag" style="width: 44px; height: 44px; border-radius: 22px; background: #FFF0F6; display: flex; align-items: center; justify-content: center; color: #2B0D1C"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 5l-7 7 7 7"></path></svg></a>
+    <span style="display: flex; align-items: center; gap: 6px; font-weight: 700"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0E6B4C" stroke-width="2.2"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>Secure checkout</span>
+    <span style="padding: 6px 12px; border-radius: 16px; background: #2B0D1C; color: #FFFFFF; font-weight: 700; font-size: 14px">₦251,050</span>
+  </header>
+
+  <!-- Step indicator -->
+  <ol aria-label="Steps" style="margin: 0 16px; padding: 6px; list-style: none; border-radius: 26px; background: #FFF0F6; display: flex; gap: 4px">
+    <sc-for list="{{stepper}}" as="s" hint-placeholder-count="3">
+      <li style="flex: 1; height: 40px; border-radius: 20px; background: {{s.bg}}; color: {{s.fg}}; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; font-weight: 700" aria-current="{{s.current}}">
+        <span style="width: 20px; height: 20px; border-radius: 10px; background: {{s.numBg}}; color: {{s.numFg}}; font-size: 11px; display: flex; align-items: center; justify-content: center">{{s.mark}}</span>{{s.label}}
+      </li>
+    </sc-for>
+  </ol>
+
+  <!-- Step 1: Delivery -->
+  <sc-if value="{{s1}}" hint-placeholder-val="{{ true }}">
+    <section style="padding: 20px 16px 0; display: flex; flex-direction: column; gap: 14px">
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+        <button style="height: 50px; border-radius: 25px; border: 0; background: #2B0D1C; color: #FFFFFF; font: inherit; font-weight: 700">Saved card ··4821</button>
+        <button style="height: 50px; border-radius: 25px; border: 2px solid #2B0D1C; background: #FFFFFF; font: inherit; font-weight: 700; color: #2B0D1C">Bank app</button>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; font-size: 12px; color: #74525F"><span style="flex: 1; height: 1px; background: #F3D6E2"></span>or fill in your details<span style="flex: 1; height: 1px; background: #F3D6E2"></span></div>
+      <h2 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 26px">Where should we deliver?</h2>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Full name<input value="Adaeze Okafor" style="height: 52px; padding: 0 16px; border-radius: 16px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400; color: #2B0D1C"></label>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Phone (WhatsApp updates)<input type="tel" value="+234 803 000 0000" style="height: 52px; padding: 0 16px; border-radius: 16px; border: 1.5px solid #EAC9D6; font: inherit; font-weight: 400; color: #2B0D1C"></label>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Email for receipt<input type="email" value="adaeze@example.com" style="height: 52px; padding: 0 16px; border-radius: 16px; border: 1.5px solid #EAC9D6; font: inherit; font-weight: 400; color: #2B0D1C"></label>
+      <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Address<input value="14 Admiralty Way, Lekki Phase 1" style="height: 52px; padding: 0 16px; border-radius: 16px; border: 1.5px solid #EAC9D6; font: inherit; font-weight: 400; color: #2B0D1C"></label>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+        <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">State<select style="height: 52px; padding: 0 12px; border-radius: 16px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400; color: #2B0D1C"><option>Lagos</option><option>Abuja (FCT)</option><option>Rivers</option></select></label>
+        <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Landmark<input placeholder="Optional" style="height: 52px; padding: 0 16px; border-radius: 16px; border: 1.5px solid #EAC9D6; font: inherit; font-weight: 400; color: #2B0D1C"></label>
+      </div>
+      <span style="font-weight: 700; padding-top: 6px">Delivery speed</span>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <sc-for list="{{methods}}" as="m" hint-placeholder-count="3">
+          <button onClick="{{m.pick}}" role="radio" aria-checked="{{m.on}}" style="min-height: 64px; padding: 10px 14px; border-radius: 18px; border: 2px solid {{m.border}}; background: {{m.bg}}; font: inherit; text-align: left; display: flex; align-items: center; gap: 12px; color: #2B0D1C">
+            <span style="width: 40px; height: 40px; border-radius: 14px; background: #FFFFFF; display: flex; align-items: center; justify-content: center; flex: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D61F69" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{m.icon}}"></path></svg></span>
+            <span style="flex: 1; display: flex; flex-direction: column; line-height: 1.3"><span style="font-weight: 700">{{m.title}}</span><span style="font-size: 12px; color: #74525F">{{m.note}}</span></span>
+            <span style="font-weight: 700">{{m.price}}</span>
+          </button>
+        </sc-for>
+      </div>
+    </section>
+  </sc-if>
+
+  <!-- Step 2: Payment -->
+  <sc-if value="{{s2}}" hint-placeholder-val="{{ false }}">
+    <section style="padding: 20px 16px 0; display: flex; flex-direction: column; gap: 14px">
+      <h2 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 26px">How would you like to pay?</h2>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+        <sc-for list="{{pays}}" as="p" hint-placeholder-count="4">
+          <button onClick="{{p.pick}}" role="radio" aria-checked="{{p.on}}" style="min-height: 96px; padding: 12px; border-radius: 20px; border: 2px solid {{p.border}}; background: {{p.bg}}; font: inherit; text-align: left; display: flex; flex-direction: column; justify-content: space-between; color: #2B0D1C">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D61F69" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{p.icon}}"></path></svg>
+            <span style="display: flex; flex-direction: column; line-height: 1.25"><span style="font-weight: 700">{{p.title}}</span><span style="font-size: 12px; color: #74525F">{{p.meta}}</span></span>
+          </button>
+        </sc-for>
+      </div>
+      <sc-if value="{{isCard}}" hint-placeholder-val="{{ true }}">
+        <div style="padding: 16px; border-radius: 22px; background: #FFF0F6; display: flex; flex-direction: column; gap: 10px">
+          <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Card number<input inputmode="numeric" placeholder="0000 0000 0000 0000" style="height: 52px; padding: 0 16px; border-radius: 16px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"></label>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Expiry<input placeholder="MM / YY" style="height: 52px; padding: 0 16px; border-radius: 16px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"></label>
+            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">CVV<input placeholder="123" style="height: 52px; padding: 0 16px; border-radius: 16px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"></label>
+          </div>
+          <label style="display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 14px"><input type="checkbox" style="width: 20px; height: 20px; accent-color: #D61F69">Save this card</label>
+        </div>
+      </sc-if>
+      <sc-if value="{{notCard}}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 16px; border-radius: 22px; background: #FFF0F6; font-size: 14px">{{payInfo}}</div>
+      </sc-if>
+      <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #4A2536"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0E6B4C" stroke-width="2" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6l7-3z"></path></svg>Encrypted, PCI-DSS compliant. We never store full card numbers.</div>
+    </section>
+  </sc-if>
+
+  <!-- Step 3: Review -->
+  <sc-if value="{{s3}}" hint-placeholder-val="{{ false }}">
+    <section style="padding: 20px 16px 0; display: flex; flex-direction: column; gap: 12px">
+      <h2 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 26px">Quick check</h2>
+      <div style="padding: 14px; border-radius: 20px; background: #FFF0F6; display: flex; flex-direction: column; gap: 10px">
+        <sc-for list="{{lines}}" as="l" hint-placeholder-count="4">
+          <div style="display: flex; gap: 10px; align-items: center; font-size: 14px"><span style="width: 44px; height: 52px; border-radius: 12px; background: {{l.tone}}; flex: none"></span><span style="flex: 1; display: flex; flex-direction: column; line-height: 1.3"><span style="font-weight: 600">{{l.name}}</span><span style="font-size: 12px; color: #74525F">{{l.v}}</span></span><span style="font-weight: 700">{{l.p}}</span></div>
+        </sc-for>
+      </div>
+      <sc-for list="{{review}}" as="r" hint-placeholder-count="2">
+        <div style="padding: 14px; border-radius: 20px; border: 1.5px solid #F3D6E2; display: flex; justify-content: space-between; gap: 10px; font-size: 14px">
+          <span style="display: flex; flex-direction: column; line-height: 1.35"><span style="font-size: 12px; font-weight: 700; color: #A3134F">{{r.label}}</span><span>{{r.value}}</span></span>
+          <button onClick="{{r.edit}}" style="align-self: center; height: 36px; padding: 0 12px; border-radius: 18px; border: 0; background: #FFF0F6; font: inherit; font-size: 13px; font-weight: 700; color: #A3134F">Edit</button>
+        </div>
+      </sc-for>
+      <div style="padding: 14px; border-radius: 20px; background: #FFFFFF; border: 1.5px solid #F3D6E2; display: flex; flex-direction: column; gap: 6px; font-size: 14px">
+        <div style="display: flex; justify-content: space-between"><span>Items</span><span>₦365,500</span></div>
+        <div style="display: flex; justify-content: space-between; color: #0E6B4C; font-weight: 600"><span>Buy 1 Get 1</span><span>−₦72,000</span></div>
+        <div style="display: flex; justify-content: space-between; color: #0E6B4C; font-weight: 600"><span>FLASH15</span><span>−₦30,450</span></div>
+        <div style="display: flex; justify-content: space-between; color: #0E6B4C; font-weight: 600"><span>Free gift</span><span>−₦12,000</span></div>
+        <div style="display: flex; justify-content: space-between"><span>Delivery</span><span>{{deliveryPrice}}</span></div>
+        <div style="display: flex; justify-content: space-between; padding-top: 8px; border-top: 1px solid #F3D6E2; font-weight: 800; font-size: 18px; font-family: 'Bricolage Grotesque', system-ui, sans-serif"><span>Total</span><span>{{total}}</span></div>
+      </div>
+      <p style="margin: 0; font-size: 12px; color: #74525F">By placing your order you agree to our <a href="#">Terms</a> and <a href="#">7-day returns policy</a>.</p>
+    </section>
+  </sc-if>
+
+  <!-- Bottom action bar -->
+  <div style="position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 16px 18px; background: #FFFFFF; border-top: 1px solid #F3D6E2; display: flex; gap: 10px">
+    <sc-if value="{{canBack}}" hint-placeholder-val="{{ false }}">
+      <button onClick="{{back}}" style="height: 56px; padding: 0 22px; border-radius: 28px; border: 2px solid #2B0D1C; background: #FFFFFF; font: inherit; font-weight: 700; color: #2B0D1C">Back</button>
+    </sc-if>
+    <sc-if value="{{notLast}}" hint-placeholder-val="{{ true }}">
+      <button onClick="{{next}}" style="flex: 1; height: 56px; border-radius: 28px; border: 0; background: #D61F69; color: #FFFFFF; font: inherit; font-weight: 700; font-size: 16px">{{nextLabel}}</button>
+    </sc-if>
+    <sc-if value="{{isLast}}" hint-placeholder-val="{{ false }}">
+      <a href="PinkConfirmation.dc.html" style="flex: 1; height: 56px; border-radius: 28px; background: #D61F69; color: #FFFFFF; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; font-weight: 700; font-size: 16px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>{{placeLabel}}</a>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { step: 0, method: 0, pay: 0 }; }
+  renderVals() {
+    const st = this.state;
+    const fmt = (n) => '₦' + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const labels = ['Delivery', 'Payment', 'Review'];
+    const methods = [
+      { title: 'Today, 4–8pm', note: 'Same-day Lagos · order by 2pm', cost: 0, icon: 'M13 2L4 14h7l-1 8 9-12h-7l1-8z' },
+      { title: 'Tomorrow', note: 'Next day Lagos, 9am–6pm', cost: 0, icon: 'M3 7h11v9H3z M14 10h4l3 3v3h-7' },
+      { title: 'Pick up in Lekki', note: 'Ready in 2 hours', cost: 0, icon: 'M4 10l8-6 8 6v10H4z M10 20v-6h4v6' }
+    ];
+    const pays = [
+      { title: 'Card', meta: 'Visa · Mastercard · Verve', icon: 'M3 6h18v12H3z M3 10h18', info: '' },
+      { title: 'Bank transfer', meta: 'Instant confirmation', icon: 'M3 10l9-6 9 6 M5 10v8 M10 10v8 M14 10v8 M19 10v8 M3 20h18', info: 'You will get a one-time account number. Your order confirms the moment the money lands.' },
+      { title: 'USSD', meta: 'Any Nigerian bank', icon: 'M7 3h10v18H7z M11 18h2', info: 'We will show a short code to dial from the phone linked to your bank.' },
+      { title: 'Pay on delivery', meta: 'Lagos only', icon: 'M3 7h11v9H3z M14 10h4l3 3v3h-7', info: 'Pay the rider by card or transfer when your wig arrives.' }
+    ];
+    const total = 251050 + methods[st.method].cost;
+    const places = ['Pay ' + fmt(total), 'Get transfer details', 'Get USSD code', 'Place order'];
+    return {
+      stepper: labels.map((l, i) => { const done = i < st.step, cur = i === st.step; return { label: l, current: cur ? 'step' : 'false', bg: cur ? '#D61F69' : 'transparent', fg: cur ? '#FFFFFF' : (done ? '#2B0D1C' : '#74525F'), numBg: cur ? '#FFFFFF' : (done ? '#2B0D1C' : '#EAC9D6'), numFg: cur ? '#D61F69' : '#FFFFFF', mark: done ? '✓' : String(i + 1) }; }),
+      s1: st.step === 0, s2: st.step === 1, s3: st.step === 2,
+      methods: methods.map((m, i) => ({ title: m.title, note: m.note, icon: m.icon, price: m.cost ? fmt(m.cost) : 'Free', on: i === st.method, border: i === st.method ? '#D61F69' : '#F3D6E2', bg: i === st.method ? '#FFF0F6' : '#FFFFFF', pick: () => this.setState({ method: i }) })),
+      pays: pays.map((p, i) => ({ title: p.title, meta: p.meta, icon: p.icon, on: i === st.pay, border: i === st.pay ? '#D61F69' : '#F3D6E2', bg: i === st.pay ? '#FFF0F6' : '#FFFFFF', pick: () => this.setState({ pay: i }) })),
+      isCard: st.pay === 0, notCard: st.pay !== 0, payInfo: pays[st.pay].info,
+      lines: [
+        { name: 'Bone Straight HD Frontal', v: '1B · 20" · 13×4 · 180%', p: '₦172,550', tone: '#F7C9DA' },
+        { name: 'Silk Sleep Bonnet', v: 'Free gift', p: '₦0', tone: '#FFE0EC' },
+        { name: 'Pixie Curl Bob', v: '1B · 10"', p: '₦78,500', tone: '#F2B6CB' },
+        { name: 'Blunt Cut Straight Bob', v: 'Buy 1 Get 1', p: '₦0', tone: '#FBD9E6' }
+      ],
+      review: [
+        { label: 'DELIVERY', value: methods[st.method].title + ' · 14 Admiralty Way, Lekki', edit: () => this.setState({ step: 0 }) },
+        { label: 'PAYMENT', value: pays[st.pay].title, edit: () => this.setState({ step: 1 }) }
+      ],
+      deliveryPrice: methods[st.method].cost ? fmt(methods[st.method].cost) : 'Free',
+      total: fmt(total),
+      canBack: st.step > 0, back: () => this.setState({ step: st.step - 1 }),
+      notLast: st.step < 2, isLast: st.step === 2,
+      nextLabel: st.step === 0 ? 'Continue to payment' : 'Review order',
+      next: () => this.setState({ step: st.step + 1 }),
+      placeLabel: places[st.pay]
+    };
+  }
+}
+</script>
+</body>
+</html>

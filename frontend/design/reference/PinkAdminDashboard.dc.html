@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Jetty's Hair Admin (Pink) — Overview</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&amp;family=Figtree:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#FFF7FA}
+a{color:#A3134F}a:hover{color:#7E0E3D}
+</style>
+</helmet>
+<div style="min-height: 1350px; background: #FFF7FA; color: #2B0D1C; font-family: 'Figtree', system-ui, sans-serif; font-size: 14px; line-height: 1.45; display: flex; flex-direction: column">
+
+  <!-- Top nav -->
+  <header style="background: #FFFFFF; border-bottom: 1px solid #F3D6E2; padding: 12px clamp(16px, 3vw, 36px); display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px">
+    <span style="display: flex; align-items: center; gap: 8px"><span style="width: 34px; height: 34px; border-radius: 11px; background: #D61F69; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">J</span><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">jetty admin</span></span>
+    <nav aria-label="Admin" style="flex: 1 1 520px; display: flex; flex-wrap: wrap; gap: 4px">
+      <sc-for list="{{nav}}" as="n" hint-placeholder-count="7">
+        <a href="{{n.href}}" style="height: 38px; padding: 0 14px; border-radius: 19px; display: flex; align-items: center; gap: 6px; text-decoration: none; font-weight: 600; background: {{n.bg}}; color: {{n.fg}}">{{n.label}}<sc-if value="{{n.hasCount}}" hint-placeholder-val="{{ false }}"><span style="padding: 0 6px; border-radius: 9px; background: #D61F69; color: #FFFFFF; font-size: 11px; font-weight: 700">{{n.count}}</span></sc-if></a>
+      </sc-for>
+    </nav>
+    <label style="flex: 0 1 240px; height: 40px; padding: 0 14px; border-radius: 20px; background: #FFF0F6; display: flex; align-items: center; gap: 8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A3134F" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search admin</span><input placeholder="Orders, products, people" style="flex: 1; min-width: 0; border: 0; background: transparent; font: inherit; outline: none"></label>
+    <span aria-label="Signed in as Jetty" style="width: 40px; height: 40px; border-radius: 20px; background: #F2B6CB; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #7E0E3D">JT</span>
+  </header>
+
+  <main style="padding: 24px clamp(16px, 3vw, 36px) 40px; display: flex; flex-direction: column; gap: 16px; max-width: 1440px; width: 100%; box-sizing: border-box; margin: 0 auto">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px">
+      <div style="display: flex; flex-direction: column"><span style="color: #74525F">Monday, 13 October · sample data</span><h1 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 36px; letter-spacing: -1px">Hey Jetty, sales are up 18%</h1></div>
+      <div role="group" aria-label="Range" style="display: flex; padding: 4px; border-radius: 22px; background: #FFFFFF; border: 1px solid #F3D6E2">
+        <sc-for list="{{ranges}}" as="r" hint-placeholder-count="4"><button onClick="{{r.pick}}" aria-pressed="{{r.on}}" style="height: 34px; padding: 0 14px; border-radius: 17px; border: 0; font: inherit; font-weight: 600; background: {{r.bg}}; color: {{r.fg}}">{{r.label}}</button></sc-for>
+      </div>
+    </div>
+
+    <!-- Bento row 1 -->
+    <section style="display: flex; flex-wrap: wrap; gap: 14px">
+      <div style="flex: 2 1 560px; min-width: 0; padding: 20px; border-radius: 28px; background: #D61F69; color: #FFFFFF; display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px"><span style="display: flex; flex-direction: column"><span style="color: #FFE0EC">Revenue</span><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 44px; line-height: 1">₦48.6M</span></span><span style="align-self: flex-start; padding: 4px 10px; border-radius: 12px; background: #FFFFFF; color: #A3134F; font-weight: 700">▲ 18.4% vs last 30 days</span></div>
+        <svg viewBox="0 0 600 180" preserveAspectRatio="none" style="width: 100%; height: 180px; display: block" role="img" aria-label="Revenue trending up over 30 days with a spike during the BOGO bob promotion">
+          <path d="M0 60H600M0 120H600" stroke="#E8558F" stroke-width="1" vector-effect="non-scaling-stroke"></path>
+          <polyline points="{{prevPts}}" fill="none" stroke="#F7A8C8" stroke-width="2" stroke-dasharray="5 4" vector-effect="non-scaling-stroke"></polyline>
+          <polyline points="{{curPts}}" fill="none" stroke="#FFFFFF" stroke-width="3" vector-effect="non-scaling-stroke"></polyline>
+        </svg>
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #FFE0EC"><span>Sep 13</span><span>Sep 20</span><span>Sep 27 · BOGO bobs</span><span>Oct 4</span><span>Oct 12</span></div>
+      </div>
+      <div style="flex: 1 1 280px; min-width: 0; display: grid; grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 14px">
+        <sc-for list="{{kpis}}" as="k" hint-placeholder-count="3">
+          <div style="padding: 16px 18px; border-radius: 22px; background: #FFFFFF; border: 1px solid #F3D6E2; display: flex; justify-content: space-between; align-items: center">
+            <span style="display: flex; flex-direction: column"><span style="color: #74525F">{{k.label}}</span><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 26px">{{k.value}}</span></span>
+            <span style="padding: 4px 10px; border-radius: 12px; font-weight: 700; font-size: 13px; background: {{k.bg}}; color: {{k.fg}}">{{k.delta}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- Bento row 2 -->
+    <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 14px">
+      <!-- Order pipeline -->
+      <div style="padding: 18px; border-radius: 24px; background: #FFFFFF; border: 1px solid #F3D6E2; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; justify-content: space-between"><h2 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">Orders to action</h2><a href="PinkAdminOrders.dc.html" style="font-weight: 700">Open</a></div>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+          <sc-for list="{{pipeline}}" as="p" hint-placeholder-count="4">
+            <a href="PinkAdminOrders.dc.html" style="padding: 14px; border-radius: 18px; background: {{p.bg}}; color: {{p.fg}}; text-decoration: none; display: flex; flex-direction: column"><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 30px; line-height: 1">{{p.n}}</span><span style="font-weight: 600">{{p.label}}</span></a>
+          </sc-for>
+        </div>
+      </div>
+      <!-- Live campaigns -->
+      <div style="padding: 18px; border-radius: 24px; background: #FFFFFF; border: 1px solid #F3D6E2; display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; justify-content: space-between"><h2 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">Live campaigns</h2><a href="PinkAdminPromotions.dc.html" style="font-weight: 700">Manage</a></div>
+        <sc-for list="{{campaigns}}" as="c" hint-placeholder-count="4">
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #FBE3EC">
+            <span style="width: 38px; height: 38px; border-radius: 12px; background: {{c.bg}}; color: {{c.fg}}; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 11px; flex: none">{{c.tag}}</span>
+            <span style="flex: 1; display: flex; flex-direction: column; line-height: 1.3"><span style="font-weight: 700">{{c.name}}</span><span style="font-size: 12px; color: #74525F">{{c.meta}}</span></span>
+            <span style="display: flex; flex-direction: column; align-items: flex-end; line-height: 1.3"><span style="font-weight: 800">{{c.rev}}</span><span style="font-size: 12px; color: #74525F">{{c.uses}}</span></span>
+          </div>
+        </sc-for>
+      </div>
+      <!-- Funnel -->
+      <div style="padding: 18px; border-radius: 24px; background: #FFFFFF; border: 1px solid #F3D6E2; display: flex; flex-direction: column; gap: 10px">
+        <h2 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">Where shoppers drop off</h2>
+        <sc-for list="{{funnel}}" as="f" hint-placeholder-count="5">
+          <div style="display: grid; grid-template-columns: 112px minmax(0, 1fr) 54px; gap: 8px; align-items: center; font-size: 13px"><span>{{f.label}}</span><span style="height: 14px; border-radius: 7px; background: #FBE3EC"><span style="display: block; height: 14px; border-radius: 7px; width: {{f.pct}}; background: #D61F69"></span></span><span style="text-align: right; font-weight: 700">{{f.n}}</span></div>
+        </sc-for>
+        <div style="margin-top: 4px; padding: 10px 12px; border-radius: 14px; background: #FFF0F6; font-size: 13px">Biggest drop is <strong>bag → checkout</strong> on wigs over ₦200k. Try installments or a WhatsApp nudge.</div>
+      </div>
+    </section>
+
+    <!-- Bento row 3 -->
+    <section style="display: flex; flex-wrap: wrap; gap: 14px">
+      <div style="flex: 2 1 560px; min-width: 0; padding: 18px; border-radius: 24px; background: #FFFFFF; border: 1px solid #F3D6E2; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; justify-content: space-between"><h2 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">Best sellers</h2><a href="PinkAdminProducts.dc.html" style="font-weight: 700">All products</a></div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 10px">
+          <sc-for list="{{top}}" as="t" hint-placeholder-count="5">
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <span style="position: relative; aspect-ratio: 1; border-radius: 18px; background: {{t.tone}}"><span style="position: absolute; top: 8px; left: 8px; width: 26px; height: 26px; border-radius: 13px; background: #2B0D1C; color: #FFFFFF; font-weight: 800; font-size: 12px; display: flex; align-items: center; justify-content: center">{{t.rank}}</span><sc-if value="{{t.low}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; bottom: 8px; left: 8px; padding: 2px 8px; border-radius: 8px; background: #FFFFFF; color: #B3261E; font-size: 11px; font-weight: 700">Low stock: {{t.stock}}</span></sc-if></span>
+              <span style="font-weight: 700; line-height: 1.3">{{t.name}}</span>
+              <span style="font-size: 13px; color: #74525F">{{t.units}} sold · {{t.rev}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="flex: 1 1 280px; min-width: 0; padding: 18px; border-radius: 24px; background: #2B0D1C; color: #FFFFFF; display: flex; flex-direction: column; gap: 14px">
+        <h2 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 18px">Customers</h2>
+        <div style="display: flex; gap: 14px"><span style="display: flex; flex-direction: column"><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 30px">142</span><span style="color: #FFC2DA; font-size: 13px">new</span></span><span style="display: flex; flex-direction: column"><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 30px">89</span><span style="color: #FFC2DA; font-size: 13px">returning</span></span></div>
+        <span style="display: flex; height: 14px; border-radius: 7px; overflow: hidden"><span style="width: 61%; background: #D61F69"></span><span style="width: 39%; background: #F7A8C8"></span></span>
+        <div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px">
+          <span style="font-weight: 700">Top states</span>
+          <span style="display: flex; justify-content: space-between"><span>Lagos</span><span>68%</span></span>
+          <span style="display: flex; justify-content: space-between"><span>Abuja (FCT)</span><span>17%</span></span>
+          <span style="display: flex; justify-content: space-between"><span>Rivers</span><span>7%</span></span>
+        </div>
+        <span style="padding: 10px 12px; border-radius: 14px; background: #4A2536; font-size: 13px">6 reviews waiting for approval, 2 with photos. <a href="PinkAdminReviews.dc.html" style="color: #FFC2DA; font-weight: 700">Moderate</a></span>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1350}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { range: 1 }; }
+  renderVals() {
+    const cur = [42, 38, 51, 47, 55, 61, 58, 49, 53, 60, 66, 63, 70, 68, 64, 72, 75, 71, 78, 74, 96, 118, 124, 109, 88, 84, 90, 86, 93, 98];
+    const prev = [36, 40, 38, 44, 41, 47, 45, 43, 49, 46, 52, 50, 48, 55, 53, 51, 57, 54, 58, 56, 60, 58, 62, 59, 61, 63, 60, 64, 62, 66];
+    const max = 130, W = 600, H = 180;
+    const pts = (a) => a.map((v, i) => (i * W / (a.length - 1)).toFixed(1) + ',' + (H - v / max * H).toFixed(1)).join(' ');
+    const navDefs = [['Overview', 'PinkAdminDashboard.dc.html'], ['Orders', 'PinkAdminOrders.dc.html', 14], ['Products', 'PinkAdminProducts.dc.html'], ['Customers', 'PinkAdminCustomers.dc.html'], ['Promotions', 'PinkAdminPromotions.dc.html'], ['Storefront', 'PinkAdminStorefront.dc.html'], ['Reviews', 'PinkAdminReviews.dc.html', 6], ['Team', 'PinkAdminTeam.dc.html'], ['Settings', 'PinkAdminSettings.dc.html']];
+    return {
+      nav: navDefs.map((n) => { const on = n[0] === 'Overview'; return { label: n[0], href: n[1], hasCount: !!n[2], count: n[2], bg: on ? '#2B0D1C' : 'transparent', fg: on ? '#FFFFFF' : '#4A2536' }; }),
+      ranges: ['7d', '30d', 'Quarter', 'Custom'].map((l, i) => ({ label: l, on: i === this.state.range, bg: i === this.state.range ? '#D61F69' : 'transparent', fg: i === this.state.range ? '#FFFFFF' : '#2B0D1C', pick: () => this.setState({ range: i }) })),
+      curPts: pts(cur), prevPts: pts(prev),
+      kpis: [
+        { label: 'Orders', value: '231', delta: '▲ 12%', bg: '#E3F4EC', fg: '#0E6B4C' },
+        { label: 'Avg. order value', value: '₦210,400', delta: '▲ 5.6%', bg: '#E3F4EC', fg: '#0E6B4C' },
+        { label: 'Conversion', value: '2.4%', delta: '▼ 0.3 pts', bg: '#FCE4E2', fg: '#B3261E' }
+      ],
+      pipeline: [
+        { n: 8, label: 'To pack', bg: '#D61F69', fg: '#FFFFFF' },
+        { n: 5, label: 'Out for delivery', bg: '#FFF0F6', fg: '#2B0D1C' },
+        { n: 3, label: 'Awaiting transfer', bg: '#FFF0F6', fg: '#2B0D1C' },
+        { n: 1, label: 'Return request', bg: '#2B0D1C', fg: '#FFFFFF' }
+      ],
+      campaigns: [
+        { tag: '1+1', name: 'BOGO · Bob wigs', meta: 'Auto · ends Oct 19', rev: '₦5.8M', uses: '74 orders', bg: '#D61F69', fg: '#FFFFFF' },
+        { tag: '15%', name: 'FLASH15 · Frontals', meta: 'Code · ends tonight', rev: '₦3.4M', uses: '22 uses', bg: '#2B0D1C', fg: '#FFFFFF' },
+        { tag: 'GIFT', name: 'Free bonnet with frontal', meta: 'Auto · ends Oct 31', rev: '₦14.2M', uses: '91 orders', bg: '#FFF0F6', fg: '#A3134F' },
+        { tag: '10%', name: 'JETTY10 · First order', meta: 'Code · always on', rev: '₦9.1M', uses: '58 uses', bg: '#FFF0F6', fg: '#A3134F' }
+      ],
+      funnel: [
+        { label: 'Sessions', n: '9,640', pct: '100%' }, { label: 'Viewed product', n: '5,210', pct: '54%' }, { label: 'Added to bag', n: '1,180', pct: '12.2%' }, { label: 'Checkout', n: '448', pct: '4.6%' }, { label: 'Purchased', n: '231', pct: '2.4%' }
+      ],
+      top: [
+        { rank: 1, name: 'Bone Straight HD Frontal', units: 64, rev: '₦12.4M', tone: '#F7C9DA', low: false, stock: 38 },
+        { rank: 2, name: 'Body Wave HD Frontal', units: 51, rev: '₦8.9M', tone: '#F2B6CB', low: false, stock: 22 },
+        { rank: 3, name: 'Pixie Curl Bob', units: 47, rev: '₦3.7M', tone: '#FBD9E6', low: false, stock: 41 },
+        { rank: 4, name: 'Kinky Curly Glueless', units: 39, rev: '₦6.2M', tone: '#EFA9C2', low: true, stock: 6 },
+        { rank: 5, name: 'Silk Sleep Bonnet', units: 188, rev: '₦1.2M', tone: '#FFE0EC', low: false, stock: 120 }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

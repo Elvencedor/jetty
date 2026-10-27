@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Jetty's Hair (Pink) — Bag</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&amp;family=Figtree:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#FBE3EC}
+a{color:#A3134F}a:hover{color:#7E0E3D}
+</style>
+</helmet>
+<div style="position: relative; width: 390px; min-height: 1900px; background: #FFF0F6; color: #2B0D1C; font-family: 'Figtree', system-ui, sans-serif; font-size: 15px; line-height: 1.5; display: flex; flex-direction: column; gap: 12px; padding-bottom: 120px; box-sizing: border-box">
+
+  <header style="padding: 12px 16px 0; display: flex; align-items: center; justify-content: space-between">
+    <a href="PinkProduct.dc.html" aria-label="Back" style="width: 44px; height: 44px; border-radius: 22px; background: #FFFFFF; display: flex; align-items: center; justify-content: center; color: #2B0D1C"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 5l-7 7 7 7"></path></svg></a>
+    <h1 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 26px">My bag <span style="color: #D61F69">{{count}}</span></h1>
+    <a href="#" aria-label="Saved items" style="width: 44px; height: 44px; border-radius: 22px; background: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D61F69" stroke-width="2"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg></a>
+  </header>
+
+  <!-- Deal tracker -->
+  <section aria-label="Your deals" style="margin: 0 16px; padding: 14px; border-radius: 22px; background: #2B0D1C; color: #FFFFFF; display: flex; flex-direction: column; gap: 10px">
+    <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.8px; color: #FFC2DA">YOUR DEALS</span>
+    <sc-for list="{{deals}}" as="d" hint-placeholder-count="3">
+      <div style="display: flex; gap: 10px; align-items: center">
+        <span style="width: 28px; height: 28px; border-radius: 14px; background: {{d.dotBg}}; display: flex; align-items: center; justify-content: center; flex: none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"><path d="{{d.icon}}"></path></svg>
+        </span>
+        <span style="flex: 1; display: flex; flex-direction: column; gap: 4px">
+          <span style="font-size: 14px; font-weight: 600">{{d.text}}</span>
+          <span style="height: 5px; border-radius: 3px; background: #4A2536"><span style="display: block; height: 5px; border-radius: 3px; width: {{d.pct}}; background: {{d.bar}}"></span></span>
+        </span>
+      </div>
+    </sc-for>
+  </section>
+
+  <!-- Items -->
+  <section aria-label="Items" style="margin: 0 16px; display: flex; flex-direction: column; gap: 8px">
+    <sc-for list="{{lines}}" as="l" hint-placeholder-count="4">
+      <div style="padding: 10px; border-radius: 22px; background: #FFFFFF; display: flex; gap: 12px">
+        <a href="PinkProduct.dc.html" aria-label="{{l.name}}" style="flex: none; width: 84px; height: 100px; border-radius: 16px; background: {{l.tone}}"></a>
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px">
+          <div style="display: flex; gap: 6px; justify-content: space-between"><span style="font-size: 14px; font-weight: 700; line-height: 1.3">{{l.name}}</span>
+            <sc-if value="{{l.removable}}" hint-placeholder-val="{{ true }}"><button onClick="{{l.remove}}" aria-label="Remove {{l.name}}" style="flex: none; width: 36px; height: 36px; margin: -6px -6px 0 0; border-radius: 18px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; color: #74525F"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"></path></svg></button></sc-if>
+          </div>
+          <span style="font-size: 12px; color: #74525F">{{l.variant}}</span>
+          <sc-if value="{{l.hasTag}}" hint-placeholder-val="{{ true }}"><span style="align-self: flex-start; padding: 1px 8px; border-radius: 8px; font-size: 11px; font-weight: 700; background: {{l.tagBg}}; color: {{l.tagFg}}">{{l.tag}}</span></sc-if>
+          <div style="margin-top: auto; display: flex; align-items: center; justify-content: space-between">
+            <sc-if value="{{l.removable}}" hint-placeholder-val="{{ true }}">
+              <div role="group" aria-label="Quantity" style="display: flex; align-items: center; border-radius: 20px; background: #FFF0F6">
+                <button onClick="{{l.dec}}" aria-label="Decrease" style="width: 40px; height: 40px; border: 0; background: transparent; font-size: 18px; color: #2B0D1C">−</button>
+                <span style="width: 16px; text-align: center; font-weight: 700; font-size: 14px">{{l.qty}}</span>
+                <button onClick="{{l.inc}}" aria-label="Increase" style="width: 40px; height: 40px; border: 0; background: transparent; font-size: 18px; color: #2B0D1C">+</button>
+              </div>
+            </sc-if>
+            <span style="display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2"><span style="font-size: 12px; color: #74525F; text-decoration: line-through">{{l.was}}</span><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 17px">{{l.total}}</span></span>
+          </div>
+        </div>
+      </div>
+    </sc-for>
+  </section>
+
+  <!-- Offers as tickets -->
+  <section style="margin: 4px 16px 0; display: flex; flex-direction: column; gap: 10px">
+    <h2 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 20px">Offers for you</h2>
+    <sc-for list="{{tickets}}" as="t" hint-placeholder-count="2">
+      <div style="display: flex; border-radius: 18px; background: #FFFFFF; border: 1.5px solid {{t.border}}; overflow: hidden">
+        <div style="width: 84px; background: {{t.side}}; color: {{t.sideFg}}; display: flex; flex-direction: column; align-items: center; justify-content: center; border-right: 2px dashed #F2A1C2; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 22px; line-height: 1">{{t.big}}<span style="font-family: 'Figtree', system-ui, sans-serif; font-size: 11px; font-weight: 600">{{t.small}}</span></div>
+        <div style="flex: 1; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px">
+          <span style="font-weight: 700; font-size: 14px; letter-spacing: 0.5px">{{t.code}}</span>
+          <span style="font-size: 12px; color: #74525F; line-height: 1.35">{{t.desc}}</span>
+        </div>
+        <button onClick="{{t.apply}}" style="align-self: center; margin-right: 10px; height: 40px; padding: 0 14px; border-radius: 20px; border: 0; background: {{t.btnBg}}; color: {{t.btnFg}}; font: inherit; font-size: 13px; font-weight: 700">{{t.btn}}</button>
+      </div>
+    </sc-for>
+    <div style="display: flex; gap: 8px">
+      <label style="flex: 1; display: flex"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Gift or promo code</span><input placeholder="Have another code?" style="flex: 1; min-width: 0; height: 48px; padding: 0 16px; border-radius: 24px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; color: #2B0D1C"></label>
+      <button style="height: 48px; padding: 0 18px; border-radius: 24px; border: 0; background: #2B0D1C; color: #FFFFFF; font: inherit; font-weight: 700">Apply</button>
+    </div>
+  </section>
+
+  <!-- Summary -->
+  <section aria-label="Summary" style="margin: 4px 16px 0; padding: 16px; border-radius: 22px; background: #FFFFFF; display: flex; flex-direction: column; gap: 8px; font-size: 14px">
+    <div style="display: flex; justify-content: space-between"><span>Items</span><span>{{subtotal}}</span></div>
+    <sc-if value="{{hasBogo}}" hint-placeholder-val="{{ true }}"><div style="display: flex; justify-content: space-between; color: #0E6B4C; font-weight: 600"><span>Buy 1 Get 1</span><span>−{{bogo}}</span></div></sc-if>
+    <sc-if value="{{hasCoupon}}" hint-placeholder-val="{{ true }}"><div style="display: flex; justify-content: space-between; color: #0E6B4C; font-weight: 600"><span>{{couponLabel}}</span><span>−{{couponAmt}}</span></div></sc-if>
+    <div style="display: flex; justify-content: space-between; color: #0E6B4C; font-weight: 600"><span>Free gift</span><span>−₦12,000</span></div>
+    <div style="display: flex; justify-content: space-between"><span>Delivery</span><span>{{delivery}}</span></div>
+    <div style="margin-top: 4px; padding: 10px 12px; border-radius: 14px; background: #E3F4EC; color: #0E6B4C; font-weight: 700; text-align: center">You're saving {{savings}}</div>
+  </section>
+  <div style="margin: 0 16px; display: flex; justify-content: center; gap: 14px; font-size: 12px; color: #74525F"><span>Secure checkout</span><span>·</span><span>7-day returns</span><span>·</span><a href="#">Help on WhatsApp</a></div>
+
+  <!-- Sticky checkout bar -->
+  <div style="position: absolute; left: 12px; right: 12px; bottom: 12px; padding: 10px 10px 10px 20px; border-radius: 34px; background: #2B0D1C; color: #FFFFFF; display: flex; align-items: center; justify-content: space-between; gap: 10px">
+    <span style="display: flex; flex-direction: column; line-height: 1.2"><span style="font-size: 12px; color: #FFC2DA">Total</span><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 22px">{{total}}</span></span>
+    <a href="PinkCheckout.dc.html" style="height: 52px; padding: 0 22px; border-radius: 26px; background: #D61F69; color: #FFFFFF; display: flex; align-items: center; gap: 8px; text-decoration: none; font-weight: 700">Checkout
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+    </a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { qty: { wig: 1, b1: 1, b2: 1 }, removed: {}, coupon: 'FLASH15' }; }
+  renderVals() {
+    const st = this.state;
+    const fmt = (n) => '₦' + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const items = [
+      { id: 'wig', name: 'Bone Straight HD Frontal', variant: '1B · 20" · 13×4 · 180% · M', price: 203000, tone: '#F7C9DA', bogo: false },
+      { id: 'b1', name: 'Pixie Curl Bob', variant: '1B · 10"', price: 78500, tone: '#F2B6CB', bogo: true },
+      { id: 'b2', name: 'Blunt Cut Straight Bob', variant: '#4 · 8"', price: 72000, tone: '#FBD9E6', bogo: true }
+    ].filter((i) => !st.removed[i.id]);
+    const setQty = (id, d) => { const q = Object.assign({}, st.qty); q[id] = Math.max(1, Math.min(5, q[id] + d)); this.setState({ qty: q }); };
+    const bogoItems = items.filter((i) => i.bogo);
+    const units = []; bogoItems.forEach((i) => { for (let k = 0; k < st.qty[i.id]; k++) units.push(i.price); }); units.sort((a, b) => a - b);
+    const free = Math.floor(units.length / 2);
+    const bogo = units.slice(0, free).reduce((a, b) => a + b, 0);
+    const cheapest = bogoItems.slice().sort((a, b) => a.price - b.price)[0];
+    const subtotal = items.reduce((a, i) => a + i.price * st.qty[i.id], 0);
+    const full = items.filter((i) => !i.bogo).reduce((a, i) => a + i.price * st.qty[i.id], 0);
+    const hasWig = !st.removed.wig;
+    const rates = { FLASH15: 0.15, JETTY10: 0.10 };
+    const couponAmt = st.coupon ? Math.round(full * rates[st.coupon]) : 0;
+    const after = subtotal - bogo - couponAmt;
+    const delivery = after >= 250000 ? 0 : 3500;
+    const lines = items.map((i) => {
+      const isFree = i.bogo && free > 0 && cheapest && i.id === cheapest.id;
+      return { name: i.name, variant: i.variant, tone: i.tone, qty: st.qty[i.id], removable: true,
+        hasTag: i.bogo, tag: isFree ? 'FREE · Buy 1 Get 1' : (free ? 'Buy 1 Get 1 ✓' : 'Add 1 more bob → 1 free'),
+        tagBg: isFree ? '#D61F69' : '#FFF0F6', tagFg: isFree ? '#FFFFFF' : '#A3134F',
+        was: isFree ? fmt(i.price) : '', total: isFree ? '₦0' : fmt(i.price * st.qty[i.id]),
+        dec: () => setQty(i.id, -1), inc: () => setQty(i.id, 1),
+        remove: () => { const r = Object.assign({}, st.removed); r[i.id] = true; this.setState({ removed: r }); } };
+    });
+    if (hasWig) lines.splice(1, 0, { name: 'Silk Sleep Bonnet', variant: 'Gift with your frontal', tone: '#FFE0EC', qty: 1, removable: false, hasTag: true, tag: 'FREE GIFT', tagBg: '#2B0D1C', tagFg: '#FFFFFF', was: '₦12,000', total: '₦0', dec: null, inc: null, remove: null });
+    const tdefs = [
+      { code: 'FLASH15', big: '15%', small: 'OFF', desc: 'Full-price wigs · ends in 3h 41m. Not with BOGO items.' },
+      { code: 'JETTY10', big: '10%', small: 'OFF', desc: 'First order · full-price items' }
+    ];
+    const pct = Math.min(100, Math.round(after / 250000 * 100));
+    return {
+      count: lines.length, lines: lines,
+      deals: [
+        { text: free ? 'Buy 1 Get 1 on bobs unlocked' : 'Add 1 more bob to get 1 free', pct: free ? '100%' : '50%', bar: '#D61F69', dotBg: free ? '#D61F69' : '#4A2536', icon: free ? 'M5 12l5 5 9-10' : 'M12 6v12M6 12h12' },
+        { text: delivery === 0 ? 'Free same-day delivery unlocked' : 'Add ' + fmt(250000 - after) + ' for free delivery', pct: pct + '%', bar: '#D61F69', dotBg: delivery === 0 ? '#D61F69' : '#4A2536', icon: delivery === 0 ? 'M5 12l5 5 9-10' : 'M12 6v12M6 12h12' },
+        { text: hasWig ? 'Free silk bonnet added' : 'Add a frontal wig for a free bonnet', pct: hasWig ? '100%' : '0%', bar: '#D61F69', dotBg: hasWig ? '#D61F69' : '#4A2536', icon: hasWig ? 'M5 12l5 5 9-10' : 'M12 6v12M6 12h12' }
+      ],
+      tickets: tdefs.map((t) => { const on = st.coupon === t.code; return Object.assign({}, t, { border: on ? '#D61F69' : '#F3D6E2', side: on ? '#D61F69' : '#FFF0F6', sideFg: on ? '#FFFFFF' : '#A3134F', btn: on ? 'Applied' : 'Apply', btnBg: on ? '#FFF0F6' : '#D61F69', btnFg: on ? '#A3134F' : '#FFFFFF', apply: () => this.setState({ coupon: on ? '' : t.code }) }); }),
+      subtotal: fmt(subtotal + (hasWig ? 12000 : 0)),
+      hasBogo: bogo > 0, bogo: fmt(bogo),
+      hasCoupon: !!st.coupon, couponLabel: 'Code ' + st.coupon, couponAmt: fmt(couponAmt),
+      delivery: delivery === 0 ? 'Free' : fmt(delivery),
+      total: fmt(after + delivery),
+      savings: fmt(bogo + couponAmt + (hasWig ? 12000 : 0) + (delivery === 0 ? 3500 : 0))
+    };
+  }
+}
+</script>
+</body>
+</html>

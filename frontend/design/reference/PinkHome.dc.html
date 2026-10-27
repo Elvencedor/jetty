@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Jetty's Hair (Pink) — Home</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&amp;family=Figtree:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#FBE3EC}
+a{color:#A3134F}a:hover{color:#7E0E3D}
+</style>
+</helmet>
+<div style="position: relative; width: 390px; min-height: 3000px; background: #FFFFFF; color: #2B0D1C; font-family: 'Figtree', system-ui, sans-serif; font-size: 15px; line-height: 1.5; display: flex; flex-direction: column; padding-bottom: 84px; box-sizing: border-box">
+
+  <!-- Top: greeting + bag -->
+  <header style="padding: 14px 16px 8px; display: flex; align-items: center; justify-content: space-between">
+    <a href="PinkHome.dc.html" style="display: flex; align-items: center; gap: 8px; text-decoration: none; color: #2B0D1C">
+      <span style="width: 36px; height: 36px; border-radius: 12px; background: #D61F69; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 20px">J</span>
+      <span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 22px; letter-spacing: -0.5px">jetty's hair</span>
+    </a>
+    <div style="display: flex; gap: 4px">
+      <button aria-label="Notifications" style="width: 44px; height: 44px; border-radius: 22px; border: 0; background: #FFF0F6; display: flex; align-items: center; justify-content: center; color: #2B0D1C">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4l2-2z"></path><path d="M10 21h4"></path></svg>
+      </button>
+      <a href="PinkCart.dc.html" aria-label="Bag, 3 items" style="position: relative; width: 44px; height: 44px; border-radius: 22px; background: #FFF0F6; display: flex; align-items: center; justify-content: center; color: #2B0D1C">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 8h14l-1 13H6L5 8z"></path><path d="M9 8V6a3 3 0 0 1 6 0v2"></path></svg>
+        <span style="position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 9px; background: #D61F69; color: #FFFFFF; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 2px solid #FFFFFF">3</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Search -->
+  <div style="padding: 4px 16px 12px; display: flex; gap: 8px">
+    <label style="flex: 1; height: 50px; padding: 0 16px; border-radius: 25px; background: #FFF0F6; display: flex; align-items: center; gap: 10px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A3134F" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+      <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search</span>
+      <input type="search" placeholder="Try “bob”, “26 inch”, “glueless”" style="flex: 1; min-width: 0; border: 0; background: transparent; font: inherit; color: #2B0D1C; outline: none">
+    </label>
+    <a href="PinkShop.dc.html" aria-label="Filters" style="width: 50px; height: 50px; border-radius: 25px; background: #2B0D1C; color: #FFFFFF; display: flex; align-items: center; justify-content: center">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>
+    </a>
+  </div>
+
+  <!-- Drops: story-style featured circles -->
+  <section aria-label="New drops" style="display: flex; gap: 14px; padding: 4px 16px 16px; overflow-x: auto">
+    <sc-for list="{{drops}}" as="d" hint-placeholder-count="5">
+      <a href="PinkShop.dc.html" style="flex: none; width: 72px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-decoration: none; color: #2B0D1C; font-size: 12px; font-weight: 600; text-align: center; line-height: 1.2">
+        <span style="width: 72px; height: 72px; border-radius: 36px; padding: 3px; box-sizing: border-box; background: {{d.ring}}"><span style="display: block; width: 100%; height: 100%; border-radius: 50%; border: 3px solid #FFFFFF; box-sizing: border-box; background: {{d.tone}}"></span></span>
+        {{d.label}}
+      </a>
+    </sc-for>
+  </section>
+
+  <!-- Hero promo cards (admin banners) -->
+  <section aria-label="Offers" style="display: flex; gap: 12px; padding: 0 16px; overflow-x: auto">
+    <a href="PinkShop.dc.html" style="flex: none; width: 320px; height: 380px; border-radius: 28px; background: #D61F69; color: #FFFFFF; padding: 22px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; text-decoration: none; position: relative; overflow: hidden">
+      <span style="position: absolute; right: -40px; bottom: -30px; width: 230px; height: 290px; border-radius: 120px 120px 24px 24px; background: #F7A8C8; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #7E0E3D">Model photo</span>
+      <span style="align-self: flex-start; padding: 6px 12px; border-radius: 14px; background: #FFFFFF; color: #A3134F; font-size: 12px; font-weight: 700">Buy 1 Get 1 · bobs</span>
+      <span style="position: relative; display: flex; flex-direction: column; gap: 14px; max-width: 200px">
+        <span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 40px; line-height: 0.95; letter-spacing: -1px">Two bobs. One price.</span>
+        <span style="align-self: flex-start; height: 44px; padding: 0 18px; border-radius: 22px; background: #2B0D1C; display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px">Shop the deal
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+        </span>
+      </span>
+    </a>
+    <a href="PinkShop.dc.html" style="flex: none; width: 320px; height: 380px; border-radius: 28px; background: #FFE0EC; color: #2B0D1C; padding: 22px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; text-decoration: none; position: relative; overflow: hidden">
+      <span style="position: absolute; right: -30px; bottom: -30px; width: 220px; height: 280px; border-radius: 24px 120px 24px 24px; background: #F2B6CB; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #7E0E3D">Product photo</span>
+      <span style="align-self: flex-start; padding: 6px 12px; border-radius: 14px; background: #2B0D1C; color: #FFFFFF; font-size: 12px; font-weight: 700">New · HD lace</span>
+      <span style="position: relative; display: flex; flex-direction: column; gap: 14px; max-width: 200px">
+        <span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 40px; line-height: 0.95; letter-spacing: -1px">Lace you can't see.</span>
+        <span style="align-self: flex-start; height: 44px; padding: 0 18px; border-radius: 22px; background: #D61F69; color: #FFFFFF; display: flex; align-items: center; font-weight: 700; font-size: 14px">Explore</span>
+      </span>
+    </a>
+  </section>
+
+  <!-- Flash deal strip -->
+  <section style="margin: 20px 16px 0; padding: 14px 16px; border-radius: 20px; background: #2B0D1C; color: #FFFFFF; display: flex; align-items: center; gap: 12px">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="#FFC2DA"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"></path></svg>
+    <div style="flex: 1; display: flex; flex-direction: column; line-height: 1.3"><span style="font-weight: 700">Flash: 15% off frontals</span><span style="font-size: 13px; color: #FFC2DA">Code FLASH15 · ends in</span></div>
+    <div style="display: flex; gap: 4px; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 700">
+      <span style="padding: 4px 7px; border-radius: 8px; background: #D61F69">03</span><span style="padding: 4px 7px; border-radius: 8px; background: #D61F69">41</span><span style="padding: 4px 7px; border-radius: 8px; background: #D61F69">09</span>
+    </div>
+  </section>
+
+  <!-- Quiz CTA -->
+  <a href="PinkShop.dc.html" style="margin: 12px 16px 0; padding: 16px; border-radius: 20px; border: 2px dashed #F2A1C2; display: flex; align-items: center; gap: 14px; text-decoration: none; color: #2B0D1C">
+    <span style="width: 48px; height: 48px; border-radius: 16px; background: #FFF0F6; display: flex; align-items: center; justify-content: center; flex: none">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D61F69" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17h.01"></path></svg>
+    </span>
+    <span style="flex: 1; display: flex; flex-direction: column; line-height: 1.3"><span style="font-weight: 700">Not sure what to get?</span><span style="font-size: 13px; color: #74525F">Answer 4 questions, get your perfect wig</span></span>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2B0D1C" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"></path></svg>
+  </a>
+
+  <!-- Featured (admin) with tabs -->
+  <section style="padding: 28px 16px 0; display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; align-items: center; justify-content: space-between">
+      <h2 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 26px; letter-spacing: -0.5px">Jetty's picks</h2>
+      <a href="PinkShop.dc.html" style="font-weight: 700; font-size: 14px">See all</a>
+    </div>
+    <div role="tablist" style="display: flex; gap: 6px; padding: 4px; border-radius: 24px; background: #FFF0F6">
+      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="3">
+        <button role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="flex: 1; height: 40px; border-radius: 20px; border: 0; font: inherit; font-size: 14px; font-weight: 600; background: {{t.bg}}; color: {{t.fg}}">{{t.label}}</button>
+      </sc-for>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+      <sc-for list="{{picks}}" as="p" hint-placeholder-count="4">
+        <div style="border-radius: 22px; background: #FFF7FA; padding: 8px; display: flex; flex-direction: column; gap: 8px">
+          <div style="position: relative; aspect-ratio: 1 / 1.15; border-radius: 16px; background: {{p.tone}}">
+            <a href="PinkProduct.dc.html" aria-label="{{p.name}}" style="position: absolute; inset: 0; border-radius: 16px"></a>
+            <span style="position: absolute; top: 8px; left: 8px; padding: 3px 9px; border-radius: 10px; font-size: 11px; font-weight: 700; background: {{p.badgeBg}}; color: {{p.badgeFg}}">{{p.badge}}</span>
+            <button onClick="{{p.wish}}" aria-label="Save {{p.name}}" style="position: absolute; top: 2px; right: 2px; width: 44px; height: 44px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center">
+              <span style="width: 30px; height: 30px; border-radius: 15px; background: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="{{p.heart}}" stroke="#D61F69" stroke-width="2"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg></span>
+            </button>
+          </div>
+          <div style="padding: 0 4px; display: flex; flex-direction: column; gap: 2px">
+            <a href="PinkProduct.dc.html" style="font-size: 14px; font-weight: 600; line-height: 1.3; color: #2B0D1C; text-decoration: none">{{p.name}}</a>
+            <span style="font-size: 12px; color: #74525F">★ {{p.rating}} · {{p.reviews}} reviews</span>
+          </div>
+          <div style="padding: 0 4px 4px; display: flex; align-items: center; justify-content: space-between">
+            <span style="display: flex; flex-direction: column; line-height: 1.2"><span style="font-weight: 800; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-size: 16px">{{p.price}}</span><span style="font-size: 12px; color: #74525F; text-decoration: line-through">{{p.was}}</span></span>
+            <a href="PinkProduct.dc.html" aria-label="Choose options for {{p.name}}" style="width: 40px; height: 40px; border-radius: 20px; background: #D61F69; color: #FFFFFF; display: flex; align-items: center; justify-content: center">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+            </a>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <!-- Shop by length -->
+  <section style="padding: 28px 16px 0; display: flex; flex-direction: column; gap: 12px">
+    <h2 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 26px; letter-spacing: -0.5px">Shop by length</h2>
+    <div style="display: flex; align-items: flex-end; gap: 8px; height: 150px">
+      <sc-for list="{{lengths}}" as="l" hint-placeholder-count="5">
+        <a href="PinkShop.dc.html" style="flex: 1; height: {{l.h}}; border-radius: 14px 14px 6px 6px; background: {{l.bg}}; color: {{l.fg}}; text-decoration: none; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 8px; font-weight: 700; font-size: 14px; line-height: 1.1">{{l.label}}<span style="font-size: 10px; font-weight: 500">{{l.sub}}</span></a>
+      </sc-for>
+    </div>
+  </section>
+
+  <!-- Categories bento -->
+  <section style="padding: 28px 16px 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+    <a href="PinkShop.dc.html" style="grid-row: span 2; min-height: 250px; border-radius: 22px; background: #F7C9DA; padding: 16px; display: flex; flex-direction: column; justify-content: flex-end; text-decoration: none; color: #2B0D1C"><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 22px; line-height: 1">Frontal wigs</span><span style="font-size: 13px">From ₦145,000</span></a>
+    <a href="PinkShop.dc.html" style="min-height: 120px; border-radius: 22px; background: #FFE0EC; padding: 14px; display: flex; flex-direction: column; justify-content: flex-end; text-decoration: none; color: #2B0D1C"><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 20px; line-height: 1">Glueless</span><span style="font-size: 12px">Wear in 5 mins</span></a>
+    <a href="PinkShop.dc.html" style="min-height: 120px; border-radius: 22px; background: #2B0D1C; padding: 14px; display: flex; flex-direction: column; justify-content: flex-end; text-decoration: none; color: #FFFFFF"><span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 20px; line-height: 1">Hair care</span><span style="font-size: 12px; color: #FFC2DA">Bonnets, tints, oils</span></a>
+  </section>
+
+  <!-- UGC -->
+  <section style="padding: 28px 0 0; display: flex; flex-direction: column; gap: 12px">
+    <div style="padding: 0 16px; display: flex; flex-direction: column">
+      <h2 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 26px; letter-spacing: -0.5px">#JettysHair girls</h2>
+      <span style="font-size: 14px; color: #74525F">Tap a look to shop exactly what she's wearing</span>
+    </div>
+    <div style="display: flex; gap: 10px; overflow-x: auto; padding: 0 16px">
+      <sc-for list="{{ugc}}" as="u" hint-placeholder-count="4">
+        <a href="PinkProduct.dc.html" style="flex: none; width: 140px; height: 200px; border-radius: 18px; background: {{u.tone}}; position: relative; text-decoration: none; color: #2B0D1C">
+          <span style="position: absolute; left: 8px; right: 8px; bottom: 8px; padding: 6px 8px; border-radius: 12px; background: #FFFFFF; font-size: 11px; font-weight: 600; line-height: 1.25">{{u.item}}</span>
+        </a>
+      </sc-for>
+    </div>
+  </section>
+
+  <!-- Trust row -->
+  <section style="margin: 28px 16px 0; padding: 18px; border-radius: 22px; background: #FFF0F6; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+    <sc-for list="{{trust}}" as="t" hint-placeholder-count="4">
+      <div style="display: flex; gap: 10px; align-items: flex-start">
+        <span style="width: 36px; height: 36px; border-radius: 12px; background: #FFFFFF; display: flex; align-items: center; justify-content: center; flex: none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D61F69" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{t.icon}}"></path></svg></span>
+        <span style="display: flex; flex-direction: column; line-height: 1.3"><span style="font-weight: 700; font-size: 14px">{{t.title}}</span><span style="font-size: 12px; color: #74525F">{{t.body}}</span></span>
+      </div>
+    </sc-for>
+  </section>
+
+  <!-- Help / footer -->
+  <footer style="margin: 20px 16px 24px; padding: 20px; border-radius: 22px; background: #2B0D1C; color: #FFFFFF; display: flex; flex-direction: column; gap: 14px">
+    <span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 22px">Need a hand choosing?</span>
+    <span style="font-size: 14px; color: #FFD6E6">Chat with a Jetty stylist on WhatsApp, Mon–Sat 9am–7pm.</span>
+    <a href="#" style="align-self: flex-start; height: 46px; padding: 0 20px; border-radius: 23px; background: #D61F69; color: #FFFFFF; display: flex; align-items: center; font-weight: 700; text-decoration: none">Chat with us</a>
+    <div style="display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; padding-top: 8px; border-top: 1px solid #4A2536">
+      <a href="#" style="color: #FFD6E6">Track order</a><a href="#" style="color: #FFD6E6">Returns</a><a href="#" style="color: #FFD6E6">Cap size guide</a><a href="#" style="color: #FFD6E6">FAQs</a><a href="#" style="color: #FFD6E6">hello@[yourdomain].com</a>
+    </div>
+    <span style="font-size: 12px; color: #D9B3C3">Visa · Mastercard · Verve · Transfer · USSD · Pay on delivery</span>
+  </footer>
+
+  <!-- Bottom tab bar (fixed on device) -->
+  <nav aria-label="Main" style="position: absolute; left: 12px; right: 12px; bottom: 12px; height: 64px; border-radius: 32px; background: #2B0D1C; display: flex; align-items: center; justify-content: space-around; padding: 0 6px">
+    <sc-for list="{{tabbar}}" as="t" hint-placeholder-count="5">
+      <a href="{{t.href}}" aria-label="{{t.label}}" style="height: 48px; min-width: 48px; padding: 0 {{t.pad}}; border-radius: 24px; background: {{t.bg}}; color: {{t.fg}}; display: flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; font-weight: 700; font-size: 13px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{t.icon}}"></path></svg>
+        <sc-if value="{{t.on}}" hint-placeholder-val="{{ false }}"><span>{{t.label}}</span></sc-if>
+      </a>
+    </sc-for>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":3000}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: 0, wish: { 1: true } }; }
+  renderVals() {
+    const st = this.state;
+    const sets = [
+      [
+        { name: 'Bone Straight HD Frontal 13×4', price: '₦185,000', was: '₦215,000', rating: '4.9', reviews: 312, tone: '#F7C9DA', badge: '−14%', badgeBg: '#D61F69', badgeFg: '#FFFFFF' },
+        { name: 'Deep Wave Glueless 5×5', price: '₦142,000', was: '', rating: '4.8', reviews: 208, tone: '#F2B6CB', badge: 'Buy 1 Get 1', badgeBg: '#2B0D1C', badgeFg: '#FFFFFF' },
+        { name: 'Honey Blonde Body Wave 13×6', price: '₦236,000', was: '', rating: '4.7', reviews: 96, tone: '#FBD9E6', badge: 'New', badgeBg: '#FFFFFF', badgeFg: '#A3134F' },
+        { name: 'Kinky Curly Glueless', price: '₦158,000', was: '', rating: '4.9', reviews: 441, tone: '#EFA9C2', badge: 'Featured', badgeBg: '#FFFFFF', badgeFg: '#A3134F' }
+      ],
+      [
+        { name: 'Pixie Curl Bob 10"', price: '₦78,500', was: '', rating: '4.8', reviews: 287, tone: '#F9CFDF', badge: 'Buy 1 Get 1', badgeBg: '#2B0D1C', badgeFg: '#FFFFFF' },
+        { name: 'Blunt Cut Straight Bob 8"', price: '₦72,000', was: '', rating: '4.7', reviews: 164, tone: '#F2B6CB', badge: 'Buy 1 Get 1', badgeBg: '#2B0D1C', badgeFg: '#FFFFFF' },
+        { name: 'Water Wave Glueless 13×4', price: '₦164,000', was: '₦180,000', rating: '4.8', reviews: 188, tone: '#F7C9DA', badge: '−9%', badgeBg: '#D61F69', badgeFg: '#FFFFFF' },
+        { name: 'Bone Straight HD Frontal 13×4', price: '₦185,000', was: '₦215,000', rating: '4.9', reviews: 312, tone: '#EFA9C2', badge: '−14%', badgeBg: '#D61F69', badgeFg: '#FFFFFF' }
+      ],
+      [
+        { name: 'Silk Sleep Bonnet', price: '₦12,000', was: '', rating: '4.9', reviews: 652, tone: '#FBD9E6', badge: 'Best seller', badgeBg: '#FFFFFF', badgeFg: '#A3134F' },
+        { name: 'Lace Tint Spray, Medium Brown', price: '₦9,500', was: '', rating: '4.7', reviews: 190, tone: '#F9CFDF', badge: 'Restocked', badgeBg: '#FFFFFF', badgeFg: '#A3134F' },
+        { name: 'Melting Band & Edge Brush', price: '₦7,500', was: '', rating: '4.6', reviews: 88, tone: '#F2B6CB', badge: 'Add-on', badgeBg: '#FFFFFF', badgeFg: '#A3134F' },
+        { name: 'Argan Shine Serum', price: '₦11,000', was: '₦13,500', rating: '4.8', reviews: 121, tone: '#F7C9DA', badge: '−18%', badgeBg: '#D61F69', badgeFg: '#FFFFFF' }
+      ]
+    ];
+    const tabLabels = ['Featured', 'On deal', 'Care'];
+    return {
+      drops: [
+        { label: 'New in', tone: '#F7C9DA', ring: '#D61F69' },
+        { label: 'BOGO bobs', tone: '#F2B6CB', ring: '#D61F69' },
+        { label: 'HD lace', tone: '#FBD9E6', ring: '#D61F69' },
+        { label: 'Colored', tone: '#EFA9C2', ring: '#E8C3D2' },
+        { label: 'Under ₦100k', tone: '#F9CFDF', ring: '#E8C3D2' },
+        { label: 'Care kits', tone: '#FFE0EC', ring: '#E8C3D2' }
+      ],
+      tabs: tabLabels.map((l, i) => ({ label: l, on: i === st.tab, bg: i === st.tab ? '#FFFFFF' : 'transparent', fg: i === st.tab ? '#2B0D1C' : '#74525F', pick: () => this.setState({ tab: i }) })),
+      picks: sets[st.tab].map((p, i) => Object.assign({}, p, { heart: st.wish[st.tab + '-' + i] ? '#D61F69' : 'none', wish: () => { const w = Object.assign({}, st.wish); const k = st.tab + '-' + i; w[k] = !w[k]; this.setState({ wish: w }); } })),
+      lengths: [
+        { label: '10–14"', sub: 'Bob', h: '62px', bg: '#FFE0EC', fg: '#2B0D1C' },
+        { label: '16–18"', sub: 'Shoulder', h: '84px', bg: '#F9CFDF', fg: '#2B0D1C' },
+        { label: '20–22"', sub: 'Mid-back', h: '106px', bg: '#F2A1C2', fg: '#2B0D1C' },
+        { label: '24–26"', sub: 'Waist', h: '128px', bg: '#D61F69', fg: '#FFFFFF' },
+        { label: '28–30"', sub: 'Hip', h: '150px', bg: '#2B0D1C', fg: '#FFFFFF' }
+      ],
+      ugc: [
+        { tone: '#F7C9DA', item: 'Body Wave 22" · 180%' },
+        { tone: '#F2B6CB', item: 'Pixie Curl Bob 10"' },
+        { tone: '#FBD9E6', item: 'Honey Blonde 24"' },
+        { tone: '#EFA9C2', item: 'Bone Straight 28"' }
+      ],
+      trust: [
+        { title: 'Secure pay', body: 'Card, transfer, USSD', icon: 'M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6l7-3z M9 12l2 2 4-4' },
+        { title: '7-day returns', body: 'Unworn, lace uncut', icon: 'M4 9h12a4 4 0 0 1 0 8H8 M4 9l4-4 M4 9l4 4' },
+        { title: 'Same-day Lagos', body: '2–4 days nationwide', icon: 'M3 7h11v9H3z M14 10h4l3 3v3h-7' },
+        { title: 'Real reviews', body: 'Verified buyers only', icon: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3z' }
+      ],
+      tabbar: [
+        { label: 'Home', href: 'PinkHome.dc.html', on: true, icon: 'M4 11l8-7 8 7v9h-5v-6H9v6H4z' },
+        { label: 'Shop', href: 'PinkShop.dc.html', on: false, icon: 'M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z' },
+        { label: 'Saved', href: '#', on: false, icon: 'M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z' },
+        { label: 'Bag', href: 'PinkCart.dc.html', on: false, icon: 'M5 8h14l-1 13H6L5 8z M9 8V6a3 3 0 0 1 6 0v2' },
+        { label: 'Me', href: '#', on: false, icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6' }
+      ].map((t) => Object.assign({}, t, { bg: t.on ? '#D61F69' : 'transparent', fg: t.on ? '#FFFFFF' : '#F4C6D8', pad: t.on ? '16px' : '0' }))
+    };
+  }
+}
+</script>
+</body>
+</html>
