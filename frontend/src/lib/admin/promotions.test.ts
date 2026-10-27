@@ -85,6 +85,29 @@ describe("scope and zones", () => {
   });
 });
 
+describe("free gifts", () => {
+  const gift = (over: Partial<PromoForm> = {}) => form({ kind: "free_gift", giftVariantId: "v1", giftQuantity: "1", giftLabel: "Silk Bonnet (Champagne)", giftPriceMinor: 2_000_000, ...over });
+  it("needs a gift and a sensible number of them", () => {
+    expect(validateForm(form({ kind: "free_gift" })).gift).toBeDefined();
+    expect(validateForm(gift())).toEqual({});
+    expect(validateForm(gift({ giftQuantity: "0" })).giftQuantity).toBeDefined();
+    expect(validateForm(gift({ giftQuantity: "11" })).giftQuantity).toBeDefined();
+    expect(validateForm(gift({ giftQuantity: "x" })).giftQuantity).toBeDefined();
+  });
+  it("sends the variant and quantity, with the scope that triggers it", () => {
+    expect(toInput(gift({ giftQuantity: "2", scope: "collections", collectionIds: ["c1"] }))).toMatchObject({ kind: "free_gift", configuration: { version: 1, variantId: "v1", quantity: 2 }, scope: { include: { collectionIds: ["c1"] } } });
+  });
+  it("reads it back, and previews it as free", () => {
+    expect(sentenceParts(gift({ giftQuantity: "2" }), collections).map((p) => p.text).join("")).toBe("Give 2 free Silk Bonnet (Champagne) when someone buys all products.");
+    expect(announcementText(gift(), collections)).toBe("Free Silk Bonnet (Champagne) with your order");
+    expect(bagPreview(gift())).toEqual({ quantity: 1, subtotal: "₦150,000", discount: { label: "Free gift: Silk Bonnet (Champagne)", value: "Free" }, total: "₦150,000" });
+  });
+  it("reads a saved gift back into the form", () => {
+    const d = { promotion: { name: "G", kind: "free_gift", configuration: { version: 1, variantId: "v1", quantity: 2 }, scope: {}, usageCount: 0, startsAt: null, endsAt: null, stackable: false, totalUsageLimit: null, perCustomerLimit: null, firstOrderOnly: false, minimumSubtotalMinor: null }, gift: { variantId: "v1", productId: "p", productTitle: "Silk Bonnet", sku: "SB", optionSummary: "Champagne", priceMinor: 2_000_000, quantity: 2 }, codes: [], stats: {} } as never;
+    expect(formFromPromotion(d)).toMatchObject({ kind: "free_gift", giftVariantId: "v1", giftQuantity: "2", giftLabel: "Silk Bonnet (Champagne)", giftPriceMinor: 2_000_000 });
+  });
+});
+
 describe("the rule in words", () => {
   it("reads each kind back", () => {
     const read = (f: PromoForm) => sentenceParts(f, collections).map((p) => p.text).join("");

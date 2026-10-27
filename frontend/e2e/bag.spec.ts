@@ -17,6 +17,27 @@ test("an empty bag points back to the shop", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Shop wigs" })).toBeVisible();
 });
 
+test("an offer that adds a free gift shows it as a free line that cannot be edited, and the total does not change", async ({ page }) => {
+  await addWig(page);
+  await page.goto("/bag");
+  const summary = page.getByRole("region", { name: "Order summary" });
+  await expect(summary.getByText("₦180,000").first()).toBeVisible();
+  await page.getByLabel("Promotion code").fill("giftme");
+  await page.getByRole("button", { name: "Apply" }).click();
+
+  const gift = page.getByRole("article", { name: /^Free gift:/ });
+  await expect(gift).toBeVisible();
+  await expect(gift.getByText("Free gift", { exact: true })).toBeVisible();
+  await expect(gift.getByText("Free", { exact: true })).toBeVisible();
+  await expect(gift.getByRole("button")).toHaveCount(0);
+  await expect(page.getByText(/^You’re saving ₦/)).toBeVisible();
+  await expect(summary).toHaveAttribute("aria-busy", "false");
+  await expect(page.getByText("Total").first()).toBeVisible();
+  await expect(page.locator("footer, div").getByText(/^₦180,000$/).first()).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+});
+
 test("the bag prices the server's way: quantity, codes and removal with undo", async ({ page }) => {
   await addWig(page);
   await page.goto("/bag");

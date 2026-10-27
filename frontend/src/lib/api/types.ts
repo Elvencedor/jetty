@@ -154,12 +154,15 @@ export type QuoteLine = {
   discountMinor: number;
   lineTotalMinor: number;
   promotionAllocations: { promotionId: string; amountMinor: number }[];
+  /** Set on a line the shopper did not add: a free gift from this promotion. It cannot be edited or removed. */
+  gift?: { promotionId: string } | null;
 };
 
 export type AppliedPromotion = { promotionId: string; name: string; kind: string; code: string | null; discountMinor: number };
 export type RejectedCode = { code: string; reason: "INVALID_CODE" | "EXPIRED" | "USAGE_LIMIT_REACHED" | "NOT_ELIGIBLE" | "MIN_SPEND_NOT_MET" | "NOT_APPLICABLE" };
 export type QuoteWarning =
   | { code: "OUT_OF_STOCK" | "INSUFFICIENT_STOCK"; variantId: string; requestedQuantity: number; availableQuantity: number }
+  | { code: "GIFT_UNAVAILABLE"; promotionId: string; variantId: string }
   | { code: "SIGN_IN_FOR_OFFERS" };
 
 export type Quote = {

@@ -22,7 +22,10 @@ export type PromotionRow = {
 export type PromotionPage = { data: PromotionRow[]; page: { nextCursor: string | null } };
 
 /** What the pricing engine reads. Only the fields a kind uses are present. */
-export type PromotionConfiguration = { version?: number; percent?: number; maxDiscountMinor?: number; amountMinor?: number; buy?: number; get?: number; percentOff?: number };
+export type PromotionConfiguration = { version?: number; percent?: number; maxDiscountMinor?: number; amountMinor?: number; buy?: number; get?: number; percentOff?: number; variantId?: string; quantity?: number };
+
+/** For a free gift: what the gift is. */
+export type PromotionGift = { variantId: string; productId: string; productTitle: string; sku: string; optionSummary: string; priceMinor: number; quantity: number };
 export type PromotionScope = { include?: { allProducts?: boolean; productIds?: string[]; collectionIds?: string[] }; excludeProductIds?: string[] };
 
 export type PromotionDetail = {
@@ -44,13 +47,14 @@ export type PromotionDetail = {
     firstOrderOnly: boolean;
     minimumSubtotalMinor: number | null;
   };
+  gift: PromotionGift | null;
   codes: { id: string; code: string; maxRedemptions: number | null; active: boolean }[];
   stats: { redemptions: number; discountMinor: number; orderRevenueMinor: number; openHolds: number };
 };
 
 export type PromotionInput = {
   name: string;
-  kind: Exclude<PromotionKind, "free_gift">;
+  kind: PromotionKind;
   configuration: PromotionConfiguration;
   scope: PromotionScope;
   startsAt: string | null;

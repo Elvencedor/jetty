@@ -72,10 +72,17 @@ function quote(items, codes = []) {
     if (!v) return [];
     return [{ variantId: v.x.id, productId: v.p.id, slug: v.p.slug, title: v.p.title, image: null, options: [], optionSummary: "", compareAtPriceMinor: v.x.compareAtPrice?.amountMinor ?? null, availableQuantity: v.x.availability.availableQuantity, quantity: i.quantity, unitPriceMinor: v.x.price.amountMinor, lineSubtotalMinor: v.x.price.amountMinor * i.quantity, discountMinor: 0, lineTotalMinor: v.x.price.amountMinor * i.quantity, promotionAllocations: [] }];
   });
-  const subtotal = lines.reduce((n, l) => n + l.lineTotalMinor, 0);
-  const applied = codes.filter((c) => c === "SAVE10").map(() => ({ promotionId: "promo", name: "10% off", kind: "percentage", code: "SAVE10", discountMinor: Math.round(subtotal / 10) }));
+  // A code that adds a free gift: the first product in the catalogue that is not already the bag's, priced but free.
+  if (codes.includes("GIFTME") && lines.length) {
+    const g = PRODUCTS.flatMap((p) => p.variants.map((x) => ({ p, x }))).find((r) => !lines.some((l) => l.variantId === r.x.id));
+    if (g) lines.push({ variantId: g.x.id, productId: g.p.id, slug: g.p.slug, title: g.p.title, image: null, options: [], optionSummary: "", compareAtPriceMinor: null, availableQuantity: 9, quantity: 1, unitPriceMinor: g.x.price.amountMinor, lineSubtotalMinor: g.x.price.amountMinor, discountMinor: g.x.price.amountMinor, lineTotalMinor: 0, promotionAllocations: [{ promotionId: "gift", amountMinor: g.x.price.amountMinor }], gift: { promotionId: "gift" } });
+  }
+  const giftValue = lines.filter((l) => l.gift).reduce((n, l) => n + l.lineSubtotalMinor, 0);
+  const paidSubtotal = lines.filter((l) => !l.gift).reduce((n, l) => n + l.lineTotalMinor, 0);
+  const subtotal = paidSubtotal + giftValue;
+  const applied = codes.filter((c) => c === "GIFTME").map(() => ({ promotionId: "gift", name: "Free gift", kind: "free_gift", code: "GIFTME", discountMinor: giftValue })).concat(codes.filter((c) => c === "SAVE10").map(() => ({ promotionId: "promo", name: "10% off", kind: "percentage", code: "SAVE10", discountMinor: Math.round(paidSubtotal / 10) })));
   const discount = applied.reduce((n, p) => n + p.discountMinor, 0);
-  const rejectedCodes = codes.filter((c) => c !== "SAVE10").map((code) => ({ code, reason: "INVALID_CODE" }));
+  const rejectedCodes = codes.filter((c) => c !== "SAVE10" && c !== "GIFTME").map((code) => ({ code, reason: "INVALID_CODE" }));
   return { currency: "NGN", lines, promotions: { applied, rejectedCodes }, warnings: [], subtotalMinor: subtotal, discountMinor: discount, delivery: null, deliveryFeeMinor: 0, taxMinor: 0, totalMinor: subtotal - discount, quoteId: "q", quoteExpiresAt: "2099-01-01T00:00:00Z" };
 }
 

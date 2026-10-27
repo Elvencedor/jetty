@@ -19,7 +19,8 @@ export const CONFIG_SCHEMAS = {
     percentOff: Joi.number().greater(0).max(100).precision(2).default(100),
   }),
   free_delivery: Joi.object({ version, zoneIds: uuids }),
-  free_gift: Joi.object({ version }).unknown(true),
+  // A free item added to the order: the variant to give, and how many.
+  free_gift: Joi.object({ version, variantId: Joi.string().uuid().required(), quantity: Joi.number().integer().min(1).max(10).default(1) }),
 } as const;
 
 export const SCOPE_SCHEMA = Joi.object({
@@ -30,7 +31,7 @@ export const SCOPE_SCHEMA = Joi.object({
 export type PromotionKind = keyof typeof CONFIG_SCHEMAS;
 
 /** Union of every kind's fields; which ones exist is guaranteed by the Joi schema chosen for `promo.kind` just before use. */
-type RuleConfig = { percent: number; maxDiscountMinor?: number; amountMinor: number; buy: number; get: number; percentOff: number; zoneIds?: string[] };
+type RuleConfig = { percent: number; maxDiscountMinor?: number; amountMinor: number; buy: number; get: number; percentOff: number; zoneIds?: string[]; variantId: string; quantity: number };
 
 export type EnginePromotion = {
   id: string;
@@ -57,11 +58,15 @@ export type EngineLine = {
 
 export type RejectedCode = { code: string; reason: 'NOT_APPLICABLE' | 'MIN_SPEND_NOT_MET' };
 
+/** A free item the order earns. The cart prices it (and drops it if it is out of stock). */
+export type EngineGift = { promotionId: string; name: string; code: string | null; variantId: string; quantity: number };
+
 export type EngineResult = {
   /** Per input line, in order. */
   allocations: { promotionId: string; amountMinor: number }[][];
   applied: { promotionId: string; name: string; kind: PromotionKind; code: string | null; discountMinor: number }[];
   freeDelivery: { promotionId: string } | null;
+  gifts: EngineGift[];
   rejectedCodes: RejectedCode[];
 };
 
@@ -98,7 +103,7 @@ function eligibleIndexes(scope: unknown, lines: EngineLine[]): number[] | null {
  * first applies only if it and every already-applied promotion are stackable.
  * A promotion that yields no discount does not block later ones. Free delivery
  * targets the delivery fee, not line amounts, so it always combines; the first
- * eligible one wins. Minimum spend is measured on the promotion's eligible
+ * eligible one wins. A free gift also always combines and adds its item. Minimum spend is measured on the promotion's eligible
  * lines before any discount.
  */
 export function applyPromotions(input: {
@@ -113,6 +118,7 @@ export function applyPromotions(input: {
     allocations: lines.map(() => []),
     applied: [],
     freeDelivery: null,
+    gifts: [],
     rejectedCodes: [],
   };
 
@@ -129,7 +135,7 @@ export function applyPromotions(input: {
     const schema = CONFIG_SCHEMAS[promo.kind];
     const config = validated<RuleConfig>(schema, promo.configuration);
     const eligible = eligibleIndexes(promo.scope, lines);
-    if (!config || !eligible || promo.kind === 'free_gift') {
+    if (!config || !eligible) {
       reject(promo, 'NOT_APPLICABLE');
       continue;
     }
@@ -149,6 +155,12 @@ export function applyPromotions(input: {
       const zoneOk = zoneIds.length === 0 || (input.zoneId !== undefined && zoneIds.includes(input.zoneId));
       if (zoneOk && !result.freeDelivery) result.freeDelivery = { promotionId: promo.id };
       else if (!zoneOk) reject(promo, 'NOT_APPLICABLE');
+      continue;
+    }
+
+    // A gift adds an item rather than taking money off lines, so like free delivery it combines with everything.
+    if (promo.kind === 'free_gift') {
+      result.gifts.push({ promotionId: promo.id, name: promo.name, code: promo.code, variantId: config.variantId, quantity: config.quantity });
       continue;
     }
 

@@ -4,6 +4,7 @@ import { Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Button, Media, QuantityStepper } from "@/components/ui";
 import type { LineView } from "@/lib/cart/model";
+import type { QuoteLine } from "@/lib/api/types";
 import { cn } from "@/lib/cn";
 import { formatNaira } from "@/lib/format";
 import { API_MAX_LINE_QUANTITY } from "@/lib/stores/cart";
@@ -56,6 +57,27 @@ export function BagLine({ view, onQuantity, onRemove, busy }: Props) {
             </div>
           </>
         )}
+      </div>
+    </article>
+  );
+}
+
+/** A free gift an offer added. It shows what it is and that it costs nothing; it has no stepper and cannot be removed. */
+export function GiftLine({ line }: { line: QuoteLine }) {
+  return (
+    <article aria-label={`Free gift: ${line.title}`} className="relative flex gap-3 rounded-card border-2 border-dashed border-line-accent bg-surface p-2.5">
+      <Media image={line.image} alt="" aspect="84 / 100" sizes="84px" className="w-[84px] shrink-0 rounded-md" />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <p className="w-fit rounded-pill bg-surface-blush px-2.5 py-0.5 text-micro font-extrabold uppercase tracking-[0.6px] text-primary-strong">Free gift</p>
+        <h2 className="line-clamp-2 text-body-sm font-bold leading-[1.3]">{line.title}</h2>
+        {line.optionSummary ? <p className="text-caption text-muted">{line.optionSummary}</p> : null}
+        <div className="mt-auto flex items-end justify-between gap-2">
+          <p className="text-caption text-muted">Qty {line.quantity}, added by an offer</p>
+          <p className="flex flex-col items-end leading-tight">
+            <s className="text-caption text-muted"><span className="sr-only">Worth </span>{formatNaira(line.lineSubtotalMinor)}</s>
+            <span className="font-display text-heading-xs font-extrabold text-success">Free</span>
+          </p>
+        </div>
       </div>
     </article>
   );

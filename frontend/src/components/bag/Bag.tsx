@@ -12,7 +12,8 @@ import { useQuote } from "@/lib/cart/useQuote";
 import { formatNaira } from "@/lib/format";
 import { useStoreHydrated } from "@/lib/stores/hydrated";
 import { useCartStore } from "@/lib/stores/cart";
-import { BagLine } from "./BagLine";
+import { BagLine, GiftLine } from "./BagLine";
+import { giftLines } from "@/lib/cart/model";
 import { CodeEntry } from "./CodeEntry";
 import { PriceSummary } from "./PriceSummary";
 
@@ -76,6 +77,7 @@ export function Bag() {
 
             <div className="flex flex-col gap-2">
               {views.map((v) => <BagLine key={v.variantId} view={v} onQuantity={setQuantity} onRemove={onRemove} busy={busy} />)}
+              {giftLines(quote).map((g) => <GiftLine key={`gift-${g.gift?.promotionId}-${g.variantId}`} line={g} />)}
               {removed.map((r) => (
                 <div key={r.variantId} role="status" className="flex items-center justify-between gap-3 rounded-card bg-surface px-4 py-3 text-body-sm">
                   <span className="min-w-0 truncate">Removed {r.title}</span>
