@@ -255,6 +255,22 @@ function seedContent() {
 }
 seedContent();
 
+// ---- admin categories and collections
+let cats = [];
+let cols = [];
+let colMembers = {};
+function seedTaxonomy() {
+  cats = [
+    { id: id(40), name: "Frontal wigs", slug: "frontal", parentId: null, sortOrder: 0, active: true, productCount: 12 },
+    { id: id(41), name: "Hair care", slug: "hair-care", parentId: null, sortOrder: 10, active: true, productCount: 4 },
+    { id: id(42), name: "HD lace", slug: "hd-lace", parentId: id(40), sortOrder: 0, active: true, productCount: 5 },
+  ];
+  cols = [{ id: id(60), name: "Bob wigs", slug: "bob-wigs", description: null, sortOrder: 0, active: true }, { id: id(61), name: "Frontals", slug: "frontals", description: "Our frontals", sortOrder: 10, active: true }];
+  colMembers = { [id(60)]: [V(1)], [id(61)]: [] };
+}
+seedTaxonomy();
+const memberRows = (cid) => (colMembers[cid] ?? []).map((pid) => ({ id: pid, title: adminProducts.get(pid)?.title ?? "Product", status: adminProducts.get(pid)?.status ?? "active" }));
+
 // Orders placed during a test run, keyed by id. A recipient named "Fail Test" gets a payment that has already failed.
 const orders = new Map();
 let counter = 0;
@@ -286,7 +302,7 @@ const server = createServer(async (req, res) => {
       if (!a) return send(401, { error: { code: "UNAUTHENTICATED", message: "Authentication is required.", requestId: "r" } });
       if (path === "/admin/me") return send(200, adminIdentity(a));
       if (path === "/admin/orders-to-action") return can(a, "orders:read") ? send(200, { toPack: 3, toDispatch: 2, outForDelivery: 1, awaitingTransfer: 1, paymentExceptions: 0 }) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
-      if (path === "/admin/categories") return can(a, "catalog:read") ? send(200, { data: [{ id: id(40), name: "Frontal wigs", slug: "frontal", parentId: null, active: true }, { id: id(41), name: "Hair care", slug: "hair-care", parentId: null, active: true }] }) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+      if (path === "/admin/categories") return can(a, "catalog:read") ? send(200, { data: cats }) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
       if (path === "/admin/products") {
         if (!can(a, "catalog:read")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
         const q = (url.searchParams.get("q") ?? "").toLowerCase();
@@ -332,7 +348,9 @@ const server = createServer(async (req, res) => {
           recentOrders: c.orderCount ? [{ id: O(1), orderNumber: "JH-10481", status: "placed", paymentStatus: "paid", totalMinor: 20_000_000, createdAt: "2026-10-20T09:00:00Z" }, { id: O(4), orderNumber: "JH-10484", status: "delivered", paymentStatus: "paid", totalMinor: 9_250_000, createdAt: "2026-09-02T09:00:00Z" }] : [],
         });
       }
-      if (path === "/admin/collections") return can(a, "catalog:read") || can(a, "promotions:read") ? send(200, { data: [{ id: id(60), name: "Bob wigs", slug: "bob-wigs", active: true }, { id: id(61), name: "Frontals", slug: "frontals", active: true }] }) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+      if (path === "/admin/collections") return can(a, "catalog:read") || can(a, "promotions:read") ? send(200, { data: cols.map((c) => ({ ...c, productCount: (colMembers[c.id] ?? []).length })) }) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
+      const colProducts = path.match(/^\/admin\/collections\/([^/]+)\/products$/);
+      if (colProducts) return send(200, { data: memberRows(colProducts[1]) });
       if (path === "/admin/promotions") {
         if (!can(a, "promotions:read")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
         return send(200, { data: [...promos].reverse().map(promoRow), page: { nextCursor: null } });
@@ -435,10 +453,11 @@ const server = createServer(async (req, res) => {
       return found ? send(200, { data: found }) : send(404, { error: { code: "NOT_FOUND", message: "Not found", requestId: "r" } });
     }
   }
-  if ((path.startsWith("/admin/") && !path.startsWith("/admin/auth/") || path.startsWith("/__test/touch-product/") || path === "/__test/reset-products" || path === "/__test/reset-orders" || path === "/__test/reset-promotions" || path === "/__test/reset-content" || path === "/__test/reset-settings" || path === "/__test/reset-reviews") && ["PATCH", "PUT", "POST", "DELETE"].includes(req.method)) {
+  if ((path.startsWith("/admin/") && !path.startsWith("/admin/auth/") || path.startsWith("/__test/touch-product/") || path === "/__test/reset-products" || path === "/__test/reset-orders" || path === "/__test/reset-promotions" || path === "/__test/reset-taxonomy" || path === "/__test/reset-content" || path === "/__test/reset-settings" || path === "/__test/reset-reviews") && ["PATCH", "PUT", "POST", "DELETE"].includes(req.method)) {
     if (path === "/__test/reset-products") { seedAdminProducts(); return send(204); }
     if (path === "/__test/reset-orders") { seedAdminOrders(); return send(204); }
     if (path === "/__test/reset-promotions") { seedPromos(); return send(204); }
+    if (path === "/__test/reset-taxonomy") { seedTaxonomy(); return send(204); }
     if (path === "/__test/reset-content") { seedContent(); return send(204); }
     if (path === "/__test/reset-settings") { seedAdminSettings(); return send(204); }
     if (path === "/__test/reset-reviews") { seedReviews(); return send(204); }
@@ -517,6 +536,36 @@ const server = createServer(async (req, res) => {
       if (!x) return fail(404, "NOT_FOUND", "Content entry not found.");
       Object.assign(x, json, { updatedAt: new Date().toISOString() });
       return send(200, x);
+    }
+    if (path === "/admin/categories" && req.method === "POST") {
+      if (!can(a, "catalog:write")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");
+      if (cats.some((c) => c.slug === (json.slug ?? json.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")))) return fail(409, "SLUG_TAKEN", "Another category already uses this slug.");
+      const x = { id: id(1300 + cats.length), name: json.name, slug: json.slug ?? json.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), parentId: json.parentId ?? null, sortOrder: json.sortOrder ?? 0, active: json.active ?? true, productCount: 0 };
+      cats.push(x);
+      return send(201, x);
+    }
+    const catPatch = path.match(/^\/admin\/categories\/([^/]+)$/);
+    if (catPatch && req.method === "PATCH") {
+      const x = cats.find((c) => c.id === catPatch[1]);
+      if (!x) return fail(404, "NOT_FOUND", "Category not found.");
+      Object.assign(x, json);
+      return send(200, x);
+    }
+    if (path === "/admin/collections" && req.method === "POST") {
+      if (!can(a, "catalog:write")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");
+      const x = { id: id(1400 + cols.length), name: json.name, slug: json.slug ?? json.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), description: json.description ?? null, sortOrder: json.sortOrder ?? 0, active: json.active ?? true };
+      cols.push(x);
+      colMembers[x.id] = [];
+      return send(201, { ...x, productCount: 0 });
+    }
+    const colMember = path.match(/^\/admin\/collections\/([^/]+)\/products$/);
+    if (colMember && req.method === "PUT") { colMembers[colMember[1]] = json.productIds; return send(200, { productIds: json.productIds }); }
+    const colPatch = path.match(/^\/admin\/collections\/([^/]+)$/);
+    if (colPatch && req.method === "PATCH") {
+      const x = cols.find((c) => c.id === colPatch[1]);
+      if (!x) return fail(404, "NOT_FOUND", "Collection not found.");
+      Object.assign(x, json);
+      return send(200, { ...x, productCount: (colMembers[x.id] ?? []).length });
     }
     const settingPatch = path.match(/^\/admin\/settings\/([^/]+)$/);
     if (settingPatch && req.method === "PATCH") {

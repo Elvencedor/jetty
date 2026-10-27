@@ -80,7 +80,7 @@ export function ProductsPage() {
       <PageHeader
         title="Products"
         subtitle={summary ? `${summary.products} products · ${summary.variants.toLocaleString("en-NG")} variants · ${summary.lowStock} low on stock` : " "}
-        actions={canWrite ? <Button iconLeft={<Plus aria-hidden="true" size={16} />} onClick={() => setCreating(true)}>New product</Button> : null}
+        actions={<><Button href="/admin/products/organise" variant="outline">Categories & collections</Button>{canWrite ? <Button iconLeft={<Plus aria-hidden="true" size={16} />} onClick={() => setCreating(true)}>New product</Button> : null}</>}
       />
 
       <div className="flex flex-wrap items-center gap-2.5">
