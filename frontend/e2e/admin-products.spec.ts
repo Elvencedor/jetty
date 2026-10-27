@@ -30,6 +30,9 @@ test("the catalogue shows the summary, filters by status and opens a product in 
   await page.getByRole("button", { name: "Draft", exact: true }).click();
   await expect(page.getByText("Silk Sleep Bonnet")).toBeVisible();
   await expect(page.getByText("Bone Straight HD Frontal")).toHaveCount(0);
+  await page.getByRole("button", { name: "Low stock", exact: true }).click();
+  await expect(page.getByText("Bone Straight HD Frontal")).toBeVisible();
+  await expect(page.getByText("Silk Sleep Bonnet")).toHaveCount(0);
   await page.getByRole("button", { name: "All", exact: true }).click();
 
   await page.getByRole("button", { name: /^Bone Straight HD Frontal/ }).click();

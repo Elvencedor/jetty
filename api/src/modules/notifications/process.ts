@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import type { Logger } from '../../lib/logger.js';
 import { PermanentSendError, type Senders } from './senders.js';
-import { render, SECRET_EVENT_TYPES } from './templates.js';
+import { opsMessage, render, SECRET_EVENT_TYPES } from './templates.js';
 
 export const MAX_ATTEMPTS = 6;
 /** A claimed row is invisible to other workers this long; if the worker dies, the row is retried afterwards. */
@@ -50,9 +50,8 @@ async function deliver(db: Db, senders: Senders, logger: Logger, row: Claimed, a
   if (row.channel === 'internal') {
     logger.warn('operations alert', { eventType: row.event_type, ...row.payload });
     if (opsEmail) {
-      const { orderNumber, reason } = row.payload as { orderNumber?: string; reason?: string };
       try {
-        await senders.email.send({ to: opsEmail, subject: `Payment needs attention: ${reason ?? row.event_type} (${orderNumber ?? 'unknown order'})`, text: `${reason ?? row.event_type} on order ${orderNumber ?? 'unknown'}.\n\nOpen the order in the admin to review its payments and, if the customer was charged twice, refund the extra charge.` });
+        await senders.email.send({ to: opsEmail, ...opsMessage(row.event_type, row.payload) });
       } catch (err) {
         if (err instanceof PermanentSendError) return fail(err.message.slice(0, 500));
         const error = (err instanceof Error ? err.message : String(err)).slice(0, 500);

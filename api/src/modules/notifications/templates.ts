@@ -54,3 +54,22 @@ export function render(eventType: string, channel: Channel, recipient: string, p
 
 /** Event types whose payload holds a secret that must not outlive its delivery. */
 export const SECRET_EVENT_TYPES: readonly string[] = ['auth.password_reset'];
+
+/** The subject and text of an operations (internal) alert, for the event types the service raises. */
+export function opsMessage(eventType: string, payload: Payload): { subject: string; text: string } {
+  if (eventType === 'stock.low') {
+    const items = Array.isArray(payload.items) ? (payload.items as { sku?: string; title?: string; available?: number; threshold?: number }[]) : [];
+    const total = typeof payload.total === 'number' ? payload.total : items.length;
+    const lines = items.map((i) => `- ${i.title ?? 'Product'} (${i.sku ?? 'no SKU'}): ${i.available ?? 0} left, warn at ${i.threshold ?? 0}`);
+    return {
+      subject: `Low stock: ${total} ${total === 1 ? 'item needs' : 'items need'} restocking`,
+      text: `${total} ${total === 1 ? 'item is' : 'items are'} at or under their warning level.\n\n${lines.join('\n')}${total > items.length ? `\n…and ${total - items.length} more.` : ''}\n\nOpen Products in the admin and filter by low stock to restock them.`,
+    };
+  }
+  const orderNumber = typeof payload.orderNumber === 'string' ? payload.orderNumber : null;
+  const reason = typeof payload.reason === 'string' ? payload.reason : null;
+  return {
+    subject: `Payment needs attention: ${reason ?? eventType} (${orderNumber ?? 'unknown order'})`,
+    text: `${reason ?? eventType} on order ${orderNumber ?? 'unknown'}.\n\nOpen the order in the admin to review its payments and, if the customer was charged twice, refund the extra charge.`,
+  };
+}
