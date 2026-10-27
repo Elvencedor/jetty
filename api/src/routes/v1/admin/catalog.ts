@@ -23,6 +23,7 @@ const productBody = {
   seoTitle: nullableText(120),
   seoDescription: nullableText(300),
   // Markdown for the product page tabs. Only these four sections exist; anything else is refused.
+  tags: Joi.array().items(Joi.string().trim().min(1).max(40)).max(20),
   details: Joi.object({ details: Joi.string().max(10_000).allow(''), fit: Joi.string().max(10_000).allow(''), care: Joi.string().max(10_000).allow(''), delivery: Joi.string().max(10_000).allow('') }),
   categoryIds: ids,
   collectionIds: ids,

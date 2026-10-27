@@ -47,6 +47,21 @@ test("the catalogue shows the summary, filters by status and opens a product in 
   await expect(page).not.toHaveURL(/product=/);
 });
 
+test("tags are typed in, tidied, removed, and saved with the product", async ({ page }) => {
+  await owner(page, `/admin/products?product=${PRODUCT}`);
+  const d = drawer(page);
+  const tags = d.getByLabel("Tags", { exact: true });
+  await tags.fill("Best  Seller");
+  await tags.press("Enter");
+  await tags.fill("Summer, gift");
+  await expect(d.getByRole("list", { name: "Tags on this product" }).getByRole("listitem")).toHaveText(["best seller", "summer", "gift"]);
+  await d.getByRole("button", { name: "Remove tag gift" }).click();
+  await d.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Saved" }).first()).toBeAttached();
+  await page.reload();
+  await expect(drawer(page).getByRole("list", { name: "Tags on this product" }).getByRole("listitem")).toHaveText(["best seller", "summer"]);
+});
+
 test("the featured star changes at once and sticks", async ({ page }) => {
   await owner(page);
   const star = page.getByRole("button", { name: "Feature Bone Straight HD Frontal on homepage" });

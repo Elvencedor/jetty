@@ -128,7 +128,7 @@ function seedAdminProducts() {
 seedAdminProducts();
 const etagOfProduct = (p) => `"${p.version}"`;
 const productDetail = (p) => ({
-  product: { id: p.id, slug: p.slug, title: p.title, description: p.description, status: p.status, featured: p.featured, badgeOverride: null, seoTitle: null, seoDescription: null, details: null, categoryIds: p.categoryIds, collectionIds: [], updatedAt: new Date(p.version).toISOString() },
+  product: { id: p.id, slug: p.slug, title: p.title, description: p.description, status: p.status, featured: p.featured, badgeOverride: null, tags: p.tags ?? [], seoTitle: null, seoDescription: null, details: null, categoryIds: p.categoryIds, collectionIds: [], updatedAt: new Date(p.version).toISOString() },
   options: p.options, media: p.media,
   variants: p.variants.map((v) => ({ ...v, stock: { ...v.stock, available: Math.max(v.stock.onHand - v.stock.reserved, 0) } })),
 });
@@ -642,7 +642,7 @@ const server = createServer(async (req, res) => {
         p.options = json.options.map((o) => ({ id: `opt-${o.name}`, name: o.name, values: o.values.map((v) => ({ id: `val-${v.valueKey}`, label: v.label, valueKey: v.valueKey, priceDeltaMinor: v.priceDeltaMinor ?? 0, swatch: v.swatch ?? null, active: v.active ?? true })) }));
         p.variants = json.variants.map((v, i) => { const old = v.id ? prior.get(v.id) : null; return { id: old?.id ?? V(1000 + adminProducts.size * 100 + i + Math.floor(Math.random() * 1e6)), sku: v.sku, optionValues: v.optionValues, priceMinor: v.priceMinor, compareAtPriceMinor: v.compareAtPriceMinor ?? null, active: v.active ?? true, stock: old ? old.stock : { onHand: v.stock ?? 0, reserved: 0, lowStockThreshold: null } }; });
       } else {
-        for (const k of ["title", "description", "featured"]) if (k in json) p[k] = json[k];
+        for (const k of ["title", "description", "featured", "tags"]) if (k in json) p[k] = json[k];
         if (json.categoryIds) p.categoryIds = json.categoryIds;
       }
       touch(p);

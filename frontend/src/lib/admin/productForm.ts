@@ -13,7 +13,13 @@ export type Basics = {
   featured: boolean;
   /** Empty = automatic badges (sale, new, low stock). */
   badge: string;
+  tags: string[];
 };
+
+/** The tags a person typed, tidied the way the API stores them: trimmed, lowercase, one space, no repeats. */
+export const tidyTags = (tags: string[]) => [...new Set(tags.map((t) => t.trim().replace(/\s+/g, " ").toLowerCase()).filter(Boolean))];
+export const MAX_TAGS = 20;
+export const MAX_TAG_LENGTH = 40;
 
 export const basicsFrom = (d: AdminProductDetail): Basics => ({
   title: d.product.title,
@@ -25,6 +31,7 @@ export const basicsFrom = (d: AdminProductDetail): Basics => ({
   details: { details: d.product.details?.details ?? "", fit: d.product.details?.fit ?? "", care: d.product.details?.care ?? "", delivery: d.product.details?.delivery ?? "" },
   featured: d.product.featured,
   badge: d.product.badgeOverride ?? "",
+  tags: d.product.tags ?? [],
 });
 
 /** Only the fields that changed, ready for `PATCH /admin/products/{id}`; null when nothing did. Status is saved separately. */
@@ -37,6 +44,7 @@ export function changedFields(was: Basics, now: Basics, wasCategories: string[])
   if (JSON.stringify(now.details) !== JSON.stringify(was.details)) out.details = now.details;
   if (now.featured !== was.featured) out.featured = now.featured;
   if (now.badge !== was.badge) out.badgeOverride = now.badge.trim() || null;
+  if (JSON.stringify(now.tags) !== JSON.stringify(was.tags)) out.tags = tidyTags(now.tags);
   if (now.categoryId !== was.categoryId) {
     // The design offers one category; other categories the product has are kept.
     const others = wasCategories.filter((c) => c !== was.categoryId);

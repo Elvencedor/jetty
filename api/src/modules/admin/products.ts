@@ -49,7 +49,7 @@ export async function listAdminProducts(db: Db, input: ProductListInput, storage
   if (input.status) where.push(sql`p.status = ${input.status}`);
   if (input.q) {
     const like = likeContains(input.q);
-    where.push(sql`(p.title ilike ${like} or p.slug ilike ${like} or exists (select 1 from product_variants sv where sv.product_id = p.id and sv.sku ilike ${like}))`);
+    where.push(sql`(p.title ilike ${like} or p.slug ilike ${like} or p.tags::text ilike ${like} or exists (select 1 from product_variants sv where sv.product_id = p.id and sv.sku ilike ${like}))`);
   }
   if (input.stock === 'out') where.push(sql`s.available <= 0`);
   if (input.stock === 'low') where.push(sql`s.low`);
@@ -59,7 +59,7 @@ export async function listAdminProducts(db: Db, input: ProductListInput, storage
     after = sql`and (p.updated_at, p.id) < (${at}::timestamptz, ${id}::uuid)`;
   }
   const rows = (await db.execute(sql`
-    select p.id, p.slug, p.title, p.status, p.featured, p.published_at, p.updated_at, p.updated_at::text as cur_at,
+    select p.id, p.slug, p.title, p.status, p.featured, p.tags, p.published_at, p.updated_at, p.updated_at::text as cur_at,
       s.variant_count, s.available, s.min_price, s.max_price, s.low,
       m.object_key as cover_key
     from products p
@@ -88,6 +88,7 @@ export async function listAdminProducts(db: Db, input: ProductListInput, storage
       title: r.title as string,
       status: r.status as string,
       featured: r.featured as boolean,
+      tags: r.tags as string[],
       publishedAt: r.published_at ? new Date(r.published_at as string).toISOString() : null,
       updatedAt: new Date(r.updated_at as string).toISOString(),
       variantCount: r.variant_count as number,
@@ -160,7 +161,11 @@ export type ProductFields = {
   details?: { details?: string; fit?: string; care?: string; delivery?: string } | undefined;
   categoryIds?: string[] | undefined;
   collectionIds?: string[] | undefined;
+  tags?: string[] | undefined;
 };
+
+/** Tags are matched by spelling, not case or spacing: "Best Seller " and "best seller" are one tag. */
+export const normaliseTags = (tags: string[]) => [...new Set(tags.map((t) => t.trim().replace(/\s+/g, ' ').toLowerCase()).filter(Boolean))];
 
 async function assertExist(tx: Db | Tx, table: typeof categories | typeof collections, ids: string[], label: string) {
   if (ids.length === 0) return;
@@ -199,6 +204,7 @@ export async function createProduct(db: Db, input: ProductFields) {
             seoTitle: input.seoTitle ?? null,
             seoDescription: input.seoDescription ?? null,
             detailsJson: input.details ?? {},
+            tags: normaliseTags(input.tags ?? []),
           })
           .returning();
         await setMemberships(tx, p!.id, input);
@@ -230,6 +236,7 @@ export async function updateProduct(db: Db, id: string, patch: Partial<ProductFi
           ...(patch.seoTitle !== undefined ? { seoTitle: patch.seoTitle } : {}),
           ...(patch.seoDescription !== undefined ? { seoDescription: patch.seoDescription } : {}),
           ...(patch.details !== undefined ? { detailsJson: patch.details } : {}),
+          ...(patch.tags !== undefined ? { tags: normaliseTags(patch.tags) } : {}),
           updatedAt: new Date(),
         })
         .where(eq(products.id, id))
