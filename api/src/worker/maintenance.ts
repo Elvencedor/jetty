@@ -4,6 +4,7 @@ import { promotions } from '../db/schema/index.js';
 import type { Logger } from '../lib/logger.js';
 import { cleanupIdempotencyKeys } from '../lib/idempotency.js';
 import { cleanupChallenges, scrubStaleCodes } from '../modules/auth/challenges.js';
+import { queueLowStockAlert } from '../modules/inventory/low-stock.js';
 import { releaseExpiredReservations } from '../modules/inventory/reservations.js';
 import { cleanupAnalyticsEvents, cleanupOutbox, cleanupSessions } from './retention.js';
 
@@ -12,7 +13,7 @@ import { cleanupAnalyticsEvents, cleanupOutbox, cleanupSessions } from './retent
  * blocks the others, and every task is idempotent and safe across replicas.
  */
 export async function runMaintenance(db: Db, logger: Logger, now: Date = new Date()) {
-  const result = { reservationsReleased: 0, idempotencyKeysRemoved: 0, authChallengesRemoved: 0, staleCodesScrubbed: 0, promotionsExpired: 0, sessionsRemoved: 0, messagesRemoved: 0, analyticsEventsRemoved: 0, failed: [] as string[] };
+  const result = { reservationsReleased: 0, idempotencyKeysRemoved: 0, authChallengesRemoved: 0, staleCodesScrubbed: 0, promotionsExpired: 0, lowStockListed: 0, sessionsRemoved: 0, messagesRemoved: 0, analyticsEventsRemoved: 0, failed: [] as string[] };
   const tasks: [string, () => Promise<void>][] = [
     ['release-expired-reservations', async () => void (result.reservationsReleased = await releaseExpiredReservations(db, now))],
     ['cleanup-idempotency-keys', async () => void (result.idempotencyKeysRemoved = await cleanupIdempotencyKeys(db, now))],
@@ -21,6 +22,7 @@ export async function runMaintenance(db: Db, logger: Logger, now: Date = new Dat
     ['cleanup-sessions', async () => void (result.sessionsRemoved = await cleanupSessions(db, now))],
     ['cleanup-notification-outbox', async () => void (result.messagesRemoved = await cleanupOutbox(db, now))],
     ['cleanup-analytics-events', async () => void (result.analyticsEventsRemoved = await cleanupAnalyticsEvents(db, now))],
+    ['low-stock-alert', async () => void (result.lowStockListed = await queueLowStockAlert(db, now))],
     // The schedule is enforced at quote time regardless; this only keeps the stored status honest for reporting.
     [
       'expire-promotions',
@@ -38,6 +40,6 @@ export async function runMaintenance(db: Db, logger: Logger, now: Date = new Dat
       logger.error('maintenance task failed', { task: name, err: err instanceof Error ? err.message : String(err) });
     }
   }
-  if (result.reservationsReleased || result.idempotencyKeysRemoved || result.authChallengesRemoved || result.staleCodesScrubbed || result.promotionsExpired || result.sessionsRemoved || result.messagesRemoved || result.analyticsEventsRemoved) logger.info('maintenance pass', result);
+  if (result.reservationsReleased || result.idempotencyKeysRemoved || result.authChallengesRemoved || result.staleCodesScrubbed || result.promotionsExpired || result.lowStockListed || result.sessionsRemoved || result.messagesRemoved || result.analyticsEventsRemoved) logger.info('maintenance pass', result);
   return result;
 }

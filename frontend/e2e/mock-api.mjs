@@ -309,7 +309,7 @@ const server = createServer(async (req, res) => {
         const q = (url.searchParams.get("q") ?? "").toLowerCase();
         const status = url.searchParams.get("status");
         const stock = url.searchParams.get("stock");
-        const rows = [...adminProducts.values()].map(productRow).filter((r) => (!q || r.title.toLowerCase().includes(q)) && (!status || r.status === status) && (stock !== "out" || r.availableQuantity <= 0));
+        const rows = [...adminProducts.values()].map(productRow).filter((r) => (!q || r.title.toLowerCase().includes(q)) && (!status || r.status === status) && (stock !== "out" || r.availableQuantity <= 0) && (stock !== "low" || r.lowStock));
         const live = [...adminProducts.values()].filter((p) => p.status !== "archived");
         const summary = { products: live.length, variants: live.reduce((n, p) => n + p.variants.filter((v) => v.active).length, 0), lowStock: live.filter((p) => p.variants.some((v) => v.active && v.stock.onHand <= 1)).length };
         return send(200, { summary, data: rows, page: { nextCursor: null } });
