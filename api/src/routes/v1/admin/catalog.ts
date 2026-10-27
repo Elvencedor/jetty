@@ -4,7 +4,7 @@ import { apiError } from '../../../lib/errors.js';
 import { changeStock, listInventory, STOCK_REASONS, type StockChange } from '../../../modules/admin/inventory.js';
 import { createUploadIntent, deleteMedia, finalizeMedia, MEDIA_ANGLES, MEDIA_TYPES, MAX_UPLOAD_BYTES, updateMedia, type MediaFields } from '../../../modules/admin/media.js';
 import { createProduct, getAdminProduct, listAdminProducts, replaceMatrix, setProductStatus, updateProduct, type MatrixInput, type ProductFields, type ProductListInput } from '../../../modules/admin/products.js';
-import { createCategory, createCollection, listCategories, listCollections, setCollectionProducts, updateCategory, updateCollection } from '../../../modules/admin/taxonomy.js';
+import { createCategory, createCollection, listCategories, listCollectionProducts, listCollections, setCollectionProducts, updateCategory, updateCollection } from '../../../modules/admin/taxonomy.js';
 import { assertIfMatch, audited, db, etagFor, guard, NO_STORE, pageQuery, slugSchema, uuidParam } from './shared.js';
 
 const write = guard('catalog:write');
@@ -281,6 +281,12 @@ export const adminCatalogRoutes: ServerRoute[] = [
       const { after } = await audited(request, (tx) => updateCollection(tx, (request.params as { id: string }).id, blankToNull(request.payload as never)), ({ before, after }) => ({ action: 'collection.update', resourceType: 'collection', resourceId: after.id, before, after }));
       return h.response(after).header('Cache-Control', NO_STORE);
     },
+  },
+  {
+    method: 'GET',
+    path: '/admin/collections/{id}/products',
+    options: { ...read, description: 'The products in a collection, in display order', tags: ['api', 'admin'], validate: { params: uuidParam('id') } },
+    handler: async (request, h) => h.response({ data: await listCollectionProducts(db(request), (request.params as { id: string }).id) }).header('Cache-Control', NO_STORE),
   },
   {
     method: 'PUT',

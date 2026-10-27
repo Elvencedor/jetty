@@ -291,6 +291,13 @@ describe('admin catalog, media and inventory', { skip: !TEST_DATABASE_URL && 'TE
       assert.deepEqual(set.body.productIds, [p2, p1]);
       assert.equal((await call('PUT', `/admin/collections/${col.body.id}/products`, { productIds: ['00000000-0000-4000-8000-000000000000'] })).status, 422);
       assert.equal((await call('PATCH', `/admin/collections/${col.body.id}`, { description: '' })).body.description, null);
+
+      const members = await call('GET', `/admin/collections/${col.body.id}/products`);
+      assert.deepEqual(members.body.data.map((m: Json) => [m.id, m.title, m.status]), [[p2, 'Col B', 'draft'], [p1, 'Col A', 'draft']], 'in display order, drafts included');
+      assert.equal((await call('GET', '/admin/collections/00000000-0000-4000-8000-000000000000/products')).status, 404);
+      const listed = (await call('GET', '/admin/collections')).body.data.find((c: Json) => c.id === col.body.id);
+      assert.equal(listed.productCount, 2, 'the list says how many products each collection holds');
+      assert.equal((await call('GET', '/admin/categories')).body.data.every((c: Json) => typeof c.productCount === 'number'), true);
     });
   });
 
