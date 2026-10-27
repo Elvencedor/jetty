@@ -1,10 +1,12 @@
 import type { ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
 import { createContent, getContent, listContent, updateContent, type ContentInput } from '../../../modules/admin/content.js';
-import { customerSegments, getAdminCustomer, listAdminCustomers, SEGMENTS, listAdminReviews, moderateReview } from '../../../modules/admin/people.js';
+import { customerSegments, getAdminCustomer, listAdminCustomers, SEGMENTS, listAdminReviews, moderateReview, reviewSummary } from '../../../modules/admin/people.js';
 import { listZones, upsertZones, zoneSchema, type ZoneInput } from '../../../modules/admin/zones.js';
 import { CONTENT_STATUSES, CONTENT_TYPES } from '../../../modules/content/content.js';
 import { getSetting, isSettingKey, SETTING_KEYS, SETTINGS, updateSetting } from '../../../modules/settings/settings.js';
+import { withUrl } from '../../../modules/media/urls.js';
+import { revalidateStorefront } from '../../../lib/revalidate.js';
 import { fromJoi, notFound } from '../../../lib/errors.js';
 import { audited, db, guard, NO_STORE, pageQuery, slugSchema, uuidParam } from './shared.js';
 
@@ -48,6 +50,7 @@ export const adminManagementRoutes: ServerRoute[] = [
     },
     handler: async (request, h) => {
       const row = await audited(request, (tx) => createContent(tx, request.auth.credentials.adminId!, request.payload as ContentInput), (row) => ({ action: 'content.create', resourceType: 'content', resourceId: row.id, after: { contentType: row.contentType, slug: row.slug, status: row.status } }));
+      void revalidateStorefront(request.server.app.env, request.server.app.logger, ['home']);
       return h.response(row).code(201).header('Cache-Control', NO_STORE);
     },
   },
@@ -58,6 +61,7 @@ export const adminManagementRoutes: ServerRoute[] = [
     handler: async (request, h) => {
       const { id } = request.params as { id: string };
       const { after } = await audited(request, (tx) => updateContent(tx, id, request.payload as Partial<ContentInput>), ({ before, after }) => ({ action: 'content.update', resourceType: 'content', resourceId: id, before: { title: before.title, status: before.status, startsAt: before.startsAt, endsAt: before.endsAt, body: before.body }, after: { title: after.title, status: after.status, startsAt: after.startsAt, endsAt: after.endsAt, body: after.body } }));
+      void revalidateStorefront(request.server.app.env, request.server.app.logger, ['home']);
       return h.response(after).header('Cache-Control', NO_STORE);
     },
   },
@@ -97,7 +101,17 @@ export const adminManagementRoutes: ServerRoute[] = [
       tags: ['api', 'admin'],
       validate: { query: Joi.object({ ...pageQuery, status: Joi.string().valid('pending', 'approved', 'rejected', 'hidden'), productId: Joi.string().uuid() }) },
     },
-    handler: async (request, h) => h.response(await listAdminReviews(db(request), request.query as never)).header('Cache-Control', NO_STORE),
+    handler: async (request, h) => {
+      const page = await listAdminReviews(db(request), request.query as never);
+      const storage = request.server.app.storage;
+      return h.response({ ...page, data: page.data.map((r) => ({ ...r, image: withUrl(storage, r.image) })) }).header('Cache-Control', NO_STORE);
+    },
+  },
+  {
+    method: 'GET',
+    path: '/admin/reviews/summary',
+    options: { ...guard('reviews:moderate'), description: 'The store rating from published reviews', tags: ['api', 'admin'] },
+    handler: async (request, h) => h.response(await reviewSummary(db(request))).header('Cache-Control', NO_STORE),
   },
   {
     method: 'PATCH',
@@ -147,12 +161,14 @@ export const adminManagementRoutes: ServerRoute[] = [
         const { value, error } = Joi.object({ zones: Joi.array().items(zoneSchema).min(1).max(100).required() }).validate(request.payload, { abortEarly: false });
         if (error) throw fromJoi(error);
         await audited(request, (tx) => upsertZones(tx, (value as { zones: ZoneInput[] }).zones), (changes) => ({ action: 'settings.delivery_zones', resourceType: 'settings', resourceId: key, before: changes.map((c) => c.before), after: changes.map((c) => c.after) }));
+        void revalidateStorefront(request.server.app.env, request.server.app.logger, ['settings']);
         return h.response({ zones: await listZones(db(request)) }).header('Cache-Control', NO_STORE);
       }
       if (!isSettingKey(key)) throw notFound('Unknown setting.');
       const { value, error } = SETTINGS[key].schema.validate(request.payload, { abortEarly: false });
       if (error) throw fromJoi(error);
       const { after } = await audited(request, (tx) => updateSetting(tx, request.auth.credentials.adminId!, key, value as Record<string, unknown>), ({ before, after }) => ({ action: `settings.${key}`, resourceType: 'settings', resourceId: key, before, after }));
+      void revalidateStorefront(request.server.app.env, request.server.app.logger, ['settings']);
       return h.response(after).header('Cache-Control', NO_STORE);
     },
   },

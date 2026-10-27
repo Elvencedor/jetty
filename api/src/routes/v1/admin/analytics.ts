@@ -1,6 +1,7 @@
 import type { ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
 import { actionCounts, dashboard, INTERVALS, periods, productAnalytics, revenueSeries, type Interval } from '../../../modules/admin/analytics.js';
+import { withUrl } from '../../../modules/media/urls.js';
 import { db, guard, NO_STORE } from './shared.js';
 
 const range = { from: Joi.date().iso(), to: Joi.date().iso() };
@@ -12,7 +13,8 @@ export const adminAnalyticsRoutes: ServerRoute[] = [
     options: { ...guard('analytics:read'), description: 'KPIs with previous-period comparison, top products, category sales and action counts', tags: ['api', 'admin'], validate: { query: Joi.object(range) } },
     handler: async (request, h) => {
       const { from, to } = request.query as { from?: Date; to?: Date };
-      return h.response(await dashboard(db(request), periods(from, to))).header('Cache-Control', NO_STORE);
+      const data = await dashboard(db(request), periods(from, to));
+      return h.response({ ...data, topProducts: data.topProducts.map((t) => ({ ...t, image: withUrl(request.server.app.storage, t.image) })) }).header('Cache-Control', NO_STORE);
     },
   },
   {
@@ -30,7 +32,8 @@ export const adminAnalyticsRoutes: ServerRoute[] = [
     options: { ...guard('analytics:read'), description: 'Top products and sales by category', tags: ['api', 'admin'], validate: { query: Joi.object(range) } },
     handler: async (request, h) => {
       const { from, to } = request.query as { from?: Date; to?: Date };
-      return h.response(await productAnalytics(db(request), periods(from, to))).header('Cache-Control', NO_STORE);
+      const data = await productAnalytics(db(request), periods(from, to));
+      return h.response({ ...data, topProducts: data.topProducts.map((t) => ({ ...t, image: withUrl(request.server.app.storage, t.image) })) }).header('Cache-Control', NO_STORE);
     },
   },
   {

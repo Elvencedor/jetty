@@ -38,3 +38,30 @@ p {
 @utility min-h-screen-safe {
   min-height: 100dvh;
 }
+
+/* The packing slip (admin orders) is the only thing that prints: it is hidden on screen, and everything else is hidden on paper. */
+.packing-slip {
+  display: none;
+}
+@media print {
+  body > *:not(.packing-slip) {
+    display: none !important;
+  }
+  .packing-slip {
+    display: block;
+    color: #000;
+    font: 14px/1.5 system-ui, sans-serif;
+  }
+  .packing-slip table {
+    width: 100%;
+    margin-top: 16px;
+    border-collapse: collapse;
+  }
+  .packing-slip th,
+  .packing-slip td {
+    border-bottom: 1px solid #999;
+    padding: 6px 4px;
+    text-align: left;
+    vertical-align: top;
+  }
+}

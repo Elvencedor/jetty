@@ -7,6 +7,10 @@ export type InitializeInput = {
   channels: string[];
   /** Opaque internal IDs only; never contact details or card data. */
   metadata: Record<string, string>;
+  /** Paystack subaccount code (ACCT_…): the sale settles to that payout account. */
+  subaccount?: string | undefined;
+  /** Who pays Paystack's fee on a split sale. */
+  bearer?: 'account' | 'subaccount' | undefined;
 };
 
 export type InitializeResult = {
@@ -16,7 +20,14 @@ export type InitializeResult = {
 };
 
 /** The provider definitively refused the request; nothing was created on its side. */
-export class PaymentRejectedError extends Error {}
+export class PaymentRejectedError extends Error {
+  /** What the provider said, safe to show an admin (never a secret). */
+  detail: string | undefined;
+  constructor(message: string, detail?: string) {
+    super(message);
+    this.detail = detail;
+  }
+}
 
 /** Timeout, network or 5xx: the provider may or may not have created the transaction. */
 export class PaymentIndeterminateError extends Error {}
@@ -50,11 +61,31 @@ export type RefundResult = {
   status: string;
 };
 
+export type Bank = { name: string; code: string };
+export type ResolvedAccount = { accountName: string; accountNumber: string };
+
+export type SubaccountInput = {
+  businessName: string;
+  bankCode: string;
+  accountNumber: string;
+  /** The share of each sale the main account keeps, 0 to 100. */
+  percentageCharge: number;
+};
+export type Subaccount = { subaccountCode: string };
+
 export interface PaymentProvider {
   readonly name: string;
+  /** Test keys move no real money; the admin screens say which one is in use. */
+  readonly mode: 'live' | 'test';
   initialize(input: InitializeInput): Promise<InitializeResult>;
   /** Server-to-server lookup by reference; throws PaymentIndeterminateError when the outcome is unknown. */
   verify(reference: string): Promise<VerifiedTransaction>;
   /** Throws PaymentRejectedError when refused outright, PaymentIndeterminateError when the outcome is unknown. */
   refund(input: RefundInput): Promise<RefundResult>;
+  /** Nigerian banks that can receive a payout, by name. */
+  listBanks(): Promise<Bank[]>;
+  /** Looks up who owns an account number at a bank. Throws PaymentRejectedError when there is no such account. */
+  resolveAccount(input: { bankCode: string; accountNumber: string }): Promise<ResolvedAccount>;
+  /** Creates the payout (sub)account, or updates it when `code` is given. */
+  saveSubaccount(input: SubaccountInput, code?: string): Promise<Subaccount>;
 }

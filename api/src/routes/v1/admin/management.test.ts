@@ -132,6 +132,19 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
       assert.ok(!JSON.stringify(one.body).includes('passwordHash'));
     });
 
+    it('names a customer from their latest order, and has no name for one who has not ordered', async () => {
+      const all = await call('GET', '/admin/customers?q=00002');
+      const quiet = all.body.data[0];
+      assert.deepEqual([quiet.name, quiet.area, quiet.state], [null, null, null]);
+      assert.equal((await call('GET', `/admin/customers/${quiet.id}`)).body.lastOrder, null);
+
+      await t.db.insert(orders).values({ orderNumber: 'JH-M-N', customerId: quiet.id, phoneE164: '+2348077700002', subtotalMinor: 5000, totalMinor: 5000, deliveryAddressSnapshot: { recipientName: 'Ada Okafor', addressLine1: '14 Admiralty Way', area: 'Lekki', city: 'Lagos', state: 'Lagos' }, deliveryMethod: 'next_day', termsAcceptedAt: new Date() });
+      const named = (await call('GET', '/admin/customers?q=00002')).body.data[0];
+      assert.deepEqual([named.name, named.area, named.state], ['Ada Okafor', 'Lekki', 'Lagos']);
+      const detail = await call('GET', `/admin/customers/${quiet.id}`);
+      assert.deepEqual(detail.body.lastOrder, { name: 'Ada Okafor', area: 'Lekki', state: 'Lagos', addressLine: '14 Admiralty Way' });
+    });
+
     it('moderates reviews: pending queue, approve makes it public, hide removes it', async () => {
       const created = await api.inject({ method: 'POST', url: '/api/v1/reviews', payload: { orderItemId: itemId, rating: 5, title: 'Great', body: 'Love it' }, headers: { authorization: `Bearer ${((await api.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { email: 'mgmt1@example.com', password: 'correct horse battery' } })).result as Json).accessToken}` } });
       assert.equal(created.statusCode, 201, JSON.stringify(created.result));
@@ -142,15 +155,21 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
       assert.equal(queue.body.data[0].id, reviewId);
       assert.match(queue.body.data[0].customerPhone, /^\+234••••001$/);
       assert.equal(queue.body.data[0].productTitle, 'Mgmt Wig');
+      assert.deepEqual([queue.body.data[0].productSlug, queue.body.data[0].orderNumber, queue.body.data[0].image], ['mgmt-wig', 'JH-M-0', null], 'the card can name the product and the order, and has no photo until the product has one');
+      assert.equal(queue.body.data[0].customerEmail, 'm•••@example.com', 'the reviewer is shown masked, by email now that accounts are email-first');
+      assert.equal(queue.body.page.total, 1, 'the first page carries the queue size, for the nav badge');
+      assert.equal((await call('GET', `/admin/reviews?status=pending&cursor=${encodeURIComponent('x')}`, undefined, support)).body?.page?.total ?? null, null, 'later pages skip the count');
       assert.equal((await call('GET', '/admin/reviews', undefined, editor)).status, 403);
 
       const publicCount = async () => ((await api.inject({ url: `/api/v1/products/${productId}/reviews` })).result as Json).summary.count;
       assert.equal(await publicCount(), 0);
       assert.equal((await call('PATCH', `/admin/reviews/${reviewId}`, { status: 'approved' }, support)).body.status, 'approved');
       assert.equal(await publicCount(), 1);
+      assert.deepEqual((await call('GET', '/admin/reviews/summary', undefined, support)).body, { count: 1, average: 5, distribution: [{ stars: 5, count: 1 }, { stars: 4, count: 0 }, { stars: 3, count: 0 }, { stars: 2, count: 0 }, { stars: 1, count: 0 }] });
       assert.equal(((await api.inject({ url: '/api/v1/products/mgmt-wig' })).result as Json).data.rating.count, 1);
       await call('PATCH', `/admin/reviews/${reviewId}`, { status: 'hidden' }, manager);
       assert.equal(await publicCount(), 0);
+      assert.deepEqual([(await call('GET', '/admin/reviews/summary', undefined, support)).body.count, (await call('GET', '/admin/reviews/summary', undefined, support)).body.average], [0, null], 'hidden reviews leave the store rating');
       assert.equal((await call('PATCH', `/admin/reviews/${reviewId}`, { status: 'pending' })).status, 422, 'cannot be returned to pending');
       assert.equal((await t.db.select().from(reviews).where(eq(reviews.id, reviewId)))[0]!.status, 'hidden');
       const actions = (await t.db.select().from(adminAuditLog).where(eq(adminAuditLog.resourceId, reviewId))).map((a) => a.action);

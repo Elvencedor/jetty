@@ -88,6 +88,34 @@ describe('admin orders, fulfilment and bank-transfer confirmation', { skip: !TES
     assert.equal((await call('GET', '/admin/orders', undefined, support)).status, 200, 'support can read orders');
   });
 
+  it('counts orders per status under the other filters, takes several statuses, filters by payment method and shows the area', async () => {
+    const card = await place('card');
+    const transfer = await place('bank_transfer');
+    const list = await call('GET', '/admin/orders?limit=1');
+    assert.ok(list.body.counts.pending_payment >= 2, 'counts come with the first page');
+    const later = await call('GET', `/admin/orders?limit=1&cursor=${list.body.page.nextCursor}`);
+    assert.equal(later.body.counts, null, 'and only with the first page');
+    const several = await call('GET', '/admin/orders?status=pending_payment,placed,packed');
+    assert.ok(several.body.data.every((o: Json) => ['pending_payment', 'placed', 'packed'].includes(o.status)));
+    assert.equal((await call('GET', '/admin/orders?status=pending_payment,nonsense')).status, 422);
+    const byMethod = await call('GET', '/admin/orders?method=bank_transfer');
+    assert.ok(byMethod.body.data.some((o: Json) => o.id === transfer.orderId));
+    assert.ok(!byMethod.body.data.some((o: Json) => o.id === card.orderId));
+    // The counts follow the other filters: searching for one order leaves one in its status.
+    const narrowed = await call('GET', `/admin/orders?q=${card.orderNumber}`);
+    assert.deepEqual(narrowed.body.counts, { pending_payment: 1 });
+    assert.equal(narrowed.body.data[0].area, 'Lagos', 'the delivery column names the area (or the city)');
+    assert.equal(narrowed.body.data[0].state, 'Lagos');
+  });
+
+  it('gives the order screen what it shows: item photos as null without media, and the customer\'s order history', async () => {
+    const o = await place('card');
+    const detail = await call('GET', `/admin/orders/${o.orderId}`);
+    assert.equal(detail.body.items[0].image, null);
+    assert.deepEqual([detail.body.customer.paidOrders, detail.body.customer.lifetimeValueMinor], [0, 0], 'nothing paid yet, so no history');
+    assert.equal(detail.body.customer.phone, o.phone, 'a guest is still shown by phone');
+  });
+
   it('walks a paid order through fulfilment, notifying the customer at each step', async () => {
     const o = await place('card', 'next_day', 'ada@example.com');
     const early = await call('PATCH', `/admin/orders/${o.orderId}/status`, { status: 'packed' }, fulfilment);

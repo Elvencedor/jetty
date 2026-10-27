@@ -19,6 +19,7 @@ import { InsufficientStockError, reserveStockInTx } from '../inventory/reservati
 import { priceCart, type CartItem } from '../pricing/cart.js';
 import { normaliseCode } from '../pricing/load-promotions.js';
 import { PaymentIndeterminateError, PaymentRejectedError, type InitializeResult, type PaymentProvider } from '../payments/provider.js';
+import { getPayoutAccount } from '../payments/payouts.js';
 import type { AppliedPromotionSnapshot } from '../payments/settle.js';
 import { getSetting } from '../settings/settings.js';
 
@@ -288,6 +289,8 @@ export type AttemptStart =
 export async function initializeAttempt(db: Db, provider: PaymentProvider, a: PaymentAttemptRequest): Promise<AttemptStart> {
   const details = [{ orderId: a.orderId, orderNumber: a.orderNumber }];
   try {
+    // Sales settle to the connected payout account, when there is one.
+    const payout = await getPayoutAccount(db);
     const init = await provider.initialize({
       email: a.email,
       amountMinor: a.amountMinor,
@@ -296,6 +299,7 @@ export async function initializeAttempt(db: Db, provider: PaymentProvider, a: Pa
       callbackUrl: a.callbackUrl,
       channels: channelsFor(a.method),
       metadata: { orderId: a.orderId, paymentAttemptId: a.attemptId },
+      ...(payout ? { subaccount: payout.subaccountCode, bearer: payout.feeBearer } : {}),
     });
     await db
       .update(paymentAttempts)

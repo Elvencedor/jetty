@@ -16,6 +16,8 @@ import {
   normaliseNigerianPhone,
   timeAgo,
   formatDate,
+  formatNairaK,
+  formatNairaKRange,
 } from "./format";
 
 describe("money", () => {
@@ -140,5 +142,16 @@ describe("formatDate", () => {
   it("gives the Lagos calendar day, which can differ from the UTC one", () => {
     expect(formatDate("2026-10-20T10:00:00Z")).toBe("20 Oct 2026");
     expect(formatDate("2026-10-20T23:30:00Z")).toBe("21 Oct 2026");
+  });
+});
+
+describe("formatNairaK", () => {
+  it("shows thousands with at most one decimal", () => {
+    expect(formatNairaK(14_500_000)).toBe("₦145k");
+    expect(formatNairaK(7_850_000)).toBe("₦78.5k");
+    expect(formatNairaK(95_000)).toBe("₦950");
+    expect(formatNairaK(-2_000_000)).toBe("−₦20k");
+    expect(formatNairaKRange(14_500_000, 33_500_000)).toBe("₦145k–₦335k");
+    expect(formatNairaKRange(1_200_000, 1_200_000)).toBe("₦12k");
   });
 });

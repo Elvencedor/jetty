@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeFilters, clearFilters, collectionFromSegments, countActiveFilters, emptyListState, hrefFor, parseListState, toApiParams, toSearchParams } from "./params";
+import { lengthText, activeFilters, clearFilters, collectionFromSegments, countActiveFilters, emptyListState, hrefFor, parseListState, toApiParams, toSearchParams } from "./params";
 
 describe("parseListState", () => {
   it("reads filters, price, toggles, sort and view", () => {
@@ -98,5 +98,14 @@ describe("collectionFromSegments", () => {
     expect(collectionFromSegments(["a", "b"])).toBeUndefined();
     expect(collectionFromSegments(["Not A Slug"])).toBeUndefined();
     expect(collectionFromSegments(["../etc"])).toBeUndefined();
+  });
+});
+
+describe("lengthText", () => {
+  it("adds the inch mark to a bare number and leaves a labelled length alone", () => {
+    expect(lengthText("14")).toBe('14"');
+    expect(lengthText("14.5")).toBe('14.5"');
+    expect(lengthText('14"')).toBe('14"');
+    expect(lengthText("14 inch")).toBe("14 inch");
   });
 });

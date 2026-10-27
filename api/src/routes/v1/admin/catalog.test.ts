@@ -162,11 +162,35 @@ describe('admin catalog, media and inventory', { skip: !TEST_DATABASE_URL && 'TE
       assert.equal(clash.body.error.code, 'SKU_TAKEN');
     });
 
+    it('keeps negative price differences and hidden values, and a hidden value is not offered to shoppers', async () => {
+      const options = [
+        { name: 'Length', values: [{ label: '14\"', valueKey: '14' }, { label: '20\"', valueKey: '20', priceDeltaMinor: 40000 }] },
+        { name: 'Lace', values: [{ label: 'HD', valueKey: 'hd' }, { label: 'Closure', valueKey: 'closure', priceDeltaMinor: -20000 }, { label: 'Old lace', valueKey: 'old', active: false }] },
+      ];
+      const variants = [
+        { sku: 'BW-14-HD', optionValues: { Length: '14', Lace: 'hd' }, priceMinor: 100000, stock: 5 },
+        { sku: 'BW-14-CL', optionValues: { Length: '14', Lace: 'closure' }, priceMinor: 80000, stock: 2 },
+        { sku: 'BW-14-OLD', optionValues: { Length: '14', Lace: 'old' }, priceMinor: 100000, active: false },
+      ];
+      const res = await call('PUT', `/admin/products/${id}/variants`, { options, variants });
+      assert.equal(res.status, 200, JSON.stringify(res.body));
+      const lace = res.body.options.find((o: Json) => o.name === 'Lace').values;
+      assert.deepEqual(lace.map((v: Json) => [v.valueKey, v.priceDeltaMinor, v.active]), [['hd', 0, true], ['closure', -20000, true], ['old', 0, false]]);
+      const publicLace = ((await api.inject({ url: '/api/v1/products/body-wave-frontal' })).result as Json).data.options.find((o: Json) => o.name === 'Lace').values;
+      assert.ok(!publicLace.some((v: Json) => v.valueKey === 'old'), 'shoppers are not offered a hidden value');
+      // Put the matrix back for the tests that follow.
+      assert.equal((await call('PUT', `/admin/products/${id}/variants`, matrix)).status, 200);
+    });
+
     it('lists and filters, archives, and writes an audit trail', async () => {
       const list = await call('GET', '/admin/products?q=frontal&status=active');
+      assert.ok(list.body.summary.products >= 1 && list.body.summary.variants >= 2, 'the first page carries the catalogue summary');
+      assert.equal(typeof list.body.summary.lowStock, 'number');
+      assert.equal((await call('GET', `/admin/products?limit=1&cursor=${(await call('GET', '/admin/products?limit=1')).body.page.nextCursor}`)).body.summary, null, 'later pages skip it');
       assert.deepEqual(list.body.data.map((p: Json) => p.slug), ['body-wave-frontal']);
       assert.equal(list.body.data[0].variantCount, 2);
       assert.equal(list.body.data[0].availableQuantity, 8);
+      assert.ok(list.body.data[0].maxPriceMinor >= list.body.data[0].minPriceMinor, 'cards can show a price range');
       const paged = await call('GET', '/admin/products?limit=1');
       assert.equal(paged.body.data.length, 1);
       const next = await call('GET', `/admin/products?limit=1&cursor=${paged.body.page.nextCursor}`);

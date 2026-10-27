@@ -93,6 +93,18 @@ describe('admin dashboard and analytics', { skip: !TEST_DATABASE_URL && 'TEST_DA
     assert.equal(body.range.previous.to, at(10).toISOString());
   });
 
+  it('shows the shopping funnel, the buyers new and returning, where orders went, and live campaigns', async () => {
+    const { body } = await call(`/admin/dashboard?${range()}`);
+    assert.deepEqual(body.funnel, { sessions: 12, viewedProduct: 1, addedToBag: 0, checkout: 0, purchased: 3 });
+    // All three sales in the range share one phone number and it also bought in the previous period: one returning buyer.
+    assert.deepEqual([body.customers.newBuyers, body.customers.returningBuyers], [0, 1]);
+    assert.deepEqual(body.customers.topStates, [], 'the fixture orders have no state');
+    assert.deepEqual(body.campaigns, []);
+    assert.deepEqual(Object.keys(body.topProducts[0]).sort(), ['availableQuantity', 'image', 'lowStock', 'productId', 'revenueMinor', 'title', 'units']);
+    const quiet = await call(`/admin/dashboard?${q(at(300), at(290))}`);
+    assert.equal(quiet.body.funnel, null, 'no events, no funnel');
+  });
+
   it('ranks products and sums sales by category', async () => {
     const { body } = await call(`/admin/dashboard?${range()}`);
     assert.deepEqual(body.topProducts.map((p: Json) => [p.title, p.units, p.revenueMinor]), [['alpha', 2, 300000], ['beta', 1, 300000]], 'equal revenue ranks by units');

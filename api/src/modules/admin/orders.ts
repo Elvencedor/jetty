@@ -12,7 +12,10 @@ type OrderStatus = typeof orders.$inferSelect.status;
 
 export type OrderListInput = {
   q?: string | undefined;
-  status?: OrderStatus | undefined;
+  /** One or several statuses (the screens' tabs group them: "To pack" is placed and packed). */
+  status?: OrderStatus | OrderStatus[] | undefined;
+  /** Orders with a payment attempt by this method. */
+  method?: 'card' | 'bank_transfer' | undefined;
   paymentStatus?: 'pending' | 'paid' | 'failed' | 'refunded' | undefined;
   from?: Date | undefined;
   to?: Date | undefined;
@@ -22,8 +25,9 @@ export type OrderListInput = {
 
 /** Newest first, keyset on (created_at, id). `q` matches order number, phone, email or recipient name. */
 export async function listAdminOrders(db: Db, input: OrderListInput) {
+  // Conditions other than status first: the per-status counts honour them, so each tab shows how many there are *here*.
   const where = [sql`true`];
-  if (input.status) where.push(sql`o.status = ${input.status}`);
+  if (input.method) where.push(sql`exists (select 1 from payment_attempts pa where pa.order_id = o.id and pa.method = ${input.method})`);
   if (input.paymentStatus) where.push(sql`o.payment_status = ${input.paymentStatus}`);
   if (input.from) where.push(sql`o.created_at >= ${input.from.toISOString()}::timestamptz`);
   if (input.to) where.push(sql`o.created_at < ${input.to.toISOString()}::timestamptz`);
@@ -31,14 +35,23 @@ export async function listAdminOrders(db: Db, input: OrderListInput) {
     const like = likeContains(input.q);
     where.push(sql`(o.order_number ilike ${like} or o.phone_e164 like ${like} or o.email ilike ${like} or o.delivery_address_snapshot->>'recipientName' ilike ${like})`);
   }
+  const statuses = input.status === undefined ? [] : Array.isArray(input.status) ? input.status : [input.status];
+  const base = sql.join(where, sql` and `);
+  if (statuses.length) where.push(sql`o.status in (${sql.join(statuses.map((s) => sql`${s}`), sql`, `)})`);
   let after = sql``;
   if (input.cursor) {
     const [at, id] = decodeCursor(input.cursor, 'admin-orders', 2);
     after = sql`and (o.created_at, o.id) < (${at}::timestamptz, ${id}::uuid)`;
   }
+  // First page only: how many orders are in each status under the other filters.
+  const counts = input.cursor
+    ? null
+    : Object.fromEntries(
+        ((await db.execute(sql`select o.status, count(*)::int as n from orders o where ${base} group by o.status`)) as unknown as { status: string; n: number }[]).map((r) => [r.status, r.n]),
+      );
   const rows = (await db.execute(sql`
     select o.id, o.order_number, o.status, o.payment_status, o.total_minor, o.currency, o.delivery_method, o.phone_e164, o.email,
-      o.delivery_address_snapshot->>'recipientName' as recipient, o.customer_id is not null as has_account,
+      o.delivery_address_snapshot->>'recipientName' as recipient, coalesce(nullif(o.delivery_address_snapshot->>'area', ''), o.delivery_address_snapshot->>'city') as area, o.delivery_address_snapshot->>'state' as state, o.customer_id is not null as has_account,
       o.placed_at, o.created_at, o.created_at::text as cur_at,
       (select coalesce(sum(quantity), 0)::int from order_items oi where oi.order_id = o.id) as item_count,
       (select coalesce(json_agg(x), '[]'::json) from (
@@ -51,6 +64,7 @@ export async function listAdminOrders(db: Db, input: OrderListInput) {
   const page = hasMore ? rows.slice(0, input.limit) : rows;
   const last = page[page.length - 1];
   return {
+    counts,
     data: page.map((r) => ({
       id: r.id as string,
       orderNumber: r.order_number as string,
@@ -62,6 +76,8 @@ export async function listAdminOrders(db: Db, input: OrderListInput) {
       phone: r.phone_e164 as string,
       email: (r.email as string | null) ?? null,
       recipientName: (r.recipient as string | null) ?? null,
+      area: (r.area as string | null) ?? null,
+      state: (r.state as string | null) ?? null,
       hasAccount: r.has_account as boolean,
       itemCount: r.item_count as number,
       /** Up to three lines for the thumbnails column; `image` carries only the stored key until the route adds a URL. */
@@ -89,11 +105,23 @@ export async function getAdminOrder(db: Db, id: string) {
       .orderBy(asc(adminAuditLog.createdAt)),
     order.customerId ? db.select({ id: customers.id, phone: customers.phoneE164, email: customers.email, status: customers.status }).from(customers).where(eq(customers.id, order.customerId)) : Promise.resolve([]),
   ]);
+  // How many orders this person has paid for and what they have spent, for the "3rd order · ₦612k lifetime" line. Guests are
+  // recognised by phone number, so a returning guest shows up too.
+  const [stats] = (await db.execute(sql`
+    select count(*)::int as paid_orders, coalesce(sum(total_minor), 0)::bigint as lifetime
+    from orders where payment_status in ('paid', 'refunded') and ${order.customerId ? sql`customer_id = ${order.customerId}` : sql`phone_e164 = ${order.phoneE164}`}`)) as unknown as { paid_orders: number; lifetime: string }[];
+  const covers = items.length
+    ? ((await db.execute(sql`
+        select distinct on (pm.product_id) pm.product_id, pm.object_key from product_media pm
+        where pm.product_id in (${sql.join(items.flatMap((i) => (i.productId ? [sql`${i.productId}::uuid`] : [])), sql`, `)})
+        order by pm.product_id, pm.is_cover desc, pm.sort_order, pm.created_at`)) as unknown as { product_id: string; object_key: string }[])
+    : [];
+  const coverOf = new Map(covers.map((c) => [c.product_id, c.object_key]));
   const { guestCheckoutTokenHash: _hash, guestCheckoutTokenExpiresAt: _exp, ...safe } = order;
   return {
     order: safe,
-    customer: customer[0] ?? null,
-    items,
+    customer: { ...(customer[0] ?? { id: null, phone: order.phoneE164, email: order.email, status: null }), paidOrders: stats!.paid_orders, lifetimeValueMinor: Number(stats!.lifetime) },
+    items: items.map((i) => ({ ...i, image: i.productId && coverOf.has(i.productId) ? { objectKey: coverOf.get(i.productId)! } : null })),
     timeline: events,
     payments: attempts.map((a) => ({
       id: a.id, provider: a.provider, reference: a.providerReference, method: a.method, status: a.status, amountMinor: a.amountMinor, currency: a.currency,

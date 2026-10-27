@@ -655,3 +655,84 @@ tags every row with its `segments`.
 
 Listing cards carry `price.compareAtMinor`: the struck-through compare-at price of the **cheapest** active variant when
 that variant is on sale, otherwise `null` (so the card's "From ₦X" and its "was" always describe the same variant).
+
+## Admin review queue
+
+`GET /admin/reviews` rows carry `customerEmail` (masked, e.g. `a•••@example.com`) beside `customerPhone`, since customers
+are email-first now. The **first page** (no `cursor`) also carries `page.total`: the number of reviews matching the
+filter, which the admin nav uses as the "pending reviews" badge (`?status=pending&limit=1`). Later pages have `total: null`.
+
+## Admin catalogue additions (product screens)
+
+- `GET /admin/products`: the first page carries `summary` (`products`, `variants`, `lowStock`: not archived, live variants,
+  products with a variant at or below its warning level) for the page header; later pages have `summary: null`. Rows carry
+  `maxPriceMinor` beside `minPriceMinor`, for a price range on the card.
+- `PUT /admin/products/{id}/variants`: option values accept a **negative** `priceDeltaMinor` (a closure costs less than a
+  frontal) and `active` (false hides the value from shoppers while keeping it for staff; its variants should be sent inactive).
+  `priceDeltaMinor` is a difference from the product's base price kept for the editor; what a customer pays is each
+  variant's own `priceMinor`.
+
+## Admin order screens
+
+- `GET /admin/orders`: `status` accepts several statuses joined with commas (`placed,packed`), and `method` (`card` or
+  `bank_transfer`) filters by how the order was paid. The first page (no `cursor`) carries `counts`, the number of orders in
+  each status under the *other* filters, for the filter pills; later pages have `counts: null`. Rows add `area` (the delivery
+  area, or the city) and `state`.
+- `GET /admin/orders/{id}`: `customer` gains `paidOrders` and `lifetimeValueMinor` (paid and refunded orders, matched by
+  account, or by phone number for guests), items gain `image` (`{ objectKey, url }` or `null`), and `allowedTransitions` is
+  empty for an unpaid order. The status and cancel endpoints return the same shape.
+
+## Dashboard additions
+
+`GET /admin/dashboard` also returns, for the current period:
+
+- `funnel`: distinct sessions that reached each step (`sessions`, `viewedProduct`, `addedToBag`, `checkout`) and `purchased`
+  (paid orders), or `null` when no browsing events were recorded.
+- `customers`: `newBuyers` (their first paid order was in the period), `returningBuyers` (they had paid before; guests are
+  recognised by phone number) and `topStates` (up to three: `state`, `orders`, `sharePct` of paid orders).
+- `campaigns`: up to four live promotions with `orders` and `revenueMinor` (paid orders they were used on in the period),
+  `viaCode`, `kind` and `endsAt`.
+- `topProducts` (here and on `/admin/analytics/products`) gain `image` (`{ objectKey, url }` or `null`), `availableQuantity`
+  and `lowStock`.
+
+## Payout account (Paystack subaccount)
+
+Sales settle to a Paystack **subaccount**. Connecting it is an owner action; until one is connected, sales go to the main
+Paystack account as before.
+
+- `GET /admin/payouts/account` (`settings:read`): `{ configured: false, mode }` or `{ configured: true, mode, subaccountCode,
+  businessName, bankCode, bankName, accountName, accountLast4, updatedAt }`. `mode` is `live` for an `sk_live_` key, else `test`.
+  The full account number is never stored or returned; Paystack holds it.
+- `GET /admin/payouts/banks` (`settings:write`): `{ data: [{ name, code }] }`, Nigerian banks from Paystack, cached for a day.
+- `POST /admin/payouts/resolve` (`settings:write`) `{ bankCode, accountNumber }` returns `{ accountName }` from Paystack's
+  account lookup (`422 ACCOUNT_NOT_FOUND` when there is no such account). The screens show it so the owner can check it.
+- `PUT /admin/payouts/account` (`settings:write`) `{ businessName, bankCode, accountNumber }` looks the account up again (the
+  name Paystack returns is the one kept), then creates the subaccount, or updates the existing one so its code never changes.
+  Errors: `422 UNKNOWN_BANK`, `422 ACCOUNT_NOT_FOUND`, `422 PAYOUT_REJECTED` (with Paystack's reason), `503 PAYSTACK_UNAVAILABLE`.
+  Paystack is called first and our record written after, in the same transaction as its audit entry (last four digits only).
+- Checkout then passes `subaccount` and `bearer` to Paystack's Initialize Transaction. The stored share the main account keeps
+  (`percentageCharge`) is 0 and the fee bearer is `subaccount`; neither has a screen. Confirm both with whoever owns the
+  Paystack account before going live. A failure after Paystack creates the subaccount but before our record is saved leaves
+  an unused subaccount at Paystack; connecting again creates a new one.
+
+## Customer screens
+
+`GET /admin/customers` rows gain `name`, `area` and `state`, and `GET /admin/customers/{id}` gains `lastOrder`
+(`{ name, area, state, addressLine }`). Accounts have no name of their own, so these come from the customer's most recent
+order (`recipientName` and its address); they are null for a customer who has not ordered.
+
+## Review screens
+
+`GET /admin/reviews/summary` (`reviews:moderate`) returns the store rating from published reviews:
+`{ count, average, distribution: [{ stars, count }] }` (`average` is null with no reviews; `distribution` runs 5 to 1).
+Rows of `GET /admin/reviews` gain `productSlug`, `orderNumber` (null if the order line is gone) and `image`
+(`{ objectKey, url }` or null: the product's cover). A moderation decision still cannot be returned to `pending`; the screen
+holds a decision for five seconds before sending it, so Undo needs no API support.
+
+## Telling the storefront to refresh (A14)
+
+When `STOREFRONT_REVALIDATE_URL` (the storefront's `/api/revalidate`) and `REVALIDATE_SECRET` (16+ characters, the same on both
+sides) are set, the API posts `{ tags }` with the header `x-revalidate-secret` after an admin saves store settings or delivery
+zones (`settings`) or creates or edits content (`home`). The storefront expires those cached reads so the change shows on the
+next visit. It is best effort: a refusal or an unreachable storefront is logged and never fails or slows the admin's save, and
+the storefront's own cache lifetime (a few minutes) is the fallback. Without the variables nothing is sent.

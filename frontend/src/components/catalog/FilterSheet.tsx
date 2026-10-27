@@ -7,7 +7,7 @@ import { Button, Sheet, Spinner, Switch } from "@/components/ui";
 import { getListing, getScopedFacets, type ListScope } from "@/lib/api/catalog";
 import { FACET_OPTIONS, type FacetOption, type Facets } from "@/lib/api/types";
 import { cn } from "@/lib/cn";
-import { clearFilters, toApiParams, type ListState } from "@/lib/catalog/params";
+import { clearFilters, lengthText, toApiParams, type ListState } from "@/lib/catalog/params";
 import { PriceRange } from "./PriceRange";
 
 const TITLES: Record<FacetOption, string> = { texture: "Texture", lace: "Lace", length: "Length", density: "Density", colour: "Colour" };
@@ -119,7 +119,7 @@ function Body({ state, scope, initial, focus, onClose, onApply }: { state: ListS
                       onClick={() => toggle(name, v.valueKey)}
                       className={cn("min-h-10 rounded-pill border-[1.5px] px-3.5 text-body-sm font-semibold transition-colors duration-(--duration-base) disabled:opacity-40", selected ? "border-primary bg-surface-tint text-primary-strong" : "border-line-strong bg-surface text-ink")}
                     >
-                      {name === "length" ? `${v.label}"` : v.label}
+                      {name === "length" ? lengthText(v.label) : v.label}
                     </button>
                   );
                 })}
