@@ -4,6 +4,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/rea
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { PageHeader } from "../PageHeader";
+import { GiftPicker } from "./GiftPicker";
 import { ProductPicker } from "../ProductPicker";
 import { Button, Skeleton, StatusPill, Switch, TextField } from "@/components/ui";
 import { adminErrorMessage } from "@/lib/admin/concurrency";
@@ -61,7 +62,7 @@ function Builder({ existing, collections }: { existing: PromotionDetail | undefi
   const locked = editing && existing.promotion.usageCount > 0; // redeemed promotions keep their type
   const ended = existing?.promotion.lifecycle === "ended";
   const live = existing?.promotion.lifecycle === "live";
-  const set = <K extends keyof PromoForm>(key: K, value: PromoForm[K]) => { setForm((f) => ({ ...f, [key]: value })); setErrors((e) => ({ ...e, [key === "collectionIds" ? "collections" : key === "productIds" ? "products" : key === "zoneIds" ? "zones" : key]: undefined })); setProblem(undefined); };
+  const set = <K extends keyof PromoForm>(key: K, value: PromoForm[K]) => { setForm((f) => ({ ...f, [key]: value })); setErrors((e) => ({ ...e, [key === "collectionIds" ? "collections" : key === "productIds" ? "products" : key === "zoneIds" ? "zones" : key === "giftVariantId" ? "gift" : key === "giftQuantity" ? "giftQuantity" : key]: undefined })); setProblem(undefined); };
 
   const save = useMutation({
     mutationFn: async (activate: boolean) => {
@@ -144,7 +145,8 @@ function Builder({ existing, collections }: { existing: PromotionDetail | undefi
                 ) : <span key={i}>{p.text}</span>)}
               </div>
               <p role="status" className="text-body-sm text-ink-soft">{parts.map((p) => p.text).join("")}</p>
-              {(["percent", "amount", "buy", "get", "percentOff", "collections", "products", "zones"] as const).map((k) => errors[k] ? <p key={k} role="alert" className="text-caption font-medium text-danger">{errors[k]}</p> : null)}
+              {(["percent", "amount", "buy", "get", "percentOff", "collections", "products", "zones", "giftQuantity"] as const).map((k) => errors[k] ? <p key={k} role="alert" className="text-caption font-medium text-danger">{errors[k]}</p> : null)}
+              {form.kind === "free_gift" ? <GiftPicker label={form.giftLabel} priceMinor={form.giftPriceMinor} error={errors.gift} onPick={(g) => { set("giftVariantId", g.variantId); set("giftLabel", g.label); set("giftPriceMinor", g.priceMinor); }} /> : null}
               {form.kind === "buy_x_get_y" ? (
                 <label className="flex max-w-xs flex-col gap-1 text-label font-semibold">Percent off the free items
                   <select value={form.percentOff} onChange={(e) => set("percentOff", e.target.value)} className="h-11 rounded-md border-[1.5px] border-line-strong bg-surface px-3 font-normal"><option value="100">100% (free)</option><option value="50">50% off</option><option value="25">25% off</option></select>
@@ -248,7 +250,7 @@ function Builder({ existing, collections }: { existing: PromotionDetail | undefi
   );
 }
 
-const FIELD_LABEL = { percent: "Percent off", amount: "Amount off in naira", buy: "How many to buy", get: "How many free", percentOff: "Percent off", scope: "Which products" } as const;
+const FIELD_LABEL = { giftQuantity: "How many are given", percent: "Percent off", amount: "Amount off in naira", buy: "How many to buy", get: "How many free", percentOff: "Percent off", scope: "Which products" } as const;
 
 /** Switch an existing promotion on or off without leaving the editor. */
 function ActivationRow({ detail }: { detail: PromotionDetail }) {

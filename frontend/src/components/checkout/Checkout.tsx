@@ -205,7 +205,7 @@ export function Checkout() {
       <aside aria-label="Your order" className="hidden rounded-lg bg-surface-subtle p-4 lg:sticky lg:top-24 lg:block">
         <h2 className="mb-3 font-display text-heading-sm font-extrabold">Your order</h2>
         <ul className="mb-3 flex flex-col gap-2">
-          {quote?.lines.map((l) => <li key={l.variantId} className="flex justify-between gap-3 text-body-sm"><span className="min-w-0 truncate">{l.quantity} × {l.title}</span><span className="font-semibold">{formatNaira(l.lineTotalMinor)}</span></li>)}
+          {quote?.lines.map((l) => <li key={`${l.gift ? "gift-" : ""}${l.variantId}`} className="flex justify-between gap-3 text-body-sm"><span className="min-w-0 truncate">{l.quantity} × {l.title}{l.gift ? " (free gift)" : ""}</span><span className="font-semibold">{l.gift ? "Free" : formatNaira(l.lineTotalMinor)}</span></li>)}
         </ul>
         <p className="flex justify-between border-t border-line pt-3 font-bold"><span>Total</span><span>{quote ? formatNaira(quote.totalMinor) : "…"}</span></p>
       </aside>

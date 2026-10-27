@@ -136,3 +136,33 @@ describe('promotion engine', () => {
     assert.deepEqual(r.rejectedCodes, [{ code: 'BAD', reason: 'NOT_APPLICABLE' }]);
   });
 });
+
+describe('free gifts', () => {
+  const GIFT = '55555555-5555-4555-8555-555555555555';
+  const gift = (over: Partial<EnginePromotion> = {}) => promo({ kind: 'free_gift', configuration: { version: 1, variantId: GIFT, quantity: 1 }, ...over });
+
+  it('adds the item the rule names, without touching the cart lines', () => {
+    const r = run([line('a', P1, 100_000)], [gift({ name: 'Free bonnet' })]);
+    assert.deepEqual(r.gifts.map((g) => [g.name, g.variantId, g.quantity]), [['Free bonnet', GIFT, 1]]);
+    assert.deepEqual(r.allocations, [[]]);
+    assert.deepEqual(r.applied, [], 'the cart reports it once it has priced the item');
+  });
+
+  it('respects scope and minimum spend like any other promotion', () => {
+    assert.equal(run([line('a', P1, 100_000, 1, [COL])], [gift({ scope: { include: { collectionIds: [COL] } } })]).gifts.length, 1);
+    assert.equal(run([line('a', P1, 100_000)], [gift({ scope: { include: { collectionIds: [COL] } } })]).gifts.length, 0);
+    assert.equal(run([line('a', P1, 100_000)], [gift({ minimumSubtotalMinor: 150_000, code: 'GIFT' })]).rejectedCodes[0]?.reason, 'MIN_SPEND_NOT_MET');
+    assert.equal(run([line('a', P1, 100_000)], [gift({ minimumSubtotalMinor: 100_000 })]).gifts.length, 1);
+  });
+
+  it('combines with a discount and with free delivery, whatever they allow', () => {
+    const r = run([line('a', P1, 100_000)], [promo({ kind: 'percentage', configuration: { version: 1, percent: 10 } }), gift(), promo({ kind: 'free_delivery', configuration: { version: 1 } })]);
+    assert.equal(r.applied.length, 1);
+    assert.equal(r.gifts.length, 1);
+    assert.ok(r.freeDelivery);
+  });
+
+  it('gives a gift from every promotion that earns one', () => {
+    assert.equal(run([line('a', P1, 100_000)], [gift(), gift()]).gifts.length, 2);
+  });
+});

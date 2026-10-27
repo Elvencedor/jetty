@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Quote, QuoteLine } from "@/lib/api/types";
-import { buildLineViews, canCheckout, rejectionMessage, unitCount } from "./model";
+import { giftLines, buildLineViews, canCheckout, rejectionMessage, unitCount } from "./model";
 
 const priced = (variantId: string, quantity = 1): QuoteLine => ({
   variantId, productId: "p", slug: "s", title: "T", image: null, options: [], optionSummary: "", compareAtPriceMinor: null, availableQuantity: 9, quantity,
@@ -8,6 +8,16 @@ const priced = (variantId: string, quantity = 1): QuoteLine => ({
 });
 const quote = (over: Partial<Quote> = {}): Quote => ({
   currency: "NGN", lines: [], promotions: { applied: [], rejectedCodes: [] }, warnings: [], subtotalMinor: 0, discountMinor: 0, delivery: null, deliveryFeeMinor: 0, taxMinor: 0, totalMinor: 0, quoteId: "q", quoteExpiresAt: "2099-01-01T00:00:00Z", ...over,
+});
+
+describe("free gifts", () => {
+  it("never take the place of the shopper's own line, even when it is the same variant", () => {
+    const gift = { ...priced("a"), lineTotalMinor: 0, gift: { promotionId: "g" } };
+    const views = buildLineViews([{ variantId: "a", quantity: 1 }], quote({ lines: [priced("a"), gift] }));
+    expect(views[0]!.priced?.gift).toBeUndefined();
+    expect(giftLines(quote({ lines: [priced("a"), gift] }))).toEqual([gift]);
+    expect(giftLines(undefined)).toEqual([]);
+  });
 });
 
 describe("buildLineViews", () => {

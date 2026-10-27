@@ -111,6 +111,28 @@ test("a discount can be for chosen products and a free delivery for chosen zones
   await expect(page.getByRole("complementary", { name: "Preview" }).getByText("Free delivery to Abuja")).toBeVisible();
 });
 
+test("a free gift is chosen product then variant, read back in words, and previewed as free", async ({ page }) => {
+  await signIn(page, "/admin/promotions/new");
+  await page.getByRole("radio", { name: /Free gift/ }).click();
+  await page.getByRole("button", { name: "Next" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("Free bonnet");
+  await page.getByRole("button", { name: "Choose Bone Straight HD Frontal" }).click();
+  await page.getByRole("button", { name: /^Give this/ }).first().click();
+  await expect(page.getByText("The gift")).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: /^Give 1 free Bone Straight HD Frontal/ })).toBeVisible();
+  await page.getByLabel("How many are given").fill("2");
+  await expect(page.getByRole("status").filter({ hasText: /^Give 2 free Bone Straight/ })).toBeVisible();
+  const preview = page.getByRole("complementary", { name: "Preview" });
+  await expect(preview.getByText(/Free gift: Bone Straight HD Frontal/)).toBeVisible();
+  await expect(preview.getByText("Free", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Next" }).click();
+  await page.getByRole("button", { name: "Next" }).click();
+  await page.getByRole("button", { name: "Save as draft" }).click();
+  await expect(page).toHaveURL(/\/admin\/promotions$/);
+  await expect(page.getByRole("region", { name: "All promotions" }).getByText("Free bonnet")).toBeVisible();
+});
+
 test("a live, redeemed promotion warns that edits apply at once, keeps its type, and saves changes", async ({ page }) => {
   await signIn(page, `/admin/promotions/${BOGO}`);
   await expect(page.getByRole("heading", { level: 1, name: "BOGO · Bob wigs" })).toBeVisible();

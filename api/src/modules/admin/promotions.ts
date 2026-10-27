@@ -1,7 +1,7 @@
-import { asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import Joi from 'joi';
 import type { Db, Tx } from '../../db/client.js';
-import { collections, products, promotionCodes, promotionHolds, promotions } from '../../db/schema/index.js';
+import { collections, productVariants, products, promotionCodes, promotionHolds, promotions } from '../../db/schema/index.js';
 import { decodeCursor, encodeCursor } from '../../lib/cursor.js';
 import { conflict, notFound, unprocessable } from '../../lib/errors.js';
 import { normaliseCode } from '../pricing/load-promotions.js';
@@ -9,8 +9,8 @@ import { CONFIG_SCHEMAS, SCOPE_SCHEMA, type PromotionKind } from '../pricing/pro
 import { uniqueViolation } from '../../lib/sql.js';
 import { likeContains } from '../../lib/sql.js';
 
-/** Kinds the pricing engine can apply today. `free_gift` is P1 and would silently never discount, so it is not creatable. */
-export const SUPPORTED_KINDS = ['percentage', 'fixed_amount', 'buy_x_get_y', 'free_delivery'] as const;
+/** Kinds the pricing engine can apply. */
+export const SUPPORTED_KINDS = ['percentage', 'fixed_amount', 'buy_x_get_y', 'free_delivery', 'free_gift'] as const;
 
 export const CODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{2,31}$/;
 
@@ -44,6 +44,13 @@ function normaliseRules(kind: PromotionKind, configuration: unknown, scope: unkn
 }
 
 type Scope = { include?: { productIds?: string[]; collectionIds?: string[] }; excludeProductIds?: string[] };
+
+/** A free gift has to name a live variant, so a typo is caught when saving, not when a customer's bag quietly loses its gift. */
+async function assertGiftVariant(db: Db | Tx, kind: PromotionKind, configuration: Record<string, unknown>) {
+  if (kind !== 'free_gift') return;
+  const [variant] = await db.select({ id: productVariants.id }).from(productVariants).where(and(eq(productVariants.id, configuration.variantId as string), eq(productVariants.active, true)));
+  if (!variant) throw invalid('configuration.variantId', 'The gift has to be an active product variant that exists.');
+}
 
 async function assertScopeExists(db: Db | Tx, scope: Scope) {
   const productIds: string[] = [...new Set<string>([...(scope.include?.productIds ?? []), ...(scope.excludeProductIds ?? [])])];
@@ -83,6 +90,7 @@ export async function createPromotion(db: Db, adminId: string, input: PromotionI
   try {
     return await db.transaction(async (tx) => {
       await assertScopeExists(tx, rules.scope);
+      await assertGiftVariant(tx, input.kind, rules.configuration);
       const [row] = await tx
         .insert(promotions)
         .values({
@@ -126,6 +134,7 @@ export async function updatePromotion(db: Db, id: string, patch: PromotionPatch)
       const kind = (patch.kind ?? before.kind) as PromotionKind;
       const rules = normaliseRules(kind, patch.configuration ?? before.configuration, patch.scope ?? before.scope);
       if (patch.scope) await assertScopeExists(tx, rules.scope);
+      if (patch.configuration || patch.kind) await assertGiftVariant(tx, kind, rules.configuration);
       const startsAt = patch.startsAt === undefined ? before.startsAt : patch.startsAt;
       const endsAt = patch.endsAt === undefined ? before.endsAt : patch.endsAt;
       assertWindow(startsAt, endsAt);
@@ -245,8 +254,20 @@ export async function getAdminPromotion(db: Db, id: string) {
     db.select({ n: sql<number>`count(*)::int` }).from(promotionHolds).where(eq(promotionHolds.promotionId, id)),
   ]);
   const [lifecycle] = (await db.execute(sql`select (${lifecycleSql}) as v from promotions p where p.id = ${id}`)) as unknown as { v: string }[];
+  // For a free gift: what the gift is, so the editor can say so without the owner searching for it again.
+  let gift: { variantId: string; productId: string; productTitle: string; sku: string; optionSummary: string; priceMinor: number; quantity: number } | null = null;
+  if (row.kind === 'free_gift') {
+    const cfg = row.configuration as { variantId?: string; quantity?: number };
+    const [g] = (await db.execute(sql`
+      select v.id, v.product_id, p.title, v.sku, v.price_minor,
+        coalesce((select string_agg(ov.label, ' · ' order by o.sort_order) from variant_option_values vov
+          join product_option_values ov on ov.id = vov.option_value_id join product_options o on o.id = ov.option_id where vov.variant_id = v.id), '') as options
+      from product_variants v join products p on p.id = v.product_id where v.id = ${cfg.variantId ?? null}`)) as unknown as { id: string; product_id: string; title: string; sku: string; price_minor: string; options: string }[];
+    if (g) gift = { variantId: g.id, productId: g.product_id, productTitle: g.title, sku: g.sku, optionSummary: g.options, priceMinor: Number(g.price_minor), quantity: cfg.quantity ?? 1 };
+  }
   return {
     promotion: { ...row, lifecycle: lifecycle!.v },
+    gift,
     codes,
     stats: { redemptions: stats[0]!.redemptions as number, discountMinor: Number(stats[0]!.discount_minor), orderRevenueMinor: Number(stats[0]!.revenue_minor), openHolds: holds?.n ?? 0 },
   };

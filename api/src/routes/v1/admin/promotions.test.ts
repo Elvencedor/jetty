@@ -56,12 +56,25 @@ describe('admin promotions', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL no
     assert.equal((await call('GET', '/admin/promotions', undefined, manager)).status, 200);
   });
 
+  it('creates a free-gift promotion that names its gift, and says what the gift is when read back', async () => {
+    const made = await call('POST', '/admin/promotions', percent({ name: 'Free gift', kind: 'free_gift', configuration: { version: 1, variantId, quantity: 2 }, codes: [{ code: 'GIFT22' }] }));
+    assert.equal(made.status, 201, JSON.stringify(made.body));
+    assert.deepEqual([made.body.gift.variantId, made.body.gift.sku, made.body.gift.quantity], [variantId, 'PROMO-1', 2]);
+    assert.equal(typeof made.body.gift.productTitle, 'string');
+    const other = await call('GET', `/admin/promotions/${(await call('POST', '/admin/promotions', percent({ name: 'Plain' }))).body.promotion.id}`);
+    assert.equal(other.body.gift, null, 'other kinds have no gift');
+    // Changing the gift to something that does not exist is refused when editing too.
+    const bad = await call('PATCH', `/admin/promotions/${made.body.promotion.id}`, { configuration: { version: 1, variantId: '00000000-0000-4000-8000-000000000000', quantity: 1 } });
+    assert.equal(bad.status, 422);
+  });
+
   it('validates rules against the pricing engine schemas', async () => {
     const bad = [
       percent({ configuration: { version: 1, percent: 150 } }),
       percent({ configuration: { percent: 10 } }),
       percent({ kind: 'fixed_amount' }),
-      percent({ kind: 'free_gift', configuration: { version: 1 } }),
+      percent({ kind: 'free_gift', configuration: { version: 1 } }), // a gift has to name a variant
+      percent({ kind: 'free_gift', configuration: { version: 1, variantId: '00000000-0000-4000-8000-000000000000' } }), // that exists
       percent({ scope: { include: { productIds: ['00000000-0000-4000-8000-000000000000'] } } }),
       percent({ startsAt: new Date(Date.now() + day), endsAt: new Date() }),
       percent({ codes: [{ code: 'x' }] }),
