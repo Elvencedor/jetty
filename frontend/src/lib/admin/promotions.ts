@@ -24,8 +24,15 @@ export type PromoForm = {
   get: string;
   /** Percent off the free items: 100 is free. */
   percentOff: string;
-  scope: "all" | "collections";
+  /** Which products it applies to. "mixed" is a promotion saved with both collections and products, kept as it was. */
+  scope: "all" | "collections" | "products" | "mixed";
   collectionIds: string[];
+  productIds: string[];
+  /** Products it never applies to, whatever the scope. */
+  excludeProductIds: string[];
+  /** Free delivery: everywhere, or only in these delivery zones. */
+  zones: "all" | "chosen";
+  zoneIds: string[];
   access: "automatic" | "code";
   code: string;
   firstOrderOnly: boolean;
@@ -38,7 +45,7 @@ export type PromoForm = {
   endsAt: string;
 };
 
-export const emptyForm = (): PromoForm => ({ kind: "percentage", name: "", percent: "10", amount: "", buy: "1", get: "1", percentOff: "100", scope: "all", collectionIds: [], access: "automatic", code: "", firstOrderOnly: false, minSpend: "", totalUses: "", perCustomer: "1", stackable: false, startsAt: "", endsAt: "" });
+export const emptyForm = (): PromoForm => ({ kind: "percentage", name: "", percent: "10", amount: "", buy: "1", get: "1", percentOff: "100", scope: "all", collectionIds: [], productIds: [], excludeProductIds: [], zones: "all", zoneIds: [], access: "automatic", code: "", firstOrderOnly: false, minSpend: "", totalUses: "", perCustomer: "1", stackable: false, startsAt: "", endsAt: "" });
 
 // ------------------------------------------------------------------ dates (Lagos is UTC+1, all year)
 
@@ -70,6 +77,8 @@ export function formFromPromotion(d: PromotionDetail): PromoForm {
   const p = d.promotion;
   const c = p.configuration;
   const collectionIds = p.scope.include?.collectionIds ?? [];
+  const productIds = p.scope.include?.productIds ?? [];
+  const zoneIds = (c as { zoneIds?: string[] }).zoneIds ?? [];
   return {
     kind: p.kind === "free_gift" ? "percentage" : p.kind,
     name: p.name,
@@ -78,8 +87,12 @@ export function formFromPromotion(d: PromotionDetail): PromoForm {
     buy: String(c.buy ?? 1),
     get: String(c.get ?? 1),
     percentOff: String(c.percentOff ?? 100),
-    scope: collectionIds.length ? "collections" : "all",
+    scope: collectionIds.length && productIds.length ? "mixed" : collectionIds.length ? "collections" : productIds.length ? "products" : "all",
     collectionIds,
+    productIds,
+    excludeProductIds: p.scope.excludeProductIds ?? [],
+    zones: zoneIds.length ? "chosen" : "all",
+    zoneIds,
     access: d.codes.length ? "code" : "automatic",
     code: d.codes[0]?.code ?? "",
     firstOrderOnly: p.firstOrderOnly,
@@ -92,9 +105,9 @@ export function formFromPromotion(d: PromotionDetail): PromoForm {
   };
 }
 
-export type FormErrors = Partial<Record<"name" | "percent" | "amount" | "buy" | "get" | "percentOff" | "collections" | "code" | "minSpend" | "totalUses" | "perCustomer" | "startsAt" | "endsAt", string>>;
+export type FormErrors = Partial<Record<"name" | "percent" | "amount" | "buy" | "get" | "percentOff" | "collections" | "products" | "zones" | "code" | "minSpend" | "totalUses" | "perCustomer" | "startsAt" | "endsAt", string>>;
 /** Which step each error belongs to, so a refused save can send the person back to it. */
-export const ERROR_STEP: Record<keyof FormErrors, number> = { name: 1, percent: 1, amount: 1, buy: 1, get: 1, percentOff: 1, collections: 1, code: 1, minSpend: 2, totalUses: 2, perCustomer: 2, startsAt: 3, endsAt: 3 };
+export const ERROR_STEP: Record<keyof FormErrors, number> = { name: 1, percent: 1, amount: 1, buy: 1, get: 1, percentOff: 1, collections: 1, products: 1, zones: 1, code: 1, minSpend: 2, totalUses: 2, perCustomer: 2, startsAt: 3, endsAt: 3 };
 
 export function validateForm(f: PromoForm): FormErrors {
   const e: FormErrors = {};
@@ -110,7 +123,9 @@ export function validateForm(f: PromoForm): FormErrors {
     const off = Number(f.percentOff);
     if (Number.isNaN(off) || off <= 0 || off > 100) e.percentOff = "Enter 1 to 100";
   }
-  if (f.kind !== "free_delivery" && f.scope === "collections" && f.collectionIds.length === 0) e.collections = "Choose at least one collection, or use all products";
+  if (f.kind !== "free_delivery" && (f.scope === "collections" || f.scope === "mixed") && f.collectionIds.length === 0) e.collections = "Choose at least one collection, or use all products";
+  if (f.kind !== "free_delivery" && (f.scope === "products" || f.scope === "mixed") && f.productIds.length === 0) e.products = "Choose at least one product, or use all products";
+  if (f.kind === "free_delivery" && f.zones === "chosen" && f.zoneIds.length === 0) e.zones = "Choose at least one delivery zone, or use everywhere";
   if (f.access === "code" && !/^[A-Z0-9]{4,20}$/.test(f.code)) e.code = "Use 4 to 20 letters and numbers";
   if (f.minSpend.trim() && parseNairaToMinor(f.minSpend) === null) e.minSpend = "Enter an amount like 50,000, or leave blank";
   if (f.totalUses.trim() && !((int(f.totalUses) ?? 0) >= 1)) e.totalUses = "Enter a whole number, or leave blank for unlimited";
@@ -129,12 +144,17 @@ export function toInput(f: PromoForm): PromotionInput {
     f.kind === "percentage" ? { version: 1, percent: Number(f.percent) }
     : f.kind === "fixed_amount" ? { version: 1, amountMinor: parseNairaToMinor(f.amount)! }
     : f.kind === "buy_x_get_y" ? { version: 1, buy: int(f.buy)!, get: int(f.get)!, percentOff: Number(f.percentOff) }
-    : { version: 1 };
+    : { version: 1, ...(f.zones === "chosen" ? { zoneIds: f.zoneIds } : {}) };
+  const goods = f.kind !== "free_delivery";
+  const include = {
+    ...(goods && (f.scope === "collections" || f.scope === "mixed") ? { collectionIds: f.collectionIds } : {}),
+    ...(goods && (f.scope === "products" || f.scope === "mixed") ? { productIds: f.productIds } : {}),
+  };
   return {
     name: f.name.trim(),
     kind: f.kind,
     configuration,
-    scope: f.kind !== "free_delivery" && f.scope === "collections" ? { include: { collectionIds: f.collectionIds } } : {},
+    scope: { ...(Object.keys(include).length ? { include } : {}), ...(goods && f.excludeProductIds.length ? { excludeProductIds: f.excludeProductIds } : {}) },
     startsAt: fromLagosInput(f.startsAt),
     endsAt: fromLagosInput(f.endsAt),
     stackable: f.stackable,
@@ -149,29 +169,44 @@ export function toInput(f: PromoForm): PromotionInput {
 
 export type SentencePart = { text: string; field?: "percent" | "amount" | "buy" | "get" | "percentOff" | "scope" };
 
-const scopeText = (f: PromoForm, names: Map<string, string>) => (f.scope === "all" ? "all products" : f.collectionIds.length ? `products in ${f.collectionIds.map((id) => names.get(id) ?? "a collection").join(" and ")}` : "chosen collections");
+/** Names for what the form picked by id, so the rule can be read back in words. */
+export type Lookups = { products: Map<string, string>; zones: Map<string, string> };
+const join = (items: string[]) => (items.length > 2 ? `${items.slice(0, -1).join(", ")} and ${items.at(-1)}` : items.join(" and "));
+
+function scopeText(f: PromoForm, names: Map<string, string>, lookups?: Lookups): string {
+  const cols = f.collectionIds.map((id) => names.get(id) ?? "a collection");
+  const prods = f.productIds.map((id) => lookups?.products.get(id) ?? "a product");
+  const base =
+    f.scope === "all" ? "all products"
+    : f.scope === "collections" ? (cols.length ? `products in ${join(cols)}` : "chosen collections")
+    : f.scope === "products" ? (prods.length ? join(prods) : "chosen products")
+    : `${join([...cols.map((c) => `products in ${c}`), ...prods])}`;
+  const out = f.excludeProductIds.map((id) => lookups?.products.get(id) ?? "a product");
+  return out.length ? `${base} except ${join(out)}` : base;
+}
 
 /** The rule read back in plain English. Parts with a `field` are the values a person can change. */
-export function sentenceParts(f: PromoForm, collections: Collection[]): SentencePart[] {
+export function sentenceParts(f: PromoForm, collections: Collection[], lookups?: Lookups): SentencePart[] {
   const names = new Map(collections.map((c) => [c.id, c.name]));
   const num = (v: string, dflt: string) => v.trim() || dflt;
   switch (f.kind) {
-    case "percentage": return [{ text: "Take " }, { text: `${num(f.percent, "10")}%`, field: "percent" }, { text: " off " }, { text: scopeText(f, names), field: "scope" }, { text: "." }];
-    case "fixed_amount": return [{ text: "Take " }, { text: `₦${num(f.amount, "0")}`, field: "amount" }, { text: " off " }, { text: scopeText(f, names), field: "scope" }, { text: "." }];
-    case "buy_x_get_y": return [{ text: "Buy " }, { text: num(f.buy, "1"), field: "buy" }, { text: ` from ${scopeText(f, names)}, get ` }, { text: num(f.get, "1"), field: "get" }, { text: Number(f.percentOff) === 100 ? " free (the cheaper ones)." : ` at ${num(f.percentOff, "100")}% off.` }];
-    case "free_delivery": return [{ text: "Delivery is free on the order." }];
+    case "percentage": return [{ text: "Take " }, { text: `${num(f.percent, "10")}%`, field: "percent" }, { text: " off " }, { text: scopeText(f, names, lookups), field: "scope" }, { text: "." }];
+    case "fixed_amount": return [{ text: "Take " }, { text: `₦${num(f.amount, "0")}`, field: "amount" }, { text: " off " }, { text: scopeText(f, names, lookups), field: "scope" }, { text: "." }];
+    case "buy_x_get_y": return [{ text: "Buy " }, { text: num(f.buy, "1"), field: "buy" }, { text: ` from ${scopeText(f, names, lookups)}, get ` }, { text: num(f.get, "1"), field: "get" }, { text: Number(f.percentOff) === 100 ? " free (the cheaper ones)." : ` at ${num(f.percentOff, "100")}% off.` }];
+    case "free_delivery": return [{ text: f.zones === "chosen" && f.zoneIds.length ? `Delivery is free to ${join(f.zoneIds.map((id) => lookups?.zones.get(id) ?? "a zone"))}.` : "Delivery is free on the order." }];
   }
 }
 
 /** The line on the announcement bar. */
-export function announcementText(f: PromoForm, collections: Collection[]): string {
+export function announcementText(f: PromoForm, collections: Collection[], lookups?: Lookups): string {
   const names = new Map(collections.map((c) => [c.id, c.name]));
-  const what = f.scope === "collections" && f.collectionIds.length ? ` on ${f.collectionIds.map((id) => names.get(id) ?? "selected products").join(" & ")}` : "";
+  const picked = [...f.collectionIds.map((id) => names.get(id) ?? "selected products"), ...f.productIds.map((id) => lookups?.products.get(id) ?? "selected products")];
+  const what = f.scope !== "all" && picked.length ? ` on ${picked.join(" & ")}` : "";
   const rule =
     f.kind === "percentage" ? `${f.percent || "10"}% off${what}`
     : f.kind === "fixed_amount" ? `₦${f.amount || "0"} off${what}`
     : f.kind === "buy_x_get_y" ? `Buy ${f.buy || 1}, get ${f.get || 1}${Number(f.percentOff) === 100 ? " free" : ` at ${f.percentOff}% off`}${what}`
-    : "Free delivery";
+    : f.zones === "chosen" && f.zoneIds.length ? `Free delivery to ${f.zoneIds.map((id) => lookups?.zones.get(id) ?? "selected zones").join(" & ")}` : "Free delivery";
   return f.access === "code" && f.code ? `${rule} with code ${f.code}` : rule;
 }
 

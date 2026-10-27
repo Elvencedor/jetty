@@ -86,6 +86,31 @@ test("a promotion is built in four steps, read back in words, previewed, and sch
   await expect(page.getByRole("region", { name: "All promotions" }).getByText("Flash sale: frontals")).toBeVisible();
 });
 
+test("a discount can be for chosen products and a free delivery for chosen zones, read back in words", async ({ page }) => {
+  await signIn(page, "/admin/promotions/new");
+  await page.getByRole("button", { name: "Next" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("Frontal week");
+  await page.getByLabel("Which products").selectOption("products");
+  await page.getByRole("button", { name: "Add Bone Straight HD Frontal" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Take 10% off Bone Straight HD Frontal." })).toBeVisible();
+  const except = page.getByText("Except some products");
+  await except.click();
+  await expect(page.getByRole("group", { name: "Products it never applies to" })).toBeVisible();
+  await page.getByRole("complementary", { name: "Preview" }).getByText("10% off on Bone Straight HD Frontal").waitFor();
+
+  // Free delivery has zones instead of products.
+  await page.getByRole("button", { name: /1 Type/ }).click();
+  await page.getByRole("radio", { name: /Free delivery/ }).click();
+  await page.getByRole("button", { name: /2 Rule/ }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Delivery is free on the order." })).toBeVisible();
+  await page.getByRole("button", { name: "Only some zones" }).click();
+  await page.getByRole("button", { name: "Next" }).click();
+  await page.getByRole("button", { name: /2 Rule/ }).click();
+  await page.getByRole("button", { name: "Abuja" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Delivery is free to Abuja." })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Preview" }).getByText("Free delivery to Abuja")).toBeVisible();
+});
+
 test("a live, redeemed promotion warns that edits apply at once, keeps its type, and saves changes", async ({ page }) => {
   await signIn(page, `/admin/promotions/${BOGO}`);
   await expect(page.getByRole("heading", { level: 1, name: "BOGO · Bob wigs" })).toBeVisible();
