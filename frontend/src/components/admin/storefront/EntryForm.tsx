@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button, SelectField, TextareaField, TextField } from "@/components/ui";
 import { adminErrorMessage } from "@/lib/admin/concurrency";
-import { emptyEntry, entryToForm, entryToPayload, MAIN_LIMIT, TONES, validateEntry, type EntryErrors, type EntryForm } from "@/lib/admin/storefront";
+import { ImageField } from "./ImageField";
+import { emptyEntry, entryToForm, IMAGE_TYPES, entryToPayload, MAIN_LIMIT, TONES, validateEntry, type EntryErrors, type EntryForm } from "@/lib/admin/storefront";
 import { listAdminPromotions } from "@/lib/api/admin-promotions";
 import { createContent, updateContent, type ContentEntry, type ContentType } from "@/lib/api/admin-content";
 import { cn } from "@/lib/cn";
@@ -84,6 +85,10 @@ export function EntryFormPanel({ type, entry, nextSortOrder, onDone, onCancel }:
             ))}
           </div>
         </fieldset>
+      ) : null}
+
+      {IMAGE_TYPES.includes(type) ? (
+        <ImageField label="Picture" hint={type === "banner" ? "Portrait 4:5, at least 1200 pixels wide." : type === "story" ? "Square, shown in a circle." : "Portrait or square."} objectKey={form.imageKey} url={form.imageUrl} alt={form.imageAlt} altError={errors.imageAlt} onChange={(v) => { setForm((f) => ({ ...f, ...v })); setErrors((e) => ({ ...e, imageAlt: undefined })); setProblem(undefined); }} />
       ) : null}
 
       {type === "banner" ? <TextField size="admin" label="Button text" value={form.linkLabel} error={errors.linkLabel} onChange={(e) => set("linkLabel", e.target.value)} /> : null}

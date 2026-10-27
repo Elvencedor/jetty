@@ -1,4 +1,5 @@
 import { attachMedia, createUploadIntent } from "@/lib/api/admin-catalog";
+import { createContentUploadIntent } from "@/lib/api/admin-content";
 
 /** What the API accepts, and the most it will take (it also checks). */
 export const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"] as const;
@@ -71,4 +72,15 @@ export async function uploadProductImage(productId: string, file: File, onProgre
   const intent = await createUploadIntent({ productId, contentType: prepared.contentType, sizeBytes: prepared.blob.size });
   await putWithProgress(intent.upload.url, intent.upload.headers, prepared.blob, onProgress);
   return attachMedia(productId, { objectKey: intent.objectKey, width: prepared.width, height: prepared.height });
+}
+
+/** The same trip for a picture on the home page: shrink, get a signed address, upload. The picture is attached when the card is saved. */
+export async function uploadContentImage(file: File, onProgress: (fraction: number) => void): Promise<{ objectKey: string }> {
+  const problem = checkFile(file);
+  if (problem) throw new Error(problem);
+  const prepared = await prepareImage(file);
+  if (prepared.blob.size > MAX_UPLOAD_BYTES) throw new Error(`${file.name} is still over ${MAX_UPLOAD_BYTES / 1024 / 1024} MB after shrinking. Use a smaller picture.`);
+  const intent = await createContentUploadIntent({ contentType: prepared.contentType, sizeBytes: prepared.blob.size });
+  await putWithProgress(intent.upload.url, intent.upload.headers, prepared.blob, onProgress);
+  return { objectKey: intent.objectKey };
 }

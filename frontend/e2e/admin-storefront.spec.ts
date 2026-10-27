@@ -90,6 +90,27 @@ test("hero cards can be reordered, taken down and edited", async ({ page }) => {
   await expect(panel.getByText("Wigs you will adore", { exact: true }).first()).toBeVisible();
 });
 
+test("a hero card takes a picture, asks what it shows, and keeps it", async ({ page }) => {
+  await signIn(page, "/admin/storefront?section=hero");
+  const panel = page.getByRole("region", { name: "Hero cards" });
+  await panel.getByRole("button", { name: /^Edit hero card: New bobs/ }).click();
+  await expect(panel.getByText("Portrait 4:5, at least 1200 pixels wide.")).toBeVisible();
+  // A 1x1 PNG is a real image the browser can shrink and upload.
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+  await panel.locator('input[type="file"]').setInputFiles({ name: "hero.png", mimeType: "image/png", buffer: png });
+  await expect(panel.getByRole("button", { name: "Change picture" })).toBeVisible();
+  await panel.getByRole("button", { name: "Save changes" }).click();
+  await expect(panel.getByText("Describe the picture for people who can't see it")).toBeVisible();
+  await panel.getByLabel("What the picture shows").fill("Woman wearing a short bob wig");
+  await panel.getByRole("button", { name: "Save changes" }).click();
+  await expect(panel.getByRole("button", { name: /^Edit hero card: New bobs/ })).toBeVisible();
+
+  await panel.getByRole("button", { name: /^Edit hero card: New bobs/ }).click();
+  await expect(panel.getByLabel("What the picture shows")).toHaveValue("Woman wearing a short bob wig");
+  await panel.getByRole("button", { name: "Remove picture" }).click();
+  await expect(panel.getByRole("button", { name: "Add a picture" })).toBeVisible();
+});
+
 test("the picks row is chosen product by product, in an order, or left to the featured flag", async ({ page }) => {
   await signIn(page, "/admin/storefront?section=products");
   const panel = page.getByRole("region", { name: "Jetty's picks" });

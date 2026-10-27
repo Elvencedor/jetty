@@ -12,6 +12,8 @@ export const MEDIA_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image
 export const MEDIA_ANGLES = ['front', 'side', 'back', 'hairline', 'worn', 'scale', 'detail'] as const;
 
 export const keyPrefix = (productId: string) => `products/${productId}/`;
+/** Pictures for the home page and other content (hero cards, story circles, tiles) live under one prefix. */
+export const CONTENT_KEY_PREFIX = 'content/';
 
 /**
  * The server picks the object key, so a client can neither overwrite another
@@ -27,6 +29,15 @@ export async function createUploadIntent(db: Db, storage: ObjectStorage, input: 
   const objectKey = `${keyPrefix(input.productId)}${randomUUID()}.${ext}`;
   const intent = storage.presignUpload({ key: objectKey, contentType: input.contentType, sizeBytes: input.sizeBytes, expiresInSeconds: UPLOAD_TTL_SECONDS });
   return { objectKey, upload: intent };
+}
+
+/** A signed upload URL for a content picture. As with products, the server picks the key, under the content prefix. */
+export function createContentUploadIntent(storage: ObjectStorage, input: { contentType: string; sizeBytes: number }) {
+  const ext = MEDIA_TYPES[input.contentType];
+  if (!ext) throw unprocessable('UNSUPPORTED_MEDIA_TYPE', 'Upload a JPEG, PNG, WebP or AVIF image.');
+  if (input.sizeBytes > MAX_UPLOAD_BYTES) throw unprocessable('FILE_TOO_LARGE', `Images can be at most ${MAX_UPLOAD_BYTES / 1024 / 1024} MB.`);
+  const objectKey = `${CONTENT_KEY_PREFIX}${randomUUID()}.${ext}`;
+  return { objectKey, upload: storage.presignUpload({ key: objectKey, contentType: input.contentType, sizeBytes: input.sizeBytes, expiresInSeconds: UPLOAD_TTL_SECONDS }) };
 }
 
 export type MediaFields = {

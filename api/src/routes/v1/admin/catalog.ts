@@ -2,7 +2,7 @@ import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
 import { apiError } from '../../../lib/errors.js';
 import { changeStock, listInventory, STOCK_REASONS, type StockChange } from '../../../modules/admin/inventory.js';
-import { createUploadIntent, deleteMedia, finalizeMedia, MEDIA_ANGLES, MEDIA_TYPES, MAX_UPLOAD_BYTES, updateMedia, type MediaFields } from '../../../modules/admin/media.js';
+import { createContentUploadIntent, createUploadIntent, deleteMedia, finalizeMedia, MEDIA_ANGLES, MEDIA_TYPES, MAX_UPLOAD_BYTES, updateMedia, type MediaFields } from '../../../modules/admin/media.js';
 import { createProduct, getAdminProduct, listAdminProducts, replaceMatrix, setProductStatus, updateProduct, type MatrixInput, type ProductFields, type ProductListInput } from '../../../modules/admin/products.js';
 import { createCategory, createCollection, listCategories, listCollectionProducts, listCollections, setCollectionProducts, updateCategory, updateCollection } from '../../../modules/admin/taxonomy.js';
 import { assertIfMatch, audited, db, etagFor, guard, NO_STORE, pageQuery, slugSchema, uuidParam } from './shared.js';
@@ -174,6 +174,21 @@ export const adminCatalogRoutes: ServerRoute[] = [
       const storage = request.server.app.storage;
       if (!storage) throw apiError(503, 'STORAGE_UNAVAILABLE', 'Media uploads are not configured.');
       return h.response(await createUploadIntent(db(request), storage, request.payload as { productId: string; contentType: string; sizeBytes: number })).header('Cache-Control', NO_STORE);
+    },
+  },
+  {
+    method: 'POST',
+    path: '/admin/media/content-upload-intents',
+    options: {
+      ...guard('content:write'),
+      description: 'Short-lived signed upload URL for a picture used in content (hero card, story circle, tile)',
+      tags: ['api', 'admin'],
+      validate: { payload: Joi.object({ contentType: Joi.string().valid(...Object.keys(MEDIA_TYPES)).required(), sizeBytes: Joi.number().integer().min(1).max(MAX_UPLOAD_BYTES).required() }) },
+    },
+    handler: async (request, h) => {
+      const storage = request.server.app.storage;
+      if (!storage) throw apiError(503, 'STORAGE_UNAVAILABLE', 'Media uploads are not configured.');
+      return h.response(createContentUploadIntent(storage, request.payload as { contentType: string; sizeBytes: number })).header('Cache-Control', NO_STORE);
     },
   },
   {
