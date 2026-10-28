@@ -4,7 +4,7 @@ import { addOption, addValue, availableOf, basePrice, computedPrice, deleteValue
 
 const BASE = 14_500_000;
 const detail: AdminProductDetail = {
-  product: { id: "p1", slug: "bone-straight", title: "Bone Straight Frontal", description: null, status: "active", featured: false, badgeOverride: null, seoTitle: null, seoDescription: null, details: null, categoryIds: [], collectionIds: [], updatedAt: "2026-01-01T00:00:00Z" },
+  product: { id: "p1", slug: "bone-straight", title: "Bone Straight Frontal", description: null, status: "active", featured: false, badgeOverride: null, tags: [], seoTitle: null, seoDescription: null, details: null, categoryIds: [], collectionIds: [], updatedAt: "2026-01-01T00:00:00Z" },
   options: [
     { id: "o1", name: "Length", values: [{ id: "a", label: '12"', valueKey: "12", priceDeltaMinor: 0, swatch: null, active: true }, { id: "b", label: '14"', valueKey: "14", priceDeltaMinor: 1_000_000, swatch: null, active: true }] },
     { id: "o2", name: "Lace", values: [{ id: "c", label: "4×4 closure", valueKey: "4x4-closure", priceDeltaMinor: -2_000_000, swatch: null, active: true }, { id: "d", label: "13×4 HD", valueKey: "13x4-hd", priceDeltaMinor: 0, swatch: null, active: true }] },

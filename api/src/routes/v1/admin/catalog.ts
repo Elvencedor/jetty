@@ -2,9 +2,9 @@ import type { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
 import { apiError } from '../../../lib/errors.js';
 import { changeStock, listInventory, STOCK_REASONS, type StockChange } from '../../../modules/admin/inventory.js';
-import { createUploadIntent, deleteMedia, finalizeMedia, MEDIA_ANGLES, MEDIA_TYPES, MAX_UPLOAD_BYTES, updateMedia, type MediaFields } from '../../../modules/admin/media.js';
+import { createContentUploadIntent, createUploadIntent, deleteMedia, finalizeMedia, MEDIA_ANGLES, MEDIA_TYPES, MAX_UPLOAD_BYTES, updateMedia, type MediaFields } from '../../../modules/admin/media.js';
 import { createProduct, getAdminProduct, listAdminProducts, replaceMatrix, setProductStatus, updateProduct, type MatrixInput, type ProductFields, type ProductListInput } from '../../../modules/admin/products.js';
-import { createCategory, createCollection, listCategories, listCollections, setCollectionProducts, updateCategory, updateCollection } from '../../../modules/admin/taxonomy.js';
+import { createCategory, createCollection, listCategories, listCollectionProducts, listCollections, setCollectionProducts, updateCategory, updateCollection } from '../../../modules/admin/taxonomy.js';
 import { assertIfMatch, audited, db, etagFor, guard, NO_STORE, pageQuery, slugSchema, uuidParam } from './shared.js';
 
 const write = guard('catalog:write');
@@ -23,6 +23,7 @@ const productBody = {
   seoTitle: nullableText(120),
   seoDescription: nullableText(300),
   // Markdown for the product page tabs. Only these four sections exist; anything else is refused.
+  tags: Joi.array().items(Joi.string().trim().min(1).max(40)).max(20),
   details: Joi.object({ details: Joi.string().max(10_000).allow(''), fit: Joi.string().max(10_000).allow(''), care: Joi.string().max(10_000).allow(''), delivery: Joi.string().max(10_000).allow('') }),
   categoryIds: ids,
   collectionIds: ids,
@@ -178,6 +179,21 @@ export const adminCatalogRoutes: ServerRoute[] = [
   },
   {
     method: 'POST',
+    path: '/admin/media/content-upload-intents',
+    options: {
+      ...guard('content:write'),
+      description: 'Short-lived signed upload URL for a picture used in content (hero card, story circle, tile)',
+      tags: ['api', 'admin'],
+      validate: { payload: Joi.object({ contentType: Joi.string().valid(...Object.keys(MEDIA_TYPES)).required(), sizeBytes: Joi.number().integer().min(1).max(MAX_UPLOAD_BYTES).required() }) },
+    },
+    handler: async (request, h) => {
+      const storage = request.server.app.storage;
+      if (!storage) throw apiError(503, 'STORAGE_UNAVAILABLE', 'Media uploads are not configured.');
+      return h.response(createContentUploadIntent(storage, request.payload as { contentType: string; sizeBytes: number })).header('Cache-Control', NO_STORE);
+    },
+  },
+  {
+    method: 'POST',
     path: '/admin/products/{id}/media',
     options: {
       ...write,
@@ -281,6 +297,12 @@ export const adminCatalogRoutes: ServerRoute[] = [
       const { after } = await audited(request, (tx) => updateCollection(tx, (request.params as { id: string }).id, blankToNull(request.payload as never)), ({ before, after }) => ({ action: 'collection.update', resourceType: 'collection', resourceId: after.id, before, after }));
       return h.response(after).header('Cache-Control', NO_STORE);
     },
+  },
+  {
+    method: 'GET',
+    path: '/admin/collections/{id}/products',
+    options: { ...read, description: 'The products in a collection, in display order', tags: ['api', 'admin'], validate: { params: uuidParam('id') } },
+    handler: async (request, h) => h.response({ data: await listCollectionProducts(db(request), (request.params as { id: string }).id) }).header('Cache-Control', NO_STORE),
   },
   {
     method: 'PUT',

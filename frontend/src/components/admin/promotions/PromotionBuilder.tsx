@@ -1,15 +1,19 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { PageHeader } from "../PageHeader";
+import { GiftPicker } from "./GiftPicker";
+import { ProductPicker } from "../ProductPicker";
 import { Button, Skeleton, StatusPill, Switch, TextField } from "@/components/ui";
 import { adminErrorMessage } from "@/lib/admin/concurrency";
 import { adminKeys } from "@/lib/admin/keys";
-import { announcementText, bagPreview, emptyForm, ERROR_STEP, formFromPromotion, generateCode, KIND_LABEL, normaliseCodeText, sentenceParts, STEPS, submitLabel, toInput, TYPES, validateForm, type FormErrors, type PromoForm } from "@/lib/admin/promotions";
+import { type Lookups, announcementText, bagPreview, emptyForm, ERROR_STEP, formFromPromotion, generateCode, KIND_LABEL, normaliseCodeText, sentenceParts, STEPS, submitLabel, toInput, TYPES, validateForm, type FormErrors, type PromoForm } from "@/lib/admin/promotions";
 import { permits } from "@/lib/admin/permissions";
 import { useUnsavedGuard } from "@/lib/admin/useUnsavedGuard";
+import { getAdminProduct } from "@/lib/api/admin-catalog";
+import { listZones } from "@/lib/api/admin-settings";
 import { createAdminPromotion, getAdminPromotion, listAdminCollections, setPromotionActive, updateAdminPromotion, type Collection, type PromotionDetail } from "@/lib/api/admin-promotions";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatNaira } from "@/lib/format";
@@ -46,6 +50,9 @@ function Builder({ existing, collections }: { existing: PromotionDetail | undefi
   const [errors, setErrors] = useState<FormErrors>({});
   const [problem, setProblem] = useState<string>();
   const heading = useRef<HTMLHeadingElement>(null);
+  // Names for the products and zones the form picked by id, so the rule reads in words.
+  const [picked, setPicked] = useState<Map<string, string>>(() => new Map());
+  const zones = useQuery({ queryKey: ["admin", "zones"], queryFn: ({ signal }) => listZones({ signal }), staleTime: 5 * 60_000 });
   const [now] = useState(() => new Date());
   const dirty = JSON.stringify(form) !== JSON.stringify(original);
   useUnsavedGuard(dirty);
@@ -55,7 +62,7 @@ function Builder({ existing, collections }: { existing: PromotionDetail | undefi
   const locked = editing && existing.promotion.usageCount > 0; // redeemed promotions keep their type
   const ended = existing?.promotion.lifecycle === "ended";
   const live = existing?.promotion.lifecycle === "live";
-  const set = <K extends keyof PromoForm>(key: K, value: PromoForm[K]) => { setForm((f) => ({ ...f, [key]: value })); setErrors((e) => ({ ...e, [key === "collectionIds" ? "collections" : key === "totalUses" ? "totalUses" : key]: undefined })); setProblem(undefined); };
+  const set = <K extends keyof PromoForm>(key: K, value: PromoForm[K]) => { setForm((f) => ({ ...f, [key]: value })); setErrors((e) => ({ ...e, [key === "collectionIds" ? "collections" : key === "productIds" ? "products" : key === "zoneIds" ? "zones" : key === "giftVariantId" ? "gift" : key === "giftQuantity" ? "giftQuantity" : key]: undefined })); setProblem(undefined); };
 
   const save = useMutation({
     mutationFn: async (activate: boolean) => {
@@ -83,7 +90,13 @@ function Builder({ existing, collections }: { existing: PromotionDetail | undefi
     save.mutate(activate);
   }
 
-  const parts = sentenceParts(form, collections);
+  const productIds = [...new Set([...form.productIds, ...form.excludeProductIds])];
+  const fetched = useQueries({ queries: productIds.filter((id) => !picked.has(id)).map((id) => ({ queryKey: adminKeys.detail("products", id), queryFn: ({ signal }: { signal: AbortSignal }) => getAdminProduct(id, { signal }), staleTime: 60_000 })) });
+  const products = new Map(picked);
+  for (const q of fetched) if (q.data) products.set(q.data.data.product.id, q.data.data.product.title);
+  const lookups = { products, zones: new Map((zones.data ?? []).map((z) => [z.id, z.name])) };
+  const remember = (id: string, title: string) => setPicked((m) => new Map(m).set(id, title));
+  const parts = sentenceParts(form, collections, lookups);
 
   return (
     <>
@@ -121,27 +134,56 @@ function Builder({ existing, collections }: { existing: PromotionDetail | undefi
               <TextField size="admin" label="Name" value={form.name} error={errors.name} onChange={(e) => set("name", e.target.value)} hint="Only your team sees this, like Flash sale: frontals" />
               <div className="flex flex-wrap items-center gap-2 rounded-[20px] bg-surface-tint p-4 text-body leading-[2.4]">
                 {parts.map((p, i) => p.field === "scope" ? (
-                  <select key={i} aria-label="Which products" value={form.scope} onChange={(e) => set("scope", e.target.value as "all" | "collections")} className="h-9 rounded-[12px] border-[1.5px] border-primary bg-surface px-2.5 font-bold">
+                  <select key={i} aria-label="Which products" value={form.scope} onChange={(e) => set("scope", e.target.value as PromoForm["scope"])} className="h-9 max-w-full rounded-[12px] border-[1.5px] border-primary bg-surface px-2.5 font-bold">
                     <option value="all">all products</option>
                     <option value="collections">chosen collections</option>
+                    <option value="products">chosen products</option>
+                    {form.scope === "mixed" ? <option value="mixed">chosen collections and products</option> : null}
                   </select>
                 ) : p.field ? (
                   <input key={i} aria-label={FIELD_LABEL[p.field]} inputMode="decimal" size={Math.max((form[p.field] || "").length, 2)} value={form[p.field]} onChange={(e) => set(p.field!, e.target.value)} className="h-9 rounded-[12px] border-[1.5px] border-primary bg-surface px-2.5 text-center font-bold" />
                 ) : <span key={i}>{p.text}</span>)}
               </div>
               <p role="status" className="text-body-sm text-ink-soft">{parts.map((p) => p.text).join("")}</p>
-              {(["percent", "amount", "buy", "get", "percentOff", "collections"] as const).map((k) => errors[k] ? <p key={k} role="alert" className="text-caption font-medium text-danger">{errors[k]}</p> : null)}
+              {(["percent", "amount", "buy", "get", "percentOff", "collections", "products", "zones", "giftQuantity"] as const).map((k) => errors[k] ? <p key={k} role="alert" className="text-caption font-medium text-danger">{errors[k]}</p> : null)}
+              {form.kind === "free_gift" ? <GiftPicker label={form.giftLabel} priceMinor={form.giftPriceMinor} error={errors.gift} onPick={(g) => { set("giftVariantId", g.variantId); set("giftLabel", g.label); set("giftPriceMinor", g.priceMinor); }} /> : null}
               {form.kind === "buy_x_get_y" ? (
                 <label className="flex max-w-xs flex-col gap-1 text-label font-semibold">Percent off the free items
                   <select value={form.percentOff} onChange={(e) => set("percentOff", e.target.value)} className="h-11 rounded-md border-[1.5px] border-line-strong bg-surface px-3 font-normal"><option value="100">100% (free)</option><option value="50">50% off</option><option value="25">25% off</option></select>
                 </label>
               ) : null}
-              {form.scope === "collections" && form.kind !== "free_delivery" ? (
+              {(form.scope === "collections" || form.scope === "mixed") && form.kind !== "free_delivery" ? (
                 <fieldset className="flex flex-wrap gap-2"><legend className="mb-1 text-label font-semibold">Collections</legend>
                   {collections.length === 0 ? <span className="text-body-sm text-muted">No collections yet.</span> : collections.map((c) => {
                     const on = form.collectionIds.includes(c.id);
                     return <button key={c.id} type="button" aria-pressed={on} onClick={() => set("collectionIds", on ? form.collectionIds.filter((x) => x !== c.id) : [...form.collectionIds, c.id])} className={cn("h-9 rounded-pill border-[1.5px] px-3.5 font-semibold", on ? "border-primary bg-surface-tint text-primary-strong" : "border-line-strong bg-surface text-ink")}>{c.name}</button>;
                   })}
+                </fieldset>
+              ) : null}
+              {(form.scope === "products" || form.scope === "mixed") && form.kind !== "free_delivery" ? (
+                <ProductPicker label="Products it applies to" ids={form.productIds} titles={products} onAdd={(id, title) => { remember(id, title); set("productIds", [...form.productIds, id]); }} onRemove={(id) => set("productIds", form.productIds.filter((x) => x !== id))} />
+              ) : null}
+              {form.kind !== "free_delivery" ? (
+                <details className="rounded-lg border border-line p-3" open={form.excludeProductIds.length > 0}>
+                  <summary className="cursor-pointer font-semibold">Except some products{form.excludeProductIds.length ? ` (${form.excludeProductIds.length})` : ""}</summary>
+                  <div className="mt-2"><ProductPicker label="Products it never applies to" ids={form.excludeProductIds} titles={products} onAdd={(id, title) => { remember(id, title); set("excludeProductIds", [...form.excludeProductIds, id]); }} onRemove={(id) => set("excludeProductIds", form.excludeProductIds.filter((x) => x !== id))} /></div>
+                </details>
+              ) : null}
+              {form.kind === "free_delivery" ? (
+                <fieldset className="flex flex-col gap-2">
+                  <legend className="mb-1 text-label font-semibold">Where is delivery free?</legend>
+                  <div role="group" aria-label="Where delivery is free" className="flex w-fit rounded-pill bg-surface-tint p-1">
+                    {(["all", "chosen"] as const).map((z) => <button key={z} type="button" aria-pressed={form.zones === z} onClick={() => set("zones", z)} className={cn("h-9 rounded-pill px-3.5 font-bold", form.zones === z ? "bg-primary text-on-primary" : "text-ink")}>{z === "all" ? "Everywhere" : "Only some zones"}</button>)}
+                  </div>
+                  {form.zones === "chosen" ? (
+                    <div className="flex flex-wrap gap-2">
+                      {(zones.data ?? []).map((z) => {
+                        const on = form.zoneIds.includes(z.id);
+                        return <button key={z.id} type="button" aria-pressed={on} onClick={() => set("zoneIds", on ? form.zoneIds.filter((x) => x !== z.id) : [...form.zoneIds, z.id])} className={cn("h-9 rounded-pill border-[1.5px] px-3.5 font-semibold", on ? "border-primary bg-surface-tint text-primary-strong" : "border-line-strong bg-surface text-ink")}>{z.name}</button>;
+                      })}
+                      {zones.data?.length === 0 ? <span className="text-body-sm text-muted">No delivery zones yet. Add them in Settings.</span> : null}
+                    </div>
+                  ) : null}
                 </fieldset>
               ) : null}
               <div className="flex flex-wrap items-center gap-2.5">
@@ -202,13 +244,13 @@ function Builder({ existing, collections }: { existing: PromotionDetail | undefi
           {editing && canWrite && existing.promotion.lifecycle !== "ended" ? <ActivationRow detail={existing} /> : null}
         </section>
 
-        <Preview form={form} collections={collections} />
+        <Preview form={form} collections={collections} lookups={lookups} />
       </div>
     </>
   );
 }
 
-const FIELD_LABEL = { percent: "Percent off", amount: "Amount off in naira", buy: "How many to buy", get: "How many free", percentOff: "Percent off", scope: "Which products" } as const;
+const FIELD_LABEL = { giftQuantity: "How many are given", percent: "Percent off", amount: "Amount off in naira", buy: "How many to buy", get: "How many free", percentOff: "Percent off", scope: "Which products" } as const;
 
 /** Switch an existing promotion on or off without leaving the editor. */
 function ActivationRow({ detail }: { detail: PromotionDetail }) {
@@ -228,11 +270,11 @@ function ActivationRow({ detail }: { detail: PromotionDetail }) {
 }
 
 /** What customers will see, from the same rule: the announcement bar and the bag. */
-function Preview({ form, collections }: { form: PromoForm; collections: Collection[] }) {
+function Preview({ form, collections, lookups }: { form: PromoForm; collections: Collection[]; lookups: Lookups }) {
   const bag = bagPreview(form);
   return (
     <aside aria-label="Preview" className="flex w-full max-w-[280px] flex-[0_0_280px] flex-col gap-2.5 self-start rounded-[28px] border-[6px] border-surface-inverse bg-surface p-2.5 max-lg:max-w-none max-lg:flex-1">
-      <p className="rounded-[14px] bg-surface-inverse px-3 py-2 text-center text-caption font-bold text-on-inverse">{announcementText(form, collections)}</p>
+      <p className="rounded-[14px] bg-surface-inverse px-3 py-2 text-center text-caption font-bold text-on-inverse">{announcementText(form, collections, lookups)}</p>
       <div className="rounded-[16px] bg-surface-tint p-3">
         <p className="text-micro font-extrabold tracking-[0.6px] text-primary-strong">IN THE BAG</p>
         <div className="mt-1 flex items-baseline justify-between gap-2 text-body-sm"><span className="font-semibold">Sample wig × {bag.quantity}</span><span className={cn(bag.discount && "text-muted line-through")}>{bag.subtotal}</span></div>

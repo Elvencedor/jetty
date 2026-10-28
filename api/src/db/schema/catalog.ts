@@ -32,6 +32,8 @@ export const products = pgTable(
     seoTitle: text('seo_title'),
     seoDescription: text('seo_description'),
     detailsJson: jsonb('details_json').notNull().default(sql`'{}'::jsonb`),
+    // Free-form labels the owner files products under ("bestseller", "summer"); for the admin's own organising and search.
+    tags: jsonb('tags').notNull().default(sql`'[]'::jsonb`),
     publishedAt: tstz('published_at'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

@@ -339,6 +339,7 @@ optional rider note (the API needs the city).
 - **Variants:** grouped by the first option (collapsible, paged 20 at a time), filters on the next options, "only low or out of stock", row editor (computed vs custom price, stock −/+, warn-below, SKU), bulk bar (set price, add stock). Stock changes on saved variants are written to the ledger as they are made (a run of taps becomes one adjustment), reason "correction"; bulk add uses "restock".
 - **Media:** three-column grid, upload with per-file progress (photos are shrunk to 2,000px and re-encoded as WebP in the browser first), drag-and-drop or the Move earlier / Move later buttons to reorder (the first is the cover), description and angle, remove.
 - **Not built:** Import CSV (no import endpoint); "Eligible for coupons" and the install bundle (no API field; bundle is P2); "Notify me" (needs A11, so the row hint says "Sold out").
+- **Categories & collections** (`/admin/products/organise`): a category tree with product counts (create, rename, move under another, order, hide) and collections with their products in a chosen order. **Tags** are typed on the Basics tab (kept tidy, for the owner's own filing and search), and a **Low stock** filter sits beside the status filters. A daily operations email lists variants at or under their warning level.
 - **API changes it needed:** list summary and `maxPriceMinor`, negative price differences and `active` on option values (see `docs/API.md`). Storefront length labels now accept both `14` and `14"`.
 **Orders: built** (`/admin/orders`, drawer `?order=<id>`), following `design/screens/admin/04-orders.md` and the reference mockup:
 - **List:** status pills with counts (counts honour the other filters and come with the first page), search (order number, name, phone), date and payment selects, table with up to three thumbnails, status pill, delivery line and total; the order number is the drawer button. Filters and the open order live in the address. "N need action today" comes from `orders-to-action`.
@@ -359,7 +360,7 @@ optional rider note (the API needs the city).
 - **Store details:** name, support email, support phone, WhatsApp number, support hours, showroom address. Phone numbers are typed as people write them and stored in E.164. Validation is in place at the field.
 - **Delivery & pickup:** zone cards with an on/off switch, areas, and each option with its price (same-day with its cutoff, next day, nationwide, pickup). Switching a zone off asks first; Edit and Add zone open a drawer. A blank fee means the option is not offered, 0 is free.
 - **Payments:** the **payout account** card (Connected · live or test mode, bank and last four digits, or a prompt to connect one; Connect/Change opens a drawer that checks the account name with Paystack before it can be saved), switches for card and bank transfer (at least one stays on), how long stock is held for card payments and for transfers.
-- **Returns & policies:** the return window.
+- **Returns & policies:** the return window and a pay-on-delivery limit (kept for when pay on delivery is offered).
 - **Discard / Save changes** footer on each form; Save waits for a change, only the changed fields are sent, success is a toast and a failure appears beside the buttons; leaving with unsaved edits warns.
 - **Reaching the storefront:** the footer, contact page and order confirmation read these details. The storefront caches them for a few minutes; when `STOREFRONT_REVALIDATE_URL` and `REVALIDATE_SECRET` are set on the API (and `REVALIDATE_SECRET` on the storefront), saving them expires that cache at once through `/api/revalidate`. The landing page shows a "Finish setting up" card while the WhatsApp number, support email, support phone or showroom address is blank.
 - **Not built, because the API has nothing behind them:** the Notifications and Tax & currency sections (omitted from the menu, like Team); Free delivery over, Pay on delivery and Instalments/USSD; the Paystack connection status and payout bank; Refund as and the return conditions; policy page links go to Storefront. The same-day cutoff is per zone (as the API stores it), not one global select. Turning a zone off cannot say how many open orders use it (no count), so the warning is general.
@@ -383,7 +384,9 @@ optional rider note (the API needs the city).
 - **Live preview:** the announcement bar line and a sample bag (struck price, discount line, total), generated from the same form.
 - **Editing:** a live promotion says "Changes apply to new baskets immediately"; a redeemed one keeps its type; an ended one says to move its end date; an existing code cannot be changed; an on/off switch sits under the form.
 - **Validation:** percentage 1 to 90, fixed amount above ₦0, code 4 to 20 letters and numbers, end after start.
-- **Not built:** the **Free gift** type (the pricing engine cannot apply it), choosing single products (collections or all products only), the "Who" options beyond Everyone and First order only, the per-kind "can stack with" checkboxes (the API has one combine flag), the "Promote it on the storefront" placement chips (they belong with the storefront editor), the overlap warning, and the revenue analytics endpoint.
+- **Scope and zones:** a discount or gift can apply to all products, chosen collections, chosen products or a mix, with products excluded; free delivery can be everywhere or only some delivery zones (and have a minimum spend).
+- **Free gift:** pick a product and then its variant and how many; the bag, checkout and order show it as a free line that costs nothing.
+- **Not built:** the "Who" options beyond Everyone and First order only, the per-kind "can stack with" checkboxes (the API has one combine flag), the "Promote it on the storefront" placement chips (they belong with the storefront editor), the overlap warning, and the revenue analytics endpoint.
 
 Also: the toast list now puts its `status` role on an inner element, so the list stays valid for assistive technology.
 **Storefront editor: built, reduced** (`/admin/storefront?tab=pages`, `?section=<block>`), following `design/screens/admin/06-storefront-editor.md` as far as the content API goes (A13, drafts and history for the whole page, is not built).
@@ -391,7 +394,8 @@ Also: the toast list now puts its `status` role on an inner element, so the list
 - **Inspector forms** are in plain words: announcement messages, hero cards (headline, small text, colour swatches, button text and where it goes, show from and hide after, with a character counter), story circles, category tiles, and the flash strip (which promotion). Each item is a **draft until Publish**, can be taken down, removed, scheduled, and (cards, circles, tiles) reordered with arrows. "Jetty's picks" is either products you choose in an order (searching active products) or the ones starred in the catalogue. Blocks that fill themselves in explain so.
 - **Pages tab:** the info pages with status, a title and text editor with a Preview, Save and Save and publish.
 - **Links** must be a site path like `/shop` or an `https://` address; `//host` is refused, as in the API.
-- **Not built:** the live preview and device toggle, drag-and-drop (arrows instead), Add a section and Remove (the set of blocks is fixed; hide instead), image uploads for hero cards, stories and tiles (the media API is tied to products), the Theme & logo tab, one Publish or Schedule for all changes, undo history beyond the last layout move, history and restore, and the "also editing" notice.
+- **Pictures:** hero cards, story circles and tiles take a picture (shrunk in the browser and uploaded to the content prefix of the media store through a signed address; saved with the item, with a required description for people who can't see it).
+- **Not built:** the live preview and device toggle, drag-and-drop (arrows instead), Add a section and Remove (the set of blocks is fixed; hide instead), the Theme & logo tab, one Publish or Schedule for all changes, undo history beyond the last layout move, history and restore, and the "also editing" notice.
 | 4 | **Promotions** | 5 | List with derived status; the builder as a 4-step wizard (Type → Rule as a plain-English sentence → Who & limits → Schedule), validations from the design (percent 1–90, code 4–20 chars), live plain-English summary (PADM-03); activate/deactivate; edit-while-live warning. Gift type, placements, calendar and live phone preview are P1/P2 |
 | 5 | **Reviews** | 2 | Queue tabs, approve/hide with 5s undo, J/K/A/H shortcuts. Flags, pinning and request settings are P1 |
 | 6 | **Customers** | 2 | Search, sort by newest/spend, row drawer with stats and recent orders; segment tiles when **A9** exists. Consent, notes, disable and export are P1 |
@@ -446,6 +450,12 @@ Everything in [FEATURES.md](./FEATURES.md) that touches the frontend, and where 
 | Quality | QA-01 perf (all, 4, 7), QA-02 SEO (4), QA-03 a11y (all, 7), QA-04 security (7), QA-05 errors (0, 7), QA-06 events (4), QA-07 tests (0, 7), QA-08 NDPR notice (4) | QA-09 backups (infra) |
 
 ---
+
+### P0 items settled by decision, not code
+
+- **PLAT-01 (monorepo with shared packages):** the storefront and the admin are one Next.js app (shared design tokens, UI kit and API client inside it), next to the API in one npm workspace. A separate shared-package split was not needed and is not planned.
+- **ANL-09 (returns in the orders-to-action counts):** the counts cover to pack, to dispatch, out for delivery, awaiting transfer and payment exceptions. A returns count needs a returns flow, which is ORD-08 (P1); it joins these counts when that exists.
+- **ACC-02 (phone and OTP sign-in):** replaced by email and password, by decision; Google sign-in is the planned addition.
 
 ## 8. Where this plan departs from the design handoff
 

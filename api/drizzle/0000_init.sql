@@ -246,6 +246,7 @@ CREATE TABLE "products" (
 	"seo_title" text,
 	"seo_description" text,
 	"details_json" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"tags" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"published_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,

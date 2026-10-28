@@ -18,13 +18,13 @@ import { toast } from "@/lib/stores/toast";
 import { ProductCard } from "./ProductCard";
 import { ProductDrawer } from "./ProductDrawer";
 
-type Filter = "all" | "active" | "draft" | "out";
-const FILTERS: { key: Filter; label: string }[] = [{ key: "all", label: "All" }, { key: "active", label: "Active" }, { key: "draft", label: "Draft" }, { key: "out", label: "Out of stock" }];
+type Filter = "all" | "active" | "draft" | "low" | "out";
+const FILTERS: { key: Filter; label: string }[] = [{ key: "all", label: "All" }, { key: "active", label: "Active" }, { key: "draft", label: "Draft" }, { key: "low", label: "Low stock" }, { key: "out", label: "Out of stock" }];
 const PAGE = 24;
 
 const paramsFor = (filter: Filter, q: string) => ({
   ...(q ? { q } : {}),
-  ...(filter === "active" ? { status: "active" as AdminProductStatus } : filter === "draft" ? { status: "draft" as AdminProductStatus } : filter === "out" ? { stock: "out" as const } : {}),
+  ...(filter === "active" ? { status: "active" as AdminProductStatus } : filter === "draft" ? { status: "draft" as AdminProductStatus } : filter === "low" ? { stock: "low" as const } : filter === "out" ? { stock: "out" as const } : {}),
 });
 
 /** The catalogue: a grid of product cards you filter and search, with the editor in a drawer (`?product=<id>`). */
@@ -80,7 +80,7 @@ export function ProductsPage() {
       <PageHeader
         title="Products"
         subtitle={summary ? `${summary.products} products · ${summary.variants.toLocaleString("en-NG")} variants · ${summary.lowStock} low on stock` : " "}
-        actions={canWrite ? <Button iconLeft={<Plus aria-hidden="true" size={16} />} onClick={() => setCreating(true)}>New product</Button> : null}
+        actions={<><Button href="/admin/products/organise" variant="outline">Categories & collections</Button>{canWrite ? <Button iconLeft={<Plus aria-hidden="true" size={16} />} onClick={() => setCreating(true)}>New product</Button> : null}</>}
       />
 
       <div className="flex flex-wrap items-center gap-2.5">

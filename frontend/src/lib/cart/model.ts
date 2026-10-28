@@ -11,7 +11,8 @@ export type LineView = { variantId: string; quantity: number; priced?: QuoteLine
  */
 export function buildLineViews(lines: CartLine[], quote: Quote | undefined): LineView[] {
   if (!quote) return lines.map((l) => ({ ...l }));
-  const priced = new Map(quote.lines.map((l) => [l.variantId, l]));
+  // A free gift can be the same variant as something in the bag; only the lines the shopper added match their bag.
+  const priced = new Map(quote.lines.filter((l) => !l.gift).map((l) => [l.variantId, l]));
   const stock = new Map<string, number>();
   for (const w of quote.warnings) if (w.code === "OUT_OF_STOCK" || w.code === "INSUFFICIENT_STOCK") stock.set(w.variantId, w.availableQuantity);
   return lines.map((l) => {
@@ -23,6 +24,9 @@ export function buildLineViews(lines: CartLine[], quote: Quote | undefined): Lin
     return { ...l, priced: line };
   });
 }
+
+/** The free gifts the offers have added to this bag. */
+export const giftLines = (quote: Quote | undefined): QuoteLine[] => quote?.lines.filter((l) => l.gift) ?? [];
 
 /** Checkout needs a settled quote and every line buyable as it stands. */
 export function canCheckout(views: LineView[], quote: Quote | undefined, busy: boolean): boolean {

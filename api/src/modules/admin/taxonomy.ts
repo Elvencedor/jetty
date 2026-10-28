@@ -1,13 +1,18 @@
-import { asc, eq, inArray } from 'drizzle-orm';
+import { asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
-import { categories, collections, productCollections, products } from '../../db/schema/index.js';
+import { categories, collections, productCategories, productCollections, products } from '../../db/schema/index.js';
 import { conflict, notFound, unprocessable } from '../../lib/errors.js';
 import { slugify } from './products.js';
 import { uniqueViolation } from '../../lib/sql.js';
 
 type CategoryInput = { name: string; slug?: string | undefined; parentId?: string | null | undefined; sortOrder?: number | undefined; active?: boolean | undefined };
 
-export const listCategories = (db: Db) => db.select().from(categories).orderBy(asc(categories.sortOrder), asc(categories.name));
+/** Categories with how many products are in each, for the management screen. */
+export const listCategories = (db: Db) =>
+  db
+    .select({ id: categories.id, name: categories.name, slug: categories.slug, parentId: categories.parentId, sortOrder: categories.sortOrder, active: categories.active, productCount: sql<number>`(select count(*)::int from ${productCategories} pc where pc.category_id = ${categories.id})` })
+    .from(categories)
+    .orderBy(asc(categories.sortOrder), asc(categories.name));
 
 export async function createCategory(db: Db, input: CategoryInput) {
   if (input.parentId) await assertParent(db, null, input.parentId);
@@ -58,7 +63,23 @@ export async function updateCategory(db: Db, id: string, patch: Partial<Category
 
 type CollectionInput = { name: string; slug?: string | undefined; description?: string | null | undefined; sortOrder?: number | undefined; active?: boolean | undefined };
 
-export const listCollections = (db: Db) => db.select().from(collections).orderBy(asc(collections.sortOrder), asc(collections.name));
+export const listCollections = (db: Db) =>
+  db
+    .select({ id: collections.id, name: collections.name, slug: collections.slug, description: collections.description, sortOrder: collections.sortOrder, active: collections.active, productCount: sql<number>`(select count(*)::int from ${productCollections} pc where pc.collection_id = ${collections.id})` })
+    .from(collections)
+    .orderBy(asc(collections.sortOrder), asc(collections.name));
+
+/** The products in a collection, in display order (any status, so the owner sees drafts that are waiting). */
+export async function listCollectionProducts(db: Db, id: string) {
+  const [col] = await db.select({ id: collections.id }).from(collections).where(eq(collections.id, id));
+  if (!col) throw notFound('Collection not found.');
+  return db
+    .select({ id: products.id, title: products.title, status: products.status })
+    .from(productCollections)
+    .innerJoin(products, eq(products.id, productCollections.productId))
+    .where(eq(productCollections.collectionId, id))
+    .orderBy(asc(productCollections.sortOrder), asc(products.title));
+}
 
 export async function createCollection(db: Db, input: CollectionInput) {
   try {

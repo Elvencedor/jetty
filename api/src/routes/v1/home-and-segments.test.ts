@@ -18,6 +18,7 @@ const day = 86_400_000;
 describe('home sections, customer segments and CDN URLs', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not set' }, () => {
   let t: TestDatabase;
   let api: Server;
+  let storage: FakeStorage;
   let owner: Awaited<ReturnType<typeof signInAdmin>>;
   let support: Awaited<ReturnType<typeof signInAdmin>>;
 
@@ -29,7 +30,9 @@ describe('home sections, customer segments and CDN URLs', { skip: !TEST_DATABASE
 
   before(async () => {
     t = await createTestDatabase();
-    api = await createServer({ env: adminTestEnv(), logger: createLogger('error'), database: t, storage: new FakeStorage() });
+    storage = new FakeStorage();
+    storage.put('content/a.webp'); // a picture uploaded for content
+    api = await createServer({ env: adminTestEnv(), logger: createLogger('error'), database: t, storage });
     await api.initialize();
     owner = await signInAdmin(t.db, api, 'owner');
     support = await signInAdmin(t.db, api, 'support');
@@ -50,7 +53,7 @@ describe('home sections, customer segments and CDN URLs', { skip: !TEST_DATABASE
 
     it('renders hero cards, stories, tiles and announcements from content, in the default order', async () => {
       assert.equal((await create('announcement', { text: 'Free delivery over ₦150k' })).statusCode, 201);
-      assert.equal((await create('banner', { tag: 'NEW', headline: 'Silk press season', tone: 'blush', imageObjectKey: 'banners/a.webp', ctaLabel: 'Shop', ctaUrl: '/shop/frontal' })).statusCode, 201);
+      assert.equal((await create('banner', { tag: 'NEW', headline: 'Silk press season', tone: 'blush', imageObjectKey: 'content/a.webp', ctaLabel: 'Shop', ctaUrl: '/shop/frontal' })).statusCode, 201);
       for (const title of ['Frontals', 'Bobs']) assert.equal((await create('story', { title, linkUrl: '/shop/x', highlight: title === 'Bobs' })).statusCode, 201);
       for (const title of ['A', 'B', 'C', 'D']) assert.equal((await create('tile', { title, linkUrl: '/shop/x' })).statusCode, 201);
 
@@ -59,7 +62,7 @@ describe('home sections, customer segments and CDN URLs', { skip: !TEST_DATABASE
       assert.deepEqual(data.sections.map((s: Json) => s.type), ['stories', 'hero', 'length', 'tiles', 'trust']);
       const card = (await section('hero'))!.cards[0];
       assert.deepEqual([card.tag, card.tone, card.headline], ['NEW', 'blush', 'Silk press season']);
-      assert.match(card.imageUrl, /banners\/a\.webp/);
+      assert.match(card.imageUrl, /content\/a\.webp/);
       assert.deepEqual((await section('stories'))!.items.map((s: Json) => [s.title, s.highlight ?? false]), [['Frontals', false], ['Bobs', true]]);
       assert.equal((await section('tiles'))!.items.length, 3, 'a bento grid holds three');
     });

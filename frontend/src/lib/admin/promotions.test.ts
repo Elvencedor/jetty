@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PromotionRow } from "@/lib/api/admin-promotions";
-import { announcementText, bagPreview, calendarRows, emptyForm, fromLagosInput, generateCode, normaliseCodeText, sentenceParts, submitLabel, summaryText, toInput, toLagosInput, validateForm, type PromoForm } from "./promotions";
+import { formFromPromotion, announcementText, bagPreview, calendarRows, emptyForm, fromLagosInput, generateCode, normaliseCodeText, sentenceParts, submitLabel, summaryText, toInput, toLagosInput, validateForm, type PromoForm } from "./promotions";
 
 const form = (over: Partial<PromoForm> = {}): PromoForm => ({ ...emptyForm(), name: "Flash sale", ...over });
 const collections = [{ id: "c1", name: "Bob wigs", slug: "bob", active: true }, { id: "c2", name: "Frontals", slug: "f", active: true }];
@@ -49,6 +49,62 @@ describe("toInput", () => {
     expect(toInput(form({ kind: "fixed_amount", amount: "5000" })).configuration).toEqual({ version: 1, amountMinor: 500_000 });
     expect(toInput(form({ kind: "buy_x_get_y", buy: "2", get: "1", percentOff: "50" })).configuration).toEqual({ version: 1, buy: 2, get: 1, percentOff: 50 });
     expect(toInput(form({ kind: "free_delivery", scope: "collections", collectionIds: ["c1"] }))).toMatchObject({ configuration: { version: 1 }, scope: {} });
+  });
+});
+
+describe("scope and zones", () => {
+  const lookups = { products: new Map([["p1", "Bone Straight"], ["p2", "Silk Bonnet"]]), zones: new Map([["z1", "Lagos Mainland"], ["z2", "Abuja"]]) };
+  it("asks for the products, the zones or the collections the choice needs", () => {
+    expect(validateForm(form({ scope: "products" })).products).toBeDefined();
+    expect(validateForm(form({ scope: "products", productIds: ["p1"] }))).toEqual({});
+    expect(validateForm(form({ scope: "mixed", collectionIds: [], productIds: ["p1"] })).collections).toBeDefined();
+    expect(validateForm(form({ kind: "free_delivery", zones: "chosen" })).zones).toBeDefined();
+    expect(validateForm(form({ kind: "free_delivery", zones: "chosen", zoneIds: ["z1"] }))).toEqual({});
+    expect(validateForm(form({ kind: "free_delivery", zones: "all" }))).toEqual({});
+  });
+  it("sends products, exclusions and zones to the API", () => {
+    expect(toInput(form({ scope: "products", productIds: ["p1"], excludeProductIds: ["p2"] })).scope).toEqual({ include: { productIds: ["p1"] }, excludeProductIds: ["p2"] });
+    expect(toInput(form({ scope: "mixed", collectionIds: ["c1"], productIds: ["p1"] })).scope).toEqual({ include: { collectionIds: ["c1"], productIds: ["p1"] } });
+    expect(toInput(form({ scope: "all", excludeProductIds: ["p2"] })).scope).toEqual({ excludeProductIds: ["p2"] });
+    expect(toInput(form({ kind: "free_delivery", zones: "chosen", zoneIds: ["z1", "z2"], excludeProductIds: ["p2"] }))).toMatchObject({ configuration: { version: 1, zoneIds: ["z1", "z2"] }, scope: {} });
+    expect(toInput(form({ kind: "free_delivery" })).configuration).toEqual({ version: 1 });
+  });
+  it("reads them back, keeping a promotion that had both collections and products as it was", () => {
+    const detail = (scope: object, configuration: object = { version: 1, percent: 10 }) => ({ promotion: { name: "P", kind: "percentage", configuration, scope, usageCount: 0, startsAt: null, endsAt: null, stackable: false, totalUsageLimit: null, perCustomerLimit: null, firstOrderOnly: false, minimumSubtotalMinor: null }, codes: [], stats: {} }) as never;
+    expect(formFromPromotion(detail({ include: { productIds: ["p1"] }, excludeProductIds: ["p2"] }))).toMatchObject({ scope: "products", productIds: ["p1"], excludeProductIds: ["p2"] });
+    expect(formFromPromotion(detail({ include: { collectionIds: ["c1"], productIds: ["p1"] } })).scope).toBe("mixed");
+    expect(formFromPromotion(detail({}, { version: 1, zoneIds: ["z1"] }))).toMatchObject({ zones: "chosen", zoneIds: ["z1"] });
+  });
+  it("reads them out loud", () => {
+    const read = (f: PromoForm) => sentenceParts(f, collections, lookups).map((p) => p.text).join("");
+    expect(read(form({ scope: "products", productIds: ["p1", "p2"] }))).toBe("Take 10% off Bone Straight and Silk Bonnet.");
+    expect(read(form({ excludeProductIds: ["p2"] }))).toBe("Take 10% off all products except Silk Bonnet.");
+    expect(read(form({ kind: "free_delivery", zones: "chosen", zoneIds: ["z1", "z2"] }))).toBe("Delivery is free to Lagos Mainland and Abuja.");
+    expect(announcementText(form({ kind: "free_delivery", zones: "chosen", zoneIds: ["z2"] }), collections, lookups)).toBe("Free delivery to Abuja");
+    expect(announcementText(form({ scope: "products", productIds: ["p1"] }), collections, lookups)).toBe("10% off on Bone Straight");
+  });
+});
+
+describe("free gifts", () => {
+  const gift = (over: Partial<PromoForm> = {}) => form({ kind: "free_gift", giftVariantId: "v1", giftQuantity: "1", giftLabel: "Silk Bonnet (Champagne)", giftPriceMinor: 2_000_000, ...over });
+  it("needs a gift and a sensible number of them", () => {
+    expect(validateForm(form({ kind: "free_gift" })).gift).toBeDefined();
+    expect(validateForm(gift())).toEqual({});
+    expect(validateForm(gift({ giftQuantity: "0" })).giftQuantity).toBeDefined();
+    expect(validateForm(gift({ giftQuantity: "11" })).giftQuantity).toBeDefined();
+    expect(validateForm(gift({ giftQuantity: "x" })).giftQuantity).toBeDefined();
+  });
+  it("sends the variant and quantity, with the scope that triggers it", () => {
+    expect(toInput(gift({ giftQuantity: "2", scope: "collections", collectionIds: ["c1"] }))).toMatchObject({ kind: "free_gift", configuration: { version: 1, variantId: "v1", quantity: 2 }, scope: { include: { collectionIds: ["c1"] } } });
+  });
+  it("reads it back, and previews it as free", () => {
+    expect(sentenceParts(gift({ giftQuantity: "2" }), collections).map((p) => p.text).join("")).toBe("Give 2 free Silk Bonnet (Champagne) when someone buys all products.");
+    expect(announcementText(gift(), collections)).toBe("Free Silk Bonnet (Champagne) with your order");
+    expect(bagPreview(gift())).toEqual({ quantity: 1, subtotal: "₦150,000", discount: { label: "Free gift: Silk Bonnet (Champagne)", value: "Free" }, total: "₦150,000" });
+  });
+  it("reads a saved gift back into the form", () => {
+    const d = { promotion: { name: "G", kind: "free_gift", configuration: { version: 1, variantId: "v1", quantity: 2 }, scope: {}, usageCount: 0, startsAt: null, endsAt: null, stackable: false, totalUsageLimit: null, perCustomerLimit: null, firstOrderOnly: false, minimumSubtotalMinor: null }, gift: { variantId: "v1", productId: "p", productTitle: "Silk Bonnet", sku: "SB", optionSummary: "Champagne", priceMinor: 2_000_000, quantity: 2 }, codes: [], stats: {} } as never;
+    expect(formFromPromotion(d)).toMatchObject({ kind: "free_gift", giftVariantId: "v1", giftQuantity: "2", giftLabel: "Silk Bonnet (Champagne)", giftPriceMinor: 2_000_000 });
   });
 });
 

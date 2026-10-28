@@ -94,6 +94,21 @@ describe('admin catalog, media and inventory', { skip: !TEST_DATABASE_URL && 'TE
       etag = ok.etag!;
     });
 
+    it('keeps tidy tags on a product, shows them in the list, and finds products by them', async () => {
+      const made = await call('POST', '/admin/products', { title: 'Tagged Wig', tags: ['Best Seller ', 'best   seller', 'Summer'] });
+      assert.equal(made.status, 201, JSON.stringify(made.body));
+      assert.deepEqual(made.body.product.tags, ['best seller', 'summer'], 'trimmed, lowercased, spaces collapsed, no duplicates');
+      const pid = made.body.product.id as string;
+      const edited = await call('PATCH', `/admin/products/${pid}`, { tags: ['gift'] }, owner, { 'if-match': made.etag! });
+      assert.deepEqual(edited.body.product.tags, ['gift']);
+      const found = await call('GET', '/admin/products?q=gift');
+      assert.deepEqual(found.body.data.map((p: Json) => [p.id, p.tags]), [[pid, ['gift']]]);
+      assert.equal((await call('GET', '/admin/products?q=nosuchtag')).body.data.length, 0);
+      assert.equal((await call('POST', '/admin/products', { title: 'Too many', tags: Array.from({ length: 21 }, (_, i) => `t${i}`) })).status, 422);
+      assert.equal((await call('POST', '/admin/products', { title: 'Long tag', tags: ['x'.repeat(41)] })).status, 422);
+      assert.deepEqual((await call('POST', '/admin/products', { title: 'No tags' })).body.product.tags, []);
+    });
+
     it('requires If-Match to replace the variant matrix and rejects a stale one', async () => {
       const p = await call('POST', '/admin/products', { title: 'Etag Wig' });
       const pid = p.body.product.id as string;
@@ -291,6 +306,13 @@ describe('admin catalog, media and inventory', { skip: !TEST_DATABASE_URL && 'TE
       assert.deepEqual(set.body.productIds, [p2, p1]);
       assert.equal((await call('PUT', `/admin/collections/${col.body.id}/products`, { productIds: ['00000000-0000-4000-8000-000000000000'] })).status, 422);
       assert.equal((await call('PATCH', `/admin/collections/${col.body.id}`, { description: '' })).body.description, null);
+
+      const members = await call('GET', `/admin/collections/${col.body.id}/products`);
+      assert.deepEqual(members.body.data.map((m: Json) => [m.id, m.title, m.status]), [[p2, 'Col B', 'draft'], [p1, 'Col A', 'draft']], 'in display order, drafts included');
+      assert.equal((await call('GET', '/admin/collections/00000000-0000-4000-8000-000000000000/products')).status, 404);
+      const listed = (await call('GET', '/admin/collections')).body.data.find((c: Json) => c.id === col.body.id);
+      assert.equal(listed.productCount, 2, 'the list says how many products each collection holds');
+      assert.equal((await call('GET', '/admin/categories')).body.data.every((c: Json) => typeof c.productCount === 'number'), true);
     });
   });
 

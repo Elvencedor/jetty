@@ -41,13 +41,13 @@ export function ReviewStep({ quote, busy, details, deliveryMethod, paymentMethod
 
       <ul aria-label="Items" className="flex flex-col gap-2.5 rounded-lg bg-surface-tint p-3.5">
         {quote?.lines.map((l) => (
-          <li key={l.variantId} className="flex items-center gap-2.5 text-body-sm">
+          <li key={`${l.gift ? "gift-" : ""}${l.variantId}`} className="flex items-center gap-2.5 text-body-sm">
             <Media image={l.image} alt="" aspect="44 / 52" sizes="44px" className="w-11 shrink-0 rounded-sm" />
             <div className="flex min-w-0 flex-1 flex-col leading-[1.3]">
-              <p className="line-clamp-2 font-semibold">{l.title}</p>
+              <p className="line-clamp-2 font-semibold">{l.title}{l.gift ? <span className="ml-1.5 rounded-pill bg-surface-blush px-2 py-0.5 text-micro font-extrabold uppercase text-primary-strong">Free gift</span> : null}</p>
               <p className="text-caption text-muted">{[l.optionSummary, `Qty ${l.quantity}`].filter(Boolean).join(" · ")}</p>
             </div>
-            <p className="font-bold">{formatNaira(l.lineTotalMinor)}</p>
+            <p className="font-bold">{l.gift ? "Free" : formatNaira(l.lineTotalMinor)}</p>
           </li>
         ))}
       </ul>

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { X } from "lucide-react";
 import { SelectField, TextField, TextareaField } from "@/components/ui";
-import { STATUS_CHOICES, type Basics } from "@/lib/admin/productForm";
+import { MAX_TAG_LENGTH, MAX_TAGS, STATUS_CHOICES, tidyTags, type Basics } from "@/lib/admin/productForm";
 import type { AdminCategory, AdminProductStatus } from "@/lib/api/admin-catalog";
 
 type Props = {
@@ -34,6 +35,8 @@ export function BasicsTab({ basics, originalStatus, categories, titleError, disa
         </SelectField>
       </div>
 
+      <TagsField tags={basics.tags} disabled={disabled} onChange={(tags) => onChange({ tags })} />
+
       <Fold title="Product page text" open={textOpen} onToggle={() => setTextOpen((o) => !o)} hint="Shown in the Details, Fit, Care and Delivery tabs. Markdown works.">
         {DETAIL_TABS.map(([key, label]) => (
           <TextareaField key={key} size="admin" label={label} rows={3} value={basics.details[key]} disabled={disabled} onChange={(e) => onChange({ details: { ...basics.details, [key]: e.target.value } })} />
@@ -53,5 +56,51 @@ function Fold({ title, hint, open, onToggle, children }: { title: string; hint: 
       <h3><button type="button" aria-expanded={open} onClick={onToggle} className="flex min-h-11 w-full items-center justify-between gap-3 px-3.5 text-left font-bold">{title}<span aria-hidden="true" className="text-muted">{open ? "−" : "+"}</span></button></h3>
       {open ? <div className="flex flex-col gap-3 px-3.5 pb-3.5"><p className="text-caption text-muted">{hint}</p>{children}</div> : null}
     </section>
+  );
+}
+
+/** Labels for your own organising and search ("bestseller", "summer"). Type one and press Enter or a comma. */
+function TagsField({ tags, disabled, onChange }: { tags: string[]; disabled: boolean; onChange: (tags: string[]) => void }) {
+  const [draft, setDraft] = useState("");
+  const [problem, setProblem] = useState<string>();
+  function add(text: string) {
+    const next = tidyTags([...tags, ...text.split(",")]);
+    if (next.length === tags.length) return setDraft("");
+    if (next.length > MAX_TAGS) return setProblem(`A product can have up to ${MAX_TAGS} tags`);
+    if (next.some((t) => t.length > MAX_TAG_LENGTH)) return setProblem(`Keep each tag under ${MAX_TAG_LENGTH} characters`);
+    setProblem(undefined);
+    setDraft("");
+    onChange(next);
+  }
+  return (
+    <div className="flex flex-col gap-1.5">
+      <TextField
+        size="admin"
+        label="Tags"
+        value={draft}
+        disabled={disabled}
+        error={problem}
+        placeholder="Add a tag and press Enter"
+        hint="For your own filing and search, like bestseller or summer. Customers don't see them."
+        onChange={(e) => (e.target.value.includes(",") ? add(e.target.value) : (setDraft(e.target.value), setProblem(undefined)))}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            if (draft.trim()) add(draft);
+          } else if (e.key === "Backspace" && !draft && tags.length) onChange(tags.slice(0, -1));
+        }}
+        onBlur={() => draft.trim() && add(draft)}
+      />
+      {tags.length ? (
+        <ul aria-label="Tags on this product" className="flex flex-wrap gap-1.5">
+          {tags.map((t) => (
+            <li key={t} className="inline-flex items-center gap-1 rounded-pill bg-surface-tint py-1 pl-3 pr-1 text-label font-semibold text-primary-strong">
+              {t}
+              {!disabled ? <button type="button" aria-label={`Remove tag ${t}`} onClick={() => onChange(tags.filter((x) => x !== t))} className="inline-flex size-6 items-center justify-center rounded-full hover:bg-surface-blush"><X aria-hidden="true" size={12} /></button> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }

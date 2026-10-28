@@ -11,6 +11,7 @@ export type AdminProductRow = {
   title: string;
   status: AdminProductStatus;
   featured: boolean;
+  tags: string[];
   publishedAt: string | null;
   updatedAt: string;
   variantCount: number;
@@ -51,6 +52,7 @@ export type AdminProductDetail = {
     status: AdminProductStatus;
     featured: boolean;
     badgeOverride: string | null;
+    tags: string[];
     seoTitle: string | null;
     seoDescription: string | null;
     details: { details?: string; fit?: string; care?: string; delivery?: string } | null;
@@ -67,6 +69,7 @@ export type AdminProductDetail = {
 export type Versioned<T> = { data: T; etag: string | null };
 
 export type ProductFields = Partial<{
+  tags: string[];
   title: string;
   description: string | null;
   featured: boolean;
@@ -115,3 +118,20 @@ export const updateMedia = (productId: string, mediaId: string, body: Partial<{ 
 export const deleteMedia = (productId: string, mediaId: string) => apiFetch<null>(`/admin/products/${productId}/media/${mediaId}`, { method: "DELETE", auth: "admin" });
 
 export const MEDIA_ANGLES = ["front", "side", "back", "hairline", "worn", "scale", "detail"] as const;
+
+// ---------------------------------------------------------- categories and collections
+
+export type CategoryRow = AdminCategory & { sortOrder: number; productCount: number };
+export type CollectionRow = Collection & { description: string | null; sortOrder: number; productCount: number };
+export type Collection = { id: string; name: string; slug: string; active: boolean };
+export type TaxonomyFields = { name: string; slug: string; sortOrder: number; active: boolean };
+
+export const listAdminCategoryRows = (init: Init = {}) => apiFetch<{ data: CategoryRow[] }>("/admin/categories", { auth: "admin", ...init }).then((r) => r.data);
+export const createAdminCategory = (body: Partial<TaxonomyFields> & { name: string; parentId?: string | null }) => apiFetch<CategoryRow>("/admin/categories", { method: "POST", body, auth: "admin" });
+export const updateAdminCategory = (id: string, body: Partial<TaxonomyFields> & { parentId?: string | null }) => apiFetch<CategoryRow>(`/admin/categories/${id}`, { method: "PATCH", body, auth: "admin" });
+
+export const listAdminCollectionRows = (init: Init = {}) => apiFetch<{ data: CollectionRow[] }>("/admin/collections", { auth: "admin", ...init }).then((r) => r.data);
+export const createAdminCollection = (body: Partial<TaxonomyFields> & { name: string; description?: string | null }) => apiFetch<CollectionRow>("/admin/collections", { method: "POST", body, auth: "admin" });
+export const updateAdminCollection = (id: string, body: Partial<TaxonomyFields> & { description?: string | null }) => apiFetch<CollectionRow>(`/admin/collections/${id}`, { method: "PATCH", body, auth: "admin" });
+export const listCollectionMembers = (id: string, init: Init = {}) => apiFetch<{ data: { id: string; title: string; status: string }[] }>(`/admin/collections/${id}/products`, { auth: "admin", ...init }).then((r) => r.data);
+export const setCollectionMembers = (id: string, productIds: string[]) => apiFetch<{ productIds: string[] }>(`/admin/collections/${id}/products`, { method: "PUT", body: { productIds }, auth: "admin" });

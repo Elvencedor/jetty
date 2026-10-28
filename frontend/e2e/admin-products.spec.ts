@@ -30,6 +30,9 @@ test("the catalogue shows the summary, filters by status and opens a product in 
   await page.getByRole("button", { name: "Draft", exact: true }).click();
   await expect(page.getByText("Silk Sleep Bonnet")).toBeVisible();
   await expect(page.getByText("Bone Straight HD Frontal")).toHaveCount(0);
+  await page.getByRole("button", { name: "Low stock", exact: true }).click();
+  await expect(page.getByText("Bone Straight HD Frontal")).toBeVisible();
+  await expect(page.getByText("Silk Sleep Bonnet")).toHaveCount(0);
   await page.getByRole("button", { name: "All", exact: true }).click();
 
   await page.getByRole("button", { name: /^Bone Straight HD Frontal/ }).click();
@@ -42,6 +45,21 @@ test("the catalogue shows the summary, filters by status and opens a product in 
   await expect(drawer(page)).toBeVisible();
   await drawer(page).getByRole("button", { name: "Close" }).click();
   await expect(page).not.toHaveURL(/product=/);
+});
+
+test("tags are typed in, tidied, removed, and saved with the product", async ({ page }) => {
+  await owner(page, `/admin/products?product=${PRODUCT}`);
+  const d = drawer(page);
+  const tags = d.getByLabel("Tags", { exact: true });
+  await tags.fill("Best  Seller");
+  await tags.press("Enter");
+  await tags.fill("Summer, gift");
+  await expect(d.getByRole("list", { name: "Tags on this product" }).getByRole("listitem")).toHaveText(["best seller", "summer", "gift"]);
+  await d.getByRole("button", { name: "Remove tag gift" }).click();
+  await d.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Saved" }).first()).toBeAttached();
+  await page.reload();
+  await expect(drawer(page).getByRole("list", { name: "Tags on this product" }).getByRole("listitem")).toHaveText(["best seller", "summer"]);
 });
 
 test("the featured star changes at once and sticks", async ({ page }) => {
