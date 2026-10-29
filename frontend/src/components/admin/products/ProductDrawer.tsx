@@ -8,8 +8,9 @@ import { adminKeys } from "@/lib/admin/keys";
 import { fromDetail, isChanged, toPayload, type MatrixDraft } from "@/lib/admin/matrix";
 import { basicsFrom, changedFields, validateBasics, type Basics } from "@/lib/admin/productForm";
 import { useUrlState } from "@/lib/admin/useUrlState";
-import { getAdminProduct, listAdminCategories, putMatrix, setAdminProductStatus, updateAdminProduct, type AdminProductDetail, type Versioned } from "@/lib/api/admin-catalog";
+import { deleteAdminProduct, getAdminProduct, listAdminCategories, putMatrix, setAdminProductStatus, updateAdminProduct, type AdminProductDetail, type Versioned } from "@/lib/api/admin-catalog";
 import { toast } from "@/lib/stores/toast";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { SideDrawer } from "../SideDrawer";
 import { BasicsTab } from "./BasicsTab";
 import { MediaTab } from "./MediaTab";
@@ -55,6 +56,7 @@ function ProductEditor({ initial, categories, onClose, canWrite, reload }: Props
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<{ message: string; stale: boolean } | null>(null);
   const [showErrors, setShowErrors] = useState(false);
+  const [deleting, setDeleting] = useState<"asking" | "busy" | null>(null);
 
   const product = base.detail.product;
   const fields = changedFields(base.basics, basics, product.categoryIds);
@@ -108,6 +110,20 @@ function ProductEditor({ initial, categories, onClose, canWrite, reload }: Props
     void queryClient.invalidateQueries({ queryKey: adminKeys.resource("products") });
   }
 
+  async function remove() {
+    setDeleting("busy");
+    try {
+      await deleteAdminProduct(product.id);
+      queryClient.removeQueries({ queryKey: adminKeys.detail("products", product.id) });
+      void queryClient.invalidateQueries({ queryKey: adminKeys.resource("products") });
+      toast.success("Product deleted");
+      onClose();
+    } catch (err) {
+      setDeleting(null);
+      setProblem({ message: adminErrorMessage(err), stale: false });
+    }
+  }
+
   async function reloadAndDiscard() {
     const fresh = await reload();
     const data = (fresh as { data?: Versioned<AdminProductDetail> }).data;
@@ -146,6 +162,15 @@ function ProductEditor({ initial, categories, onClose, canWrite, reload }: Props
       ) : (
         <MerchTab basics={basics} disabled={disabled} onChange={(patch) => setBasics((b) => ({ ...b, ...patch }))} />
       )}
+
+      {canWrite ? (
+        <div className="mt-2 border-t border-line-soft p-4">
+          <Button variant="danger-soft" disabled={saving} onClick={() => setDeleting("asking")}>Delete product</Button>
+        </div>
+      ) : null}
+      <ConfirmDialog open={deleting !== null} title="Delete this product?" confirmLabel="Delete product" tone="danger" busy={deleting === "busy"} onCancel={() => setDeleting(null)} onConfirm={() => void remove()}>
+        <p>&ldquo;{product.title}&rdquo; will be removed for good, along with its variants, stock, photos and reviews. Past orders keep their line items. This cannot be undone. To just hide it from the shop, archive it instead.</p>
+      </ConfirmDialog>
     </SideDrawer>
   );
 }

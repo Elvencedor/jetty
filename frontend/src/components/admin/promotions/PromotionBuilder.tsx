@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { PageHeader } from "../PageHeader";
 import { GiftPicker } from "./GiftPicker";
 import { ProductPicker } from "../ProductPicker";
-import { Button, Skeleton, StatusPill, Switch, TextField } from "@/components/ui";
+import { Button, Dropdown, Skeleton, StatusPill, Switch, TextField } from "@/components/ui";
 import { adminErrorMessage } from "@/lib/admin/concurrency";
 import { adminKeys } from "@/lib/admin/keys";
 import { type Lookups, announcementText, bagPreview, emptyForm, ERROR_STEP, formFromPromotion, generateCode, KIND_LABEL, normaliseCodeText, sentenceParts, STEPS, submitLabel, toInput, TYPES, validateForm, type FormErrors, type PromoForm } from "@/lib/admin/promotions";
@@ -134,12 +134,12 @@ function Builder({ existing, collections }: { existing: PromotionDetail | undefi
               <TextField size="admin" label="Name" value={form.name} error={errors.name} onChange={(e) => set("name", e.target.value)} hint="Only your team sees this, like Flash sale: frontals" />
               <div className="flex flex-wrap items-center gap-2 rounded-[20px] bg-surface-tint p-4 text-body leading-[2.4]">
                 {parts.map((p, i) => p.field === "scope" ? (
-                  <select key={i} aria-label="Which products" value={form.scope} onChange={(e) => set("scope", e.target.value as PromoForm["scope"])} className="h-9 max-w-full rounded-[12px] border-[1.5px] border-primary bg-surface px-2.5 font-bold">
+                  <Dropdown key={i} aria-label="Which products" value={form.scope} onChange={(e) => set("scope", e.target.value as PromoForm["scope"])} className="h-9 max-w-full gap-1.5 rounded-[12px] border-[1.5px] border-primary bg-surface px-2.5 font-bold leading-normal" menuClassName="min-w-60">
                     <option value="all">all products</option>
                     <option value="collections">chosen collections</option>
                     <option value="products">chosen products</option>
                     {form.scope === "mixed" ? <option value="mixed">chosen collections and products</option> : null}
-                  </select>
+                  </Dropdown>
                 ) : p.field ? (
                   <input key={i} aria-label={FIELD_LABEL[p.field]} inputMode="decimal" size={Math.max((form[p.field] || "").length, 2)} value={form[p.field]} onChange={(e) => set(p.field!, e.target.value)} className="h-9 rounded-[12px] border-[1.5px] border-primary bg-surface px-2.5 text-center font-bold" />
                 ) : <span key={i}>{p.text}</span>)}
@@ -149,7 +149,7 @@ function Builder({ existing, collections }: { existing: PromotionDetail | undefi
               {form.kind === "free_gift" ? <GiftPicker label={form.giftLabel} priceMinor={form.giftPriceMinor} error={errors.gift} onPick={(g) => { set("giftVariantId", g.variantId); set("giftLabel", g.label); set("giftPriceMinor", g.priceMinor); }} /> : null}
               {form.kind === "buy_x_get_y" ? (
                 <label className="flex max-w-xs flex-col gap-1 text-label font-semibold">Percent off the free items
-                  <select value={form.percentOff} onChange={(e) => set("percentOff", e.target.value)} className="h-11 rounded-md border-[1.5px] border-line-strong bg-surface px-3 font-normal"><option value="100">100% (free)</option><option value="50">50% off</option><option value="25">25% off</option></select>
+                  <Dropdown value={form.percentOff} onChange={(e) => set("percentOff", e.target.value)} className="h-11 gap-2 rounded-md border-[1.5px] border-line-strong bg-surface px-3 font-normal leading-normal"><option value="100">100% (free)</option><option value="50">50% off</option><option value="25">25% off</option></Dropdown>
                 </label>
               ) : null}
               {(form.scope === "collections" || form.scope === "mixed") && form.kind !== "free_delivery" ? (
@@ -208,7 +208,7 @@ function Builder({ existing, collections }: { existing: PromotionDetail | undefi
           {step === 2 ? (
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(220px,100%),1fr))] gap-3">
               <label className="flex flex-col gap-1 text-label font-semibold">Who
-                <select value={form.firstOrderOnly ? "first" : "everyone"} onChange={(e) => set("firstOrderOnly", e.target.value === "first")} className="h-11 rounded-md border-[1.5px] border-line-strong bg-surface px-3 font-normal"><option value="everyone">Everyone</option><option value="first">First order only</option></select>
+                <Dropdown value={form.firstOrderOnly ? "first" : "everyone"} onChange={(e) => set("firstOrderOnly", e.target.value === "first")} className="h-11 gap-2 rounded-md border-[1.5px] border-line-strong bg-surface px-3 font-normal leading-normal"><option value="everyone">Everyone</option><option value="first">First order only</option></Dropdown>
               </label>
               <TextField size="admin" label="Minimum spend (₦)" inputMode="decimal" placeholder="None" value={form.minSpend} error={errors.minSpend} onChange={(e) => set("minSpend", e.target.value)} />
               <TextField size="admin" label="Total uses" inputMode="numeric" placeholder="Unlimited" value={form.totalUses} error={errors.totalUses} onChange={(e) => set("totalUses", e.target.value)} />

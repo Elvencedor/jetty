@@ -6,7 +6,7 @@ import { Button, SelectField, TextareaField, TextField } from "@/components/ui";
 import { adminErrorMessage } from "@/lib/admin/concurrency";
 import { ImageField } from "./ImageField";
 import { emptyEntry, entryToForm, IMAGE_TYPES, entryToPayload, MAIN_LIMIT, TONES, validateEntry, type EntryErrors, type EntryForm } from "@/lib/admin/storefront";
-import { listAdminPromotions } from "@/lib/api/admin-promotions";
+import { listAllAdminPromotions } from "@/lib/api/admin-promotions";
 import { createContent, updateContent, type ContentEntry, type ContentType } from "@/lib/api/admin-content";
 import { cn } from "@/lib/cn";
 import { useUnsavedGuard } from "@/lib/admin/useUnsavedGuard";
@@ -34,7 +34,7 @@ export function EntryFormPanel({ type, entry, nextSortOrder, onDone, onCancel }:
   const limit = MAIN_LIMIT[type];
   const set = <K extends keyof EntryForm>(k: K, v: EntryForm[K]) => { setForm((f) => ({ ...f, [k]: v })); setErrors((e) => ({ ...e, [k === "main" ? "main" : k]: undefined })); setProblem(undefined); };
 
-  const promotions = useQuery({ queryKey: ["admin", "promotions", "for-flash"], queryFn: ({ signal }) => listAdminPromotions({ limit: 100 }, { signal }), enabled: type === "flash", staleTime: 60_000 });
+  const promotions = useQuery({ queryKey: ["admin", "promotions", "for-flash"], queryFn: ({ signal }) => listAllAdminPromotions({ signal }), enabled: type === "flash", staleTime: 60_000 });
 
   async function submit(publish: boolean) {
     const found = validateEntry(type, form);
@@ -64,7 +64,7 @@ export function EntryFormPanel({ type, entry, nextSortOrder, onDone, onCancel }:
       {type === "flash" ? (
         <SelectField size="admin" label="Which promotion?" value={form.promotionId} error={errors.promotionId} onChange={(e) => set("promotionId", e.target.value)} hint="The countdown and wording come from the promotion. The strip hides itself when it ends.">
           <option value="">{promotions.isPending ? "Loading…" : "Choose a promotion"}</option>
-          {promotions.data?.data.filter((p) => p.status !== "ended").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {promotions.data?.filter((p) => p.status !== "ended").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </SelectField>
       ) : null}
 

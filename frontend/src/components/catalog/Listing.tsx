@@ -9,7 +9,7 @@ import { ProductCard, ProductCardSkeleton } from "@/components/commerce/ProductC
 import { BackLink } from "@/components/shell/BackLink";
 import { BagLink } from "@/components/shell/BagLink";
 import { SearchBox } from "@/components/shell/SearchBox";
-import { Button, Chip, EmptyState } from "@/components/ui";
+import { Button, Chip, Dropdown, EmptyState } from "@/components/ui";
 import { getListing, getProducts, type ListScope } from "@/lib/api/catalog";
 import { type FacetOption, type Facets, type ProductCard as Card, type ProductSort } from "@/lib/api/types";
 import { cn } from "@/lib/cn";
@@ -143,9 +143,9 @@ export function Listing({ title, crumbs, path, scope, state, initial, facets }: 
           <p role="status">{total !== null ? <><strong className="text-ink">{total}</strong> {total === 1 ? "wig" : "wigs"}</> : `${items.length} shown`}</p>
           <label className="flex items-center gap-1">
             Sort
-            <select value={state.sort} onChange={(e) => go({ ...state, sort: e.target.value as ProductSort })} className="h-9 border-0 bg-transparent font-bold text-ink">
+            <Dropdown value={state.sort} onChange={(e) => go({ ...state, sort: e.target.value as ProductSort })} className="h-9 gap-1 border-0 bg-transparent font-bold text-ink" menuClassName="min-w-48">
               {SORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
+            </Dropdown>
           </label>
         </div>
 

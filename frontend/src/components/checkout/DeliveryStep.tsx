@@ -70,7 +70,7 @@ export function DeliveryStep({ details, errors, method, methodError, onChange, o
         <TextField label="City or town" autoComplete="address-level2" {...field("city")} />
       </div>
       <div className="grid grid-cols-2 gap-2.5">
-        <SelectField label="State" autoComplete="address-level1" {...field("state")}>
+        <SelectField label="State" {...field("state")} onChange={(e) => onChange({ state: e.target.value })}>
           <option value="">Choose</option>
           {NIGERIAN_STATES.map((s) => <option key={s}>{s}</option>)}
         </SelectField>

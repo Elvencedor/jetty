@@ -1,4 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
+import { choose } from "./dropdown";
 import { expect, test, type Page } from "@playwright/test";
 
 async function signIn(page: Page, who: string, next: string) {
@@ -109,15 +110,15 @@ test("payments keep one method on, and policies change the return window", async
   await page.getByRole("switch", { name: "Accept card payments" }).click();
   const transfer = page.getByRole("switch", { name: "Accept bank transfer payments" });
   await expect(transfer).toBeDisabled();
-  await page.getByLabel("Cancel unpaid transfer orders after").selectOption("240");
+  await choose(page.getByLabel("Cancel unpaid transfer orders after"), "4 hours");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Payment settings saved" })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("switch", { name: "Accept card payments" })).toHaveAttribute("aria-checked", "false");
-  await expect(page.getByLabel("Cancel unpaid transfer orders after")).toHaveValue("240");
+  await expect(page.getByLabel("Cancel unpaid transfer orders after")).toHaveText("4 hours");
 
   await page.getByRole("link", { name: /^Returns & policies/ }).click();
-  await page.getByLabel("Return window").selectOption("14");
+  await choose(page.getByLabel("Return window"), "14 days after delivery");
   await page.getByLabel("Pay on delivery limit").fill("abc");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByText("Enter an amount like 300,000, or leave blank")).toBeVisible();
@@ -137,7 +138,7 @@ test("a payout account is connected by checking the account name first, and show
   const connect = drawer.getByRole("button", { name: "Connect account" });
   await expect(connect).toBeDisabled();
 
-  await drawer.getByLabel("Bank").selectOption("058");
+  await choose(drawer.getByLabel("Bank"), "GTBank");
   await drawer.getByLabel("Account number").fill("0999999999");
   await expect(drawer.getByText(/could not find that account/)).toBeVisible();
   await expect(connect).toBeDisabled();

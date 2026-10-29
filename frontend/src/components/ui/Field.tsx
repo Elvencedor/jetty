@@ -1,6 +1,7 @@
-import { ChevronDown, Search } from "lucide-react";
-import { useId, type InputHTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { Search } from "lucide-react";
+import { useId, type InputHTMLAttributes, type ReactNode, type Ref, type TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
+import { Dropdown, type DropdownChange } from "./Dropdown";
 
 type FieldBase = {
   label: string;
@@ -85,26 +86,33 @@ export function TextareaField({ label, hint, error, size = "store", className, i
   );
 }
 
-export type SelectFieldProps = FieldBase & { ref?: Ref<HTMLSelectElement>; children: ReactNode } & Omit<SelectHTMLAttributes<HTMLSelectElement>, "size">;
+export type SelectFieldProps = FieldBase & {
+  ref?: Ref<HTMLButtonElement>;
+  /** `<option>` elements. */
+  children: ReactNode;
+  value: string | number;
+  onChange?: (e: DropdownChange) => void;
+  name?: string;
+  disabled?: boolean;
+  className?: string;
+  id?: string;
+};
 
 export function SelectField({ label, hint, error, size = "store", className, id: given, children, ref, ...select }: SelectFieldProps) {
   const auto = useId();
   const id = given ?? auto;
   return (
     <Shell id={id} label={label} hint={hint} error={error}>
-      <div className="relative">
-        <select
-          ref={ref}
-          id={id}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={describedBy(id, hint, error)}
-          className={cn(CONTROL, SIZE[size], borderFor(error), "appearance-none pr-11", className)}
-          {...select}
-        >
-          {children}
-        </select>
-        <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-muted" />
-      </div>
+      <Dropdown
+        ref={ref}
+        id={id}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy(id, hint, error)}
+        className={cn(CONTROL, SIZE[size], borderFor(error), className)}
+        {...select}
+      >
+        {children}
+      </Dropdown>
     </Shell>
   );
 }

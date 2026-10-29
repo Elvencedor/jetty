@@ -1,4 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
+import { choose } from "./dropdown";
 import { expect, test, type Page } from "@playwright/test";
 
 async function signIn(page: Page, next: string, who = "owner") {
@@ -55,7 +56,7 @@ test("a promotion is built in four steps, read back in words, previewed, and sch
   await expect(steps.getByRole("button", { name: /2 Rule/ })).toHaveAttribute("aria-current", "step");
 
   await page.getByLabel("Percent off").fill("15");
-  await page.getByLabel("Which products").selectOption("collections");
+  await choose(page.getByLabel("Which products"), "chosen collections");
   await page.getByRole("button", { name: "Frontals" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Take 15% off products in Frontals." })).toBeVisible();
   const preview = page.getByRole("complementary", { name: "Preview" });
@@ -90,7 +91,7 @@ test("a discount can be for chosen products and a free delivery for chosen zones
   await signIn(page, "/admin/promotions/new");
   await page.getByRole("button", { name: "Next" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Frontal week");
-  await page.getByLabel("Which products").selectOption("products");
+  await choose(page.getByLabel("Which products"), "chosen products");
   await page.getByRole("button", { name: "Add Bone Straight HD Frontal" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Take 10% off Bone Straight HD Frontal." })).toBeVisible();
   const except = page.getByText("Except some products");

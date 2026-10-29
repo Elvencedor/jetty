@@ -1,4 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
+import { choose } from "./dropdown";
 import { expect, test, type Page } from "@playwright/test";
 
 async function signIn(page: Page, next: string, who = "owner") {
@@ -38,7 +39,7 @@ test("a category is created under a parent, with its web address made from the n
   await expect(d.getByText("Give it a name")).toBeVisible();
   await d.getByLabel("Name").fill("Glueless Wigs");
   await expect(d.getByLabel("Web address")).toHaveValue("glueless-wigs");
-  await d.getByLabel("Sits under").selectOption({ label: "Frontal wigs" });
+  await choose(d.getByLabel("Sits under"), "Frontal wigs");
   await d.getByRole("button", { name: "Create category" }).click();
   await expect(d).toBeHidden();
   await expect(page.getByRole("region", { name: "Categories" }).getByRole("listitem").filter({ hasText: "Glueless Wigs" })).toBeVisible();
@@ -53,8 +54,8 @@ test("a category is created under a parent, with its web address made from the n
 test("a category cannot be moved under itself or its own sub-category", async ({ page }) => {
   await signIn(page, "/admin/products/organise");
   await page.getByRole("button", { name: "Edit Frontal wigs" }).click();
-  const options = page.getByRole("dialog", { name: "Edit Frontal wigs" }).getByLabel("Sits under").locator("option");
-  await expect(options).toHaveText(["Top level", "Hair care"]);
+  await page.getByRole("dialog", { name: "Edit Frontal wigs" }).getByLabel("Sits under").click();
+  await expect(page.getByRole("option")).toHaveText(["Top level", "Hair care"]);
 });
 
 test("a collection gets products in an order, and its count follows", async ({ page }) => {

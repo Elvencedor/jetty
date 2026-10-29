@@ -99,6 +99,8 @@ export const getAdminProduct = (id: string, init: Init = {}) => versioned<AdminP
 export const createAdminProduct = (title: string) => versioned<AdminProductDetail>("/admin/products", { method: "POST", body: { title } });
 export const updateAdminProduct = (id: string, etag: string | null, fields: ProductFields) => versioned<AdminProductDetail>(`/admin/products/${id}`, { method: "PATCH", body: fields, ...(etag ? { ifMatch: etag } : {}) });
 export const setAdminProductStatus = (id: string, action: "publish" | "archive") => versioned<AdminProductDetail>(`/admin/products/${id}/${action}`, { method: "POST", body: {} });
+/** Permanently deletes a product (draft, active or archived) with its variants, stock, media and reviews. */
+export const deleteAdminProduct = (id: string) => apiFetch<null>(`/admin/products/${id}`, { method: "DELETE", auth: "admin" });
 export const putMatrix = (id: string, etag: string | null, matrix: MatrixPayload) => versioned<AdminProductDetail>(`/admin/products/${id}/variants`, { method: "PUT", body: matrix, ...(etag ? { ifMatch: etag } : {}) });
 
 export type AdminCategory = { id: string; name: string; slug: string; parentId: string | null; active: boolean };

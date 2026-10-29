@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -25,14 +25,20 @@ export function PromotionsPage() {
   const canWrite = permits(held, "promotions:write");
   const queryClient = useQueryClient();
   const key = adminKeys.list("promotions", { all: true });
-  const list = useQuery({ queryKey: key, queryFn: ({ signal }) => listAdminPromotions({ limit: 100 }, { signal }), staleTime: 0 });
+  const list = useInfiniteQuery({
+    queryKey: key,
+    queryFn: ({ pageParam, signal }) => listAdminPromotions({ limit: 20, ...(pageParam ? { cursor: pageParam } : {}) }, { signal }),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.page.nextCursor ?? undefined,
+    staleTime: 0,
+  });
   const [now] = useState(() => new Date());
   const today = lagosDateKey(now);
   const year = Number(today.slice(0, 4));
   const month = Number(today.slice(5, 7));
   const todayNumber = Number(today.slice(8, 10));
   const days = daysInMonth(year, month);
-  const rows = list.data?.data;
+  const rows = list.data?.pages.flatMap((page) => page.data);
   const calendar = rows ? calendarRows(rows, year, month) : [];
 
   const toggle = useMutation({
@@ -48,7 +54,7 @@ export function PromotionsPage() {
     <>
       <PageHeader
         title="Promotions & storefront"
-        subtitle={rows ? summaryText(rows) : " "}
+        subtitle={rows ? `${summaryText(rows)}${list.hasNextPage ? " · of the promotions loaded so far" : ""}` : " "}
         actions={canWrite ? <Button href="/admin/promotions/new" iconLeft={<Plus aria-hidden="true" size={16} />}>New promotion</Button> : null}
       />
 
@@ -104,6 +110,7 @@ export function PromotionsPage() {
             })}
           </ul>
         )}
+        {list.hasNextPage ? <Button variant="outline" className="self-center" loading={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>Show more</Button> : null}
       </section>
 
       <section aria-label="Homepage slots" className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-line bg-surface p-[18px]">

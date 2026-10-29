@@ -15,6 +15,7 @@ const Section = ({ title, children }: { title: string; children: React.ReactNode
 
 export function Gallery() {
   const [length, setLength] = useState("20");
+  const [place, setPlace] = useState("Lagos");
   const [tab, setTab] = useState("featured");
   const [range, setRange] = useState("30d");
   const [on, setOn] = useState(true);
@@ -73,7 +74,7 @@ export function Gallery() {
           <TextField label="Full name" placeholder="Adaeze Obi" hint="As it should appear on the delivery" />
           <TextField label="Phone" defaultValue="0803" error="Enter a Nigerian phone number, e.g. 0803 123 4567" />
           <TextField label="Price difference" prefix="₦" size="admin" />
-          <SelectField label="State"><option>Lagos</option><option>FCT</option></SelectField>
+          <SelectField label="State" value={place} onChange={(e) => setPlace(e.target.value)}><option>Lagos</option><option>FCT</option></SelectField>
           <TextareaField label="Landmark" rows={3} />
           <SearchField aria-label="Search the shop" placeholder="Try “bob”, “26 inch”" />
         </div>

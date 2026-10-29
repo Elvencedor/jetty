@@ -4,6 +4,11 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { Badge, Button, Chip, EmptyState, IconButton, Media, SearchField, Segmented, SelectField, StatusPill, Switch, TextField, TextareaField } from "./index";
 
+function StateSelect() {
+  const [state, setState] = useState("LA");
+  return <SelectField label="State" value={state} onChange={(e) => setState(e.target.value)}><option value="LA">Lagos</option><option value="FC">FCT</option></SelectField>;
+}
+
 describe("Button", () => {
   it("is a real button that defaults to type=button, so it never submits a form by accident", () => {
     render(<Button>Add to bag</Button>);
@@ -188,13 +193,16 @@ describe("form fields", () => {
   it("supports select, textarea and search with the same labelling", async () => {
     render(
       <>
-        <SelectField label="State"><option value="LA">Lagos</option><option value="FC">FCT</option></SelectField>
+        <StateSelect />
         <TextareaField label="Landmark" error="Too long" />
         <SearchField aria-label="Search the shop" />
       </>,
     );
-    await userEvent.selectOptions(screen.getByLabelText("State"), "FC");
-    expect(screen.getByLabelText("State")).toHaveValue("FC");
+    const state = screen.getByRole("combobox", { name: "State" });
+    expect(state).toHaveTextContent("Lagos");
+    await userEvent.click(state);
+    await userEvent.click(screen.getByRole("option", { name: "FCT" }));
+    expect(state).toHaveTextContent("FCT");
     expect(screen.getByLabelText("Landmark")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByRole("searchbox", { name: "Search the shop" })).toBeInTheDocument();
   });

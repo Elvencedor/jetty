@@ -2,7 +2,7 @@
 
 import { ChevronDown, ChevronUp, Minus, Plus, X } from "lucide-react";
 import { useRef, useState } from "react";
-import { Button } from "@/components/ui";
+import { Button, Dropdown } from "@/components/ui";
 import { adminErrorMessage } from "@/lib/admin/concurrency";
 import { availableOf, computedPrice, groupVariants, hasCustomPrice, stockLevel, totalUnits, updateVariant, variantName, type MatrixDraft, type StockLevel, type VariantDraft } from "@/lib/admin/matrix";
 import { adjustStock } from "@/lib/api/admin-catalog";
@@ -151,10 +151,10 @@ export function VariantList({ draft, disabled, onChange, onBaseline }: Props) {
           {filterOptions.map((o) => (
             <label key={o.name} className="flex flex-col gap-0.5 text-micro font-bold text-muted">
               {o.name}
-              <select value={filters[o.name] ?? ""} onChange={(e) => setFilters((f) => ({ ...f, [o.name]: e.target.value }))} className="h-[38px] rounded-md border-[1.5px] border-line-strong bg-surface px-2 text-label font-semibold text-ink">
+              <Dropdown value={filters[o.name] ?? ""} onChange={(e) => setFilters((f) => ({ ...f, [o.name]: e.target.value }))} className="h-[38px] rounded-md border-[1.5px] border-line-strong bg-surface px-2 text-label font-semibold text-ink">
                 <option value="">All</option>
                 {o.values.map((v) => <option key={v.key} value={v.key}>{v.label}</option>)}
-              </select>
+              </Dropdown>
             </label>
           ))}
         </div>

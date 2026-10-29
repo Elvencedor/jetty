@@ -3,7 +3,7 @@ import Joi from 'joi';
 import { apiError } from '../../../lib/errors.js';
 import { changeStock, listInventory, STOCK_REASONS, type StockChange } from '../../../modules/admin/inventory.js';
 import { createContentUploadIntent, createUploadIntent, deleteMedia, finalizeMedia, MEDIA_ANGLES, MEDIA_TYPES, MAX_UPLOAD_BYTES, updateMedia, type MediaFields } from '../../../modules/admin/media.js';
-import { createProduct, getAdminProduct, listAdminProducts, replaceMatrix, setProductStatus, updateProduct, type MatrixInput, type ProductFields, type ProductListInput } from '../../../modules/admin/products.js';
+import { createProduct, deleteProduct, getAdminProduct, listAdminProducts, replaceMatrix, setProductStatus, updateProduct, type MatrixInput, type ProductFields, type ProductListInput } from '../../../modules/admin/products.js';
 import { createCategory, createCollection, listCategories, listCollectionProducts, listCollections, setCollectionProducts, updateCategory, updateCollection } from '../../../modules/admin/taxonomy.js';
 import { assertIfMatch, audited, db, etagFor, guard, NO_STORE, pageQuery, slugSchema, uuidParam } from './shared.js';
 
@@ -125,6 +125,16 @@ export const adminCatalogRoutes: ServerRoute[] = [
       const id = productId(request);
       const { after } = await audited(request, (tx) => updateProduct(tx, id, blankToNull(request.payload as Partial<ProductFields>), (updatedAt) => assertIfMatch(request, etagFor(updatedAt))), ({ before, after }) => ({ action: 'product.update', resourceType: 'product', resourceId: id, before: { title: before.title, slug: before.slug, featured: before.featured }, after: { title: after.title, slug: after.slug, featured: after.featured } }));
       return withEtag(h, await getAdminProduct(db(request), id, request.server.app.storage), after.updatedAt);
+    },
+  },
+  {
+    method: 'DELETE',
+    path: '/admin/products/{id}',
+    options: { ...write, description: 'Permanently delete a product and everything attached to it', tags: ['api', 'admin'], validate: { params: uuidParam('id') } },
+    handler: async (request, h) => {
+      const id = productId(request);
+      await audited(request, (tx) => deleteProduct(tx, id), (product) => ({ action: 'product.delete', resourceType: 'product', resourceId: id, before: { title: product.title, slug: product.slug, status: product.status } }));
+      return h.response().code(204);
     },
   },
   ...(['publish', 'archive'] as const).map(

@@ -219,6 +219,20 @@ describe('admin catalog, media and inventory', { skip: !TEST_DATABASE_URL && 'TE
     });
   });
 
+  describe('delete', () => {
+    it('removes a draft product and everything attached, audits it, and 404s afterwards', async () => {
+      const created = await call('POST', '/admin/products', { title: 'Doomed Wig' });
+      const id = created.body.product.id as string;
+      assert.equal((await call('PUT', `/admin/products/${id}/variants`, { ...matrix, variants: matrix.variants.map((v) => ({ ...v, sku: `DEL-${v.sku}` })) })).status, 200);
+      assert.equal((await call('DELETE', `/admin/products/${id}`, undefined, support)).status, 403);
+      assert.equal((await call('DELETE', `/admin/products/${id}`)).status, 204);
+      assert.equal((await call('GET', `/admin/products/${id}`)).status, 404);
+      assert.equal((await call('DELETE', `/admin/products/${id}`)).status, 404);
+      const actions = (await t.db.select().from(adminAuditLog).where(eq(adminAuditLog.resourceId, id))).map((a) => a.action);
+      assert.ok(actions.includes('product.delete'));
+    });
+  });
+
   describe('media', () => {
     let productId = '';
     before(async () => {

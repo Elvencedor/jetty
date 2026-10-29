@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Truck } from "lucide-react";
 import { useState } from "react";
+import { Dropdown } from "@/components/ui";
 import { getDeliveryQuote } from "@/lib/api/pricing";
 import type { DeliveryOption } from "@/lib/api/types";
 import { formatDay } from "@/lib/format";
@@ -47,9 +48,9 @@ export function DeliveryEstimate({ variantId, state, onState }: Props) {
       {changing ? (
         <label className="flex items-center gap-3 text-body-sm">
           <span className="font-semibold">Deliver to</span>
-          <select value={state} onChange={(e) => onState(e.target.value)} className="h-10 flex-1 rounded-pill border-[1.5px] border-line-strong bg-surface px-3 text-body-sm">
+          <Dropdown value={state} onChange={(e) => onState(e.target.value)} className="h-10 flex-1 rounded-pill border-[1.5px] border-line-strong bg-surface px-3 text-body-sm">
             {NIGERIAN_STATES.map((s) => <option key={s}>{s}</option>)}
-          </select>
+          </Dropdown>
         </label>
       ) : null}
     </section>

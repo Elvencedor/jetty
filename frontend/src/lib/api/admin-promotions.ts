@@ -70,6 +70,17 @@ export type PromotionInput = {
 export type Collection = { id: string; name: string; slug: string; active: boolean };
 
 export const listAdminPromotions = (query: { q?: string; status?: PromotionStatus; limit?: number; cursor?: string } = {}, init: Init = {}) => apiFetch<PromotionPage>("/admin/promotions", { query, auth: "admin", ...init });
+/** Every promotion, for pickers that must offer all of them. */
+export async function listAllAdminPromotions(init: Init = {}): Promise<PromotionRow[]> {
+  const rows: PromotionRow[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await listAdminPromotions({ limit: 100, ...(cursor ? { cursor } : {}) }, init);
+    rows.push(...page.data);
+    cursor = page.page.nextCursor ?? undefined;
+  } while (cursor);
+  return rows;
+}
 export const getAdminPromotion = (id: string, init: Init = {}) => apiFetch<PromotionDetail>(`/admin/promotions/${id}`, { auth: "admin", ...init });
 export const createAdminPromotion = (input: PromotionInput) => apiFetch<PromotionDetail>("/admin/promotions", { method: "POST", body: input, auth: "admin" });
 export const updateAdminPromotion = (id: string, patch: Partial<PromotionInput>) => apiFetch<PromotionDetail>(`/admin/promotions/${id}`, { method: "PATCH", body: patch, auth: "admin" });

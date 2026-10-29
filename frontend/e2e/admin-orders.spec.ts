@@ -1,4 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
+import { choose } from "./dropdown";
 import { expect, test, type Page } from "@playwright/test";
 
 const O = (n: number) => `00000000-0000-4000-8000-${String(3000 + n).padStart(12, "0")}`;
@@ -38,9 +39,9 @@ test("the list shows counts per status, filters by pill and search, and opens an
   await page.getByRole("searchbox", { name: "Search orders" }).fill("tolu");
   await expect(page.getByRole("button", { name: /^Open order/ })).toHaveCount(1);
   await page.getByRole("searchbox", { name: "Search orders" }).fill("");
-  await page.getByLabel("Payment").selectOption("bank_transfer");
+  await choose(page.getByLabel("Payment"), "Bank transfer");
   await expect(page.getByRole("button", { name: /^Open order/ })).toHaveCount(1);
-  await page.getByLabel("Payment").selectOption("");
+  await choose(page.getByLabel("Payment"), "Any payment");
 
   await page.getByRole("button", { name: "Open order JH-10481" }).click();
   await expect(page).toHaveURL(new RegExp(`order=${O(1)}`));

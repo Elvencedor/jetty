@@ -1,4 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
+import { choose } from "./dropdown";
 import { expect, test, type Page } from "@playwright/test";
 
 async function addWigAndOpenCheckout(page: Page) {
@@ -18,7 +19,7 @@ async function fillDelivery(page: Page, name = "Ada Obi") {
   await page.getByLabel(/^Phone/).fill("0803 123 4567");
   await page.getByLabel("Address", { exact: true }).fill("12 Admiralty Way");
   await page.getByLabel("City or town").fill("Lekki");
-  await page.getByLabel("State").selectOption("Lagos");
+  await choose(page.getByLabel("State"), "Lagos");
 }
 
 test("checking out with a bag walks the three steps and reaches payment", async ({ page }) => {

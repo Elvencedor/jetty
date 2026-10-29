@@ -6,7 +6,7 @@ import { useState } from "react";
 import { DataTable, type Column } from "../DataTable";
 import { PageHeader } from "../PageHeader";
 import { TablePager } from "../TablePager";
-import { EmptyState, Media, StatusPill } from "@/components/ui";
+import { Dropdown, EmptyState, Media, StatusPill } from "@/components/ui";
 import { useDebounced } from "@/components/shell/useDebounced";
 import { adminKeys } from "@/lib/admin/keys";
 import { DATE_RANGES, deliveryLine, ORDER_TABS, rangeStart, tabByKey, tabCount } from "@/lib/admin/orders";
@@ -21,7 +21,7 @@ import { ORDER_STATUS } from "@/lib/status";
 import { OrderDrawer } from "./OrderDrawer";
 
 const PAGE = 20;
-const SELECT = "h-[42px] rounded-pill border-[1.5px] border-line-strong bg-surface px-3 text-body-sm";
+const SELECT = "h-[42px] gap-2 rounded-pill border-[1.5px] border-line-strong bg-surface px-3 text-body-sm";
 
 const COLUMNS: Column<AdminOrderRow>[] = [
   {
@@ -113,14 +113,14 @@ export function OrdersPage() {
             <span className="sr-only">Search orders</span>
             <input type="search" value={draftSearch} onChange={(e) => { setDraftSearch(e.target.value); pages.reset(); }} onBlur={() => setSearch(q || null)} placeholder="Search by order number, name or phone" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted" />
           </label>
-          <select aria-label="Date" value={dates} onChange={(e) => changeFilter(() => setRange(e.target.value === "any" ? null : e.target.value))} className={SELECT}>
+          <Dropdown aria-label="Date" value={dates} onChange={(e) => changeFilter(() => setRange(e.target.value === "any" ? null : e.target.value))} className={SELECT}>
             {DATE_RANGES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-          </select>
-          <select aria-label="Payment" value={payment ?? ""} onChange={(e) => changeFilter(() => setMethod(e.target.value || null))} className={SELECT}>
+          </Dropdown>
+          <Dropdown aria-label="Payment" value={payment ?? ""} onChange={(e) => changeFilter(() => setMethod(e.target.value || null))} className={SELECT}>
             <option value="">Any payment</option>
             <option value="card">Card</option>
             <option value="bank_transfer">Bank transfer</option>
-          </select>
+          </Dropdown>
         </div>
         <DataTable
           caption="Orders"

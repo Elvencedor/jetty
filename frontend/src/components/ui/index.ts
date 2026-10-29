@@ -1,6 +1,7 @@
 export * from "./Badge";
 export * from "./Button";
 export * from "./Chip";
+export * from "./Dropdown";
 export * from "./EmptyState";
 export * from "./Field";
 export * from "./IconButton";

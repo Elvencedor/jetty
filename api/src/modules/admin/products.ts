@@ -1,9 +1,10 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Db, Tx } from '../../db/client.js';
 import {
   categories,
   collections,
   inventory,
+  backInStockSubscriptions,
   inventoryMovements,
   productCategories,
   productCollections,
@@ -12,7 +13,11 @@ import {
   productOptions,
   productVariants,
   products,
+  reviewMedia,
+  reviews,
+  stockReservations,
   variantOptionValues,
+  wishlistItems,
 } from '../../db/schema/index.js';
 import { decodeCursor, encodeCursor } from '../../lib/cursor.js';
 import { conflict, notFound, unprocessable } from '../../lib/errors.js';
@@ -266,6 +271,46 @@ export async function setProductStatus(db: Db, id: string, status: 'active' | 'a
 }
 
 // -------------------------------------------------------------- variant matrix
+
+/**
+ * Permanently removes a product (any status) with everything that hangs off it: options, variants, stock and its
+ * movement history, media, memberships, wishlist entries, stock alerts and reviews. Past orders keep their line
+ * items (the product and variant links are nulled, the snapshot columns stay). Refused while an unpaid order still
+ * holds stock on one of its variants, since deleting would break that checkout.
+ */
+export async function deleteProduct(db: Db, id: string) {
+  return db.transaction(async (tx) => {
+    const [product] = await tx.select().from(products).where(eq(products.id, id)).for('update');
+    if (!product) throw notFound('Product not found.');
+    const variantIds = (await tx.select({ id: productVariants.id }).from(productVariants).where(eq(productVariants.productId, id))).map((v) => v.id);
+    if (variantIds.length > 0) {
+      const [held] = await tx
+        .select({ id: stockReservations.id })
+        .from(stockReservations)
+        .where(and(inArray(stockReservations.variantId, variantIds), isNull(stockReservations.releasedAt), isNull(stockReservations.consumedAt)))
+        .limit(1);
+      if (held) throw conflict('PRODUCT_HAS_OPEN_ORDERS', 'An open order is holding stock for this product. Wait for it to complete or expire, or archive the product instead.');
+      await tx.delete(stockReservations).where(inArray(stockReservations.variantId, variantIds));
+      await tx.delete(inventoryMovements).where(inArray(inventoryMovements.variantId, variantIds));
+      await tx.delete(inventory).where(inArray(inventory.variantId, variantIds));
+      await tx.delete(backInStockSubscriptions).where(inArray(backInStockSubscriptions.variantId, variantIds));
+      await tx.delete(wishlistItems).where(inArray(wishlistItems.variantId, variantIds));
+      await tx.delete(variantOptionValues).where(inArray(variantOptionValues.variantId, variantIds));
+    }
+    const reviewIds = (await tx.select({ id: reviews.id }).from(reviews).where(eq(reviews.productId, id))).map((r) => r.id);
+    if (reviewIds.length > 0) await tx.delete(reviewMedia).where(inArray(reviewMedia.reviewId, reviewIds));
+    await tx.delete(reviews).where(eq(reviews.productId, id));
+    await tx.delete(productMedia).where(eq(productMedia.productId, id));
+    await tx.delete(productCategories).where(eq(productCategories.productId, id));
+    await tx.delete(productCollections).where(eq(productCollections.productId, id));
+    await tx.delete(productVariants).where(eq(productVariants.productId, id));
+    const optionIds = (await tx.select({ id: productOptions.id }).from(productOptions).where(eq(productOptions.productId, id))).map((o) => o.id);
+    if (optionIds.length > 0) await tx.delete(productOptionValues).where(inArray(productOptionValues.optionId, optionIds));
+    await tx.delete(productOptions).where(eq(productOptions.productId, id));
+    await tx.delete(products).where(eq(products.id, id));
+    return product;
+  });
+}
 
 export type MatrixInput = {
   options: { name: string; values: { label: string; valueKey: string; priceDeltaMinor?: number | undefined; /** False hides the value from shoppers while keeping it for staff; default true. */ active?: boolean | undefined; swatch?: string | null | undefined }[] }[];
