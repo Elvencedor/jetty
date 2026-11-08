@@ -8,6 +8,11 @@
 	reverse_proxy frontend:3000
 }
 
+# The bare domain (no "www") sends visitors to the storefront, keeping the path and query.
+{$APEX_DOMAIN} {
+	redir https://{$SITE_DOMAIN}{uri} permanent
+}
+
 # Public API. Paystack webhooks go to the separate webhook service.
 {$API_DOMAIN} {
 	encode zstd gzip

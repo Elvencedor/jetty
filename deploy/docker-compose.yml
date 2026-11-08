@@ -127,6 +127,7 @@ services:
       - '443:443/udp'
     environment:
       SITE_DOMAIN: ${SITE_DOMAIN}
+      APEX_DOMAIN: ${APEX_DOMAIN:?set APEX_DOMAIN}
       API_DOMAIN: ${API_DOMAIN}
       ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
     volumes:
