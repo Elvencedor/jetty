@@ -20,6 +20,7 @@ npm run dev
 npm run build && npm start   # compiled
 npm run db:migrate           # needs DATABASE_URL (PostgreSQL 16+)
 npm run db:seed              # idempotent; set SEED_OWNER_EMAIL/SEED_OWNER_PASSWORD for the first owner
+npm run db:seed:dev          # local test data: 16 products, orders, reviews, promotions, home content, logins (idempotent; refuses NODE_ENV=production)
 npm run start:worker         # sends the notification outbox and runs maintenance (needs SMS_PROVIDER/EMAIL_PROVIDER)
 npm test                     # integration tests skip unless TEST_DATABASE_URL (and TEST_REDIS_URL for rate limits) is set
 npm run lint                 # ESLint (typescript-eslint recommended)
@@ -95,7 +96,7 @@ reviews, bank transfer and analytics for launch (P0) are done.
 
 - Set `NODE_ENV=production` explicitly; the API refuses to start on Railway without it.
 - Run three services from the one build: `npm start` (API), `npm run start:webhook` and `npm run start:worker`.
-- Set `TRUSTED_PROXY_HOPS=1` behind Railway's proxy so rate limits see client addresses.
+- Set `TRUSTED_PROXY_HOPS=1` behind a single proxy (Caddy on Hostinger, Railway), `2` with Cloudflare in front, so rate limits see client addresses.
 - The frontend and API must share a registrable domain (e.g. `shop.example.com` and `api.example.com`): the refresh and
   checkout cookies are `SameSite=Strict` / `Lax` and are not sent across sites.
 - Optional `OPS_ALERT_EMAIL` receives payment-exception alerts from the worker.

@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 // The CDN host that serves product images (e.g. media.example.com). Set at build time; without it images are
@@ -40,7 +41,14 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self), payment=(self)" },
 ];
 
+// The Docker image (frontend/Dockerfile) sets this to build a self-contained server; the repository root is traced
+// because the app lives in an npm workspace. Local development and CI builds are unaffected.
+const standalone: NextConfig = process.env.BUILD_STANDALONE
+  ? { output: "standalone", outputFileTracingRoot: path.join(process.cwd(), "..") }
+  : {};
+
 const nextConfig: NextConfig = {
+  ...standalone,
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

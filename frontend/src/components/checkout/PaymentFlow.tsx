@@ -34,6 +34,7 @@ export function PaymentFlow({ orderId }: { orderId: string }) {
   const [retrying, setRetrying] = useState(false);
   const [amountOk, setAmountOk] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const bagHasItems = useCartStore((c) => c.lines.length > 0);
   const opened = useRef(false);
 
   const transfer = payment?.method === "bank_transfer";
@@ -53,6 +54,18 @@ export function PaymentFlow({ orderId }: { orderId: string }) {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  // A bank-transfer order is placed and holds the items while the shopper transfers (maybe much later, maybe from another
+  // app), so the bag has done its job now. The items are remembered in case the order closes unpaid.
+  const bagClearedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!payment || !transfer || phase !== "waiting" || bagClearedFor.current === orderId) return;
+    bagClearedFor.current = orderId;
+    const { lines, clear } = useCartStore.getState();
+    if (lines.length) usePaymentSession.getState().set({ ...payment, lines: lines.map(({ variantId, quantity }) => ({ variantId, quantity })) });
+    clear();
+    useCheckoutDraft.getState().reset();
+  }, [payment, transfer, phase, orderId]);
 
   // Paid: the bag and the typed details have done their job.
   useEffect(() => {
@@ -125,6 +138,11 @@ export function PaymentFlow({ orderId }: { orderId: string }) {
     );
   }
   const s = status.data;
+  const putBack = () => {
+    for (const l of payment?.lines ?? []) useCartStore.getState().add(l.variantId, l.quantity);
+    usePaymentSession.getState().set(null);
+    router.push("/bag");
+  };
   const confirmingTooLong = confirmingSince !== null && now - confirmingSince > CONFIRM_WINDOW_MS;
 
   return (
@@ -132,8 +150,15 @@ export function PaymentFlow({ orderId }: { orderId: string }) {
       <h1 data-step-heading tabIndex={-1} className="font-display text-heading-lg font-extrabold outline-none">Order {s.orderNumber}</h1>
 
       {phase === "closed" ? (
-        <EmptyState title="This order is closed" action={<Button href="/bag">Back to your bag</Button>}>
-          It was cancelled or its hold on your items ran out, and no money was taken. Your bag is still here.
+        <EmptyState
+          title="This order is closed"
+          action={
+            bagHasItems ? <Button href="/bag">Back to your bag</Button>
+            : payment?.lines?.length ? <Button onClick={putBack}>Put my items back in the bag</Button>
+            : <Button href="/shop">Shop wigs</Button>
+          }
+        >
+          It was cancelled or its hold on your items ran out, and no money was taken.{bagHasItems ? " Your bag is still here." : payment?.lines?.length ? " Your items can go back in your bag." : ""}
         </EmptyState>
       ) : phase === "review" ? (
         <div className="rounded-lg bg-info-bg p-4 text-body-sm">
@@ -170,7 +195,14 @@ export function PaymentFlow({ orderId }: { orderId: string }) {
           {transfer ? <p className="text-body-sm text-ink-soft">Waiting for your transfer. You can close this page: we&apos;ll message you when it arrives.</p> : <p className="text-body-sm text-ink-soft">Complete your payment in the secure Paystack window.</p>}
           {s.reservationExpiresAt ? <p className="text-caption text-muted">Items held for {formatDuration(Math.max(Date.parse(s.reservationExpiresAt) - now, 0))}</p> : null}
           {notice ? <p role="status" className="text-body-sm font-semibold">{notice}</p> : null}
-          {payment ? <Button size="lg" onClick={open} loading={popupBusy}>{transfer ? "Show transfer details" : `Pay ${formatNaira(payment.amountMinor)}`}</Button> : <p className="text-body-sm">Open your latest payment link or <Link href="/track" className="font-semibold underline">track the order</Link>.</p>}
+          {payment ? <Button size="lg" onClick={open} loading={popupBusy}>{transfer ? "Show transfer details" : `Pay ${formatNaira(payment.amountMinor)}`}</Button> : (
+            // No payment window to open: the payment never got started (the provider did not answer) or this tab lost it. Ask for a fresh one.
+            <>
+              <p className="text-body-sm">We couldn&apos;t open your payment window. Your items are still held for you.</p>
+              <Button size="lg" onClick={tryAgain} loading={retrying}>Start payment</Button>
+            </>
+          )}
+          <Button variant="outline" href={`/order/${encodeURIComponent(orderId)}/confirmed`}>View your order</Button>
         </div>
       )}
     </div>

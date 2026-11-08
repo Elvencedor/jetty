@@ -67,7 +67,7 @@ export function Confirmation({ orderId }: { orderId: string }) {
         {festive ? <span aria-hidden="true" className="absolute -right-12 -top-10 size-[200px] rounded-full bg-pink-500" /> : null}
         {festive ? <span aria-hidden="true" className="absolute -bottom-14 -left-8 size-[140px] rounded-full bg-pink-700" /> : null}
         <div className="relative flex items-center justify-between">
-          <span className="font-display text-[20px] font-extrabold">jetty&rsquo;s hair</span>
+          <span className="font-display text-[20px] font-extrabold">jetty&rsquo;s hairs</span>
           <Link href="/" aria-label="Close" className={cn("inline-flex size-11 items-center justify-center rounded-full", festive ? "bg-white/20 text-on-primary" : "bg-surface text-ink")}><X aria-hidden="true" size={18} strokeWidth={2.2} /></Link>
         </div>
         {festive ? <span aria-hidden="true" className="relative flex size-16 items-center justify-center rounded-[22px] bg-surface text-primary"><Check size={32} strokeWidth={2.6} /></span> : null}
@@ -101,6 +101,8 @@ export function Confirmation({ orderId }: { orderId: string }) {
             ) : null}
           </section>
         ) : null}
+
+        {!paid && !closed ? <Button href={`/checkout/pay?order=${encodeURIComponent(orderId)}`} size="lg">Complete payment</Button> : null}
 
         <div className="flex gap-2">
           <Button href="/track" variant="outline" className="h-12 flex-1 text-body-sm">Track this order</Button>

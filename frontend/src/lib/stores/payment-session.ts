@@ -8,6 +8,8 @@ export type PendingPayment = Pick<PaymentStart, "orderId" | "orderNumber" | "ref
   method: PaymentMethod;
   /** The total the shopper saw on the review step; if the server's differs they must confirm the new amount. */
   quotedMinor: number;
+  /** The bag's contents when a transfer order took them over, so they can go back if the order closes unpaid. */
+  lines?: { variantId: string; quantity: number }[];
 };
 
 type State = { payment: PendingPayment | null; set: (payment: PendingPayment | null) => void };

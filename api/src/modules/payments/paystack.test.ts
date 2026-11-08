@@ -52,11 +52,11 @@ describe('PaystackProvider payouts', () => {
   });
 
   it('creates a subaccount, or updates the one it is given', async () => {
-    const input = { businessName: "Jetty's Hair", bankCode: '058', accountNumber: '0123456789', percentageCharge: 0 };
+    const input = { businessName: "Jetty's Hairs", bankCode: '058', accountNumber: '0123456789', percentageCharge: 0 };
     const created = paystack([{ status: 201, body: { status: true, data: { subaccount_code: 'ACCT_new' } } }]);
     assert.deepEqual(await created.provider.saveSubaccount(input), { subaccountCode: 'ACCT_new' });
     assert.deepEqual([created.seen[0]!.method, created.seen[0]!.url], ['POST', 'https://paystack.test/subaccount']);
-    assert.deepEqual(created.seen[0]!.body, { business_name: "Jetty's Hair", settlement_bank: '058', account_number: '0123456789', percentage_charge: 0 });
+    assert.deepEqual(created.seen[0]!.body, { business_name: "Jetty's Hairs", settlement_bank: '058', account_number: '0123456789', percentage_charge: 0 });
     const updated = paystack([{ body: { status: true, data: { subaccount_code: 'ACCT_old' } } }]);
     assert.deepEqual(await updated.provider.saveSubaccount(input, 'ACCT_old'), { subaccountCode: 'ACCT_old' });
     assert.deepEqual([updated.seen[0]!.method, updated.seen[0]!.url], ['PUT', 'https://paystack.test/subaccount/ACCT_old']);

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import type { Server } from '@hapi/hapi';
-import { adminAuditLog, deliveryZones, inventory, productVariants, products } from '../../../db/schema/index.js';
+import { adminAuditLog, deliveryZones, inventory, orders, productVariants, products } from '../../../db/schema/index.js';
 import { createLogger } from '../../../lib/logger.js';
 import { resetBankCache } from '../../../modules/payments/payouts.js';
 import { createServer } from '../../../server.js';
@@ -24,10 +24,10 @@ describe('payout account (Paystack subaccount)', { skip: !TEST_DATABASE_URL && '
     const res = await api.inject({ method: method as 'GET', url: `/api/v1${url}`, ...(payload ? { payload } : {}), headers: who.headers });
     return { status: res.statusCode, body: res.result as Json };
   };
-  const connect = (over: Json = {}) => call('PUT', '/admin/payouts/account', { businessName: "Jetty's Hair", bankCode: '058', accountNumber: '0123456789', ...over });
+  const connect = (over: Json = {}) => call('PUT', '/admin/payouts/account', { businessName: "Jetty's Hairs", bankCode: '058', accountNumber: '0123456789', ...over });
 
   before(async () => {
-    t = await createTestDatabase();
+    t = await createTestDatabase({ payoutAccount: false });
     api = await createServer({ env: adminTestEnv(), logger: createLogger('error'), database: t, payments: provider });
     await api.initialize();
     owner = await signInAdmin(t.db, api, 'owner');
@@ -113,8 +113,8 @@ describe('payout account (Paystack subaccount)', { skip: !TEST_DATABASE_URL && '
     assert.deepEqual((await call('GET', '/admin/payouts/account')).body, before, 'nothing changed');
   });
 
-  it('sends new sales to the connected subaccount, and to the main account before one exists', async () => {
-    const fresh = await createTestDatabase();
+  it('sends new sales to the connected subaccount, and refuses to take an order before one exists', async () => {
+    const fresh = await createTestDatabase({ payoutAccount: false });
     const bare = await createServer({ env: adminTestEnv(), logger: createLogger('error'), database: fresh, payments: provider });
     await bare.initialize();
     // This server has no payout account yet.
@@ -123,8 +123,11 @@ describe('payout account (Paystack subaccount)', { skip: !TEST_DATABASE_URL && '
     await fresh.db.insert(inventory).values({ variantId: v!.id, onHandQuantity: 5 });
     await fresh.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', nextDayFeeMinor: 150000 });
     const place = (key: string) => bare.inject({ method: 'POST', url: '/api/v1/checkout', payload: { items: [{ variantId: v!.id, quantity: 1 }], promotionCodes: [], contact: { phone: '+2348455000002' }, deliveryAddress: { recipientName: 'Ada', addressLine1: '1 Street', city: 'Lagos', state: 'Lagos', countryCode: 'NG' }, deliveryMethod: 'next_day', paymentMethod: 'card', termsAccepted: true }, headers: { 'idempotency-key': `${key}-abcdefgh-0123456789abcdefghijklmnopqrstuvwxyz` } });
-    assert.equal((await place('plain-1')).statusCode, 201);
-    assert.equal(provider.calls.at(-1)!.subaccount, undefined);
+    const callsBefore = provider.calls.length;
+    const refused = await place('plain-1');
+    assert.deepEqual([refused.statusCode, (refused.result as Json).error.code], [503, 'PAYOUT_ACCOUNT_NOT_CONFIGURED']);
+    assert.equal(provider.calls.length, callsBefore, 'Paystack was never asked to take a payment');
+    assert.equal((await fresh.db.select().from(orders)).length, 0, 'no order or stock hold was created');
     await bare.stop();
     await fresh.destroy();
 

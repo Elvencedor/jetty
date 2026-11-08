@@ -20,6 +20,7 @@ import { usePaymentSession } from "@/lib/stores/payment-session";
 import { useCustomerSession } from "@/lib/stores/session";
 import { DeliveryStep } from "./DeliveryStep";
 import { PaymentStep } from "./PaymentStep";
+import { PriceSummary } from "@/components/bag/PriceSummary";
 import { ReviewStep } from "./ReviewStep";
 import { STEPS, StepIndicator, type StepKey } from "./StepIndicator";
 
@@ -36,7 +37,7 @@ export function Checkout() {
   const codes = useCartStore((s) => s.promotionCodes);
   const { details, deliveryMethod, paymentMethod, submission } = useCheckoutDraft();
   const { setDetails, setDeliveryMethod, setPaymentMethod, setSubmission } = useCheckoutDraft.getState();
-  const quoteState = useQuote({ deliveryAddress: details.state ? { state: details.state } : undefined, ...(deliveryMethod ? { deliveryMethod } : {}) });
+  const quoteState = useQuote({ deliveryAddress: details.state ? { state: details.state } : undefined, ...(deliveryMethod ? { deliveryMethod } : {}), ...(paymentMethod ? { paymentMethod } : {}) });
   const { quote, busy, views } = quoteState;
 
   const requested = params.get("step");
@@ -149,7 +150,10 @@ export function Checkout() {
     }
   }
 
-  const label = step === "delivery" ? "Continue to payment" : step === "payment" ? "Review order" : paymentMethod === "bank_transfer" ? "Get transfer details" : quote ? `Pay ${formatNaira(quote.totalMinor)}` : "Pay";
+  // The server's figure is the only one shown: the bag's total plus the estimated card fee for the chosen method.
+  const payable = quote ? (quote.payableMinor ?? quote.totalMinor) : null;
+  const calculating = busy || (!quote && !quoteState.error);
+  const label = step === "delivery" ? "Continue to payment" : step === "payment" ? "Review order" : paymentMethod === "bank_transfer" ? "Get transfer details" : payable !== null && !calculating ? `Pay ${formatNaira(payable)}` : "Pay";
   const canGoBack = step !== "delivery";
   const patch = (p: Partial<DeliveryDetails>) => {
     setDetails(p);
@@ -165,7 +169,7 @@ export function Checkout() {
         <header className="flex items-center justify-between gap-3">
           <Link href="/bag" aria-label="Back to bag" className="inline-flex size-11 items-center justify-center rounded-full bg-surface-tint"><ArrowLeft aria-hidden="true" size={20} /></Link>
           <p className="flex items-center gap-1.5 text-body-sm font-bold text-success"><Lock aria-hidden="true" size={16} /> Secure checkout</p>
-          <p className="rounded-pill bg-surface-inverse px-3 py-1.5 text-label font-bold text-on-inverse">{quote ? formatNaira(quote.totalMinor) : "…"}</p>
+          <p className="rounded-pill bg-surface-inverse px-3 py-1.5 text-label font-bold text-on-inverse">{calculating || payable === null ? "Calculating…" : formatNaira(payable)}</p>
         </header>
         <StepIndicator current={step} onGo={(s) => go(s)} />
         {!customer ? (
@@ -194,9 +198,20 @@ export function Checkout() {
           </fieldset>
 
           <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:static lg:border-0 lg:pb-0">
+            {step === "review" ? (
+              <p role="status" aria-live="polite" className="mx-auto max-w-xl px-4 pt-2 text-center text-caption text-muted lg:px-0 lg:pb-2 lg:pt-0">
+                {quoteState.error ? (
+                  <>We couldn&rsquo;t work out your total. <button type="button" onClick={() => void quoteState.refetch()} className="font-semibold text-primary-strong underline">Try again</button></>
+                ) : calculating ? (
+                  "Calculating your total…"
+                ) : (
+                  "Total confirmed"
+                )}
+              </p>
+            ) : null}
             <div className="mx-auto flex max-w-xl gap-3 px-4 py-3 lg:px-0 lg:py-0">
               {canGoBack ? <Button variant="outline" size="lg" disabled={submitting} onClick={() => go(step === "review" ? "payment" : "delivery")}>Back</Button> : null}
-              <Button type="submit" size="lg" fullWidth loading={submitting} disabled={step === "review" && (busy || !quoteState.ready)}>{label}</Button>
+              <Button type="submit" size="lg" fullWidth loading={submitting || (step === "review" && calculating)} disabled={step === "review" && (calculating || !quoteState.ready)}>{label}</Button>
             </div>
           </div>
         </form>
@@ -207,7 +222,8 @@ export function Checkout() {
         <ul className="mb-3 flex flex-col gap-2">
           {quote?.lines.map((l) => <li key={`${l.gift ? "gift-" : ""}${l.variantId}`} className="flex justify-between gap-3 text-body-sm"><span className="min-w-0 truncate">{l.quantity} × {l.title}{l.gift ? " (free gift)" : ""}</span><span className="font-semibold">{l.gift ? "Free" : formatNaira(l.lineTotalMinor)}</span></li>)}
         </ul>
-        <p className="flex justify-between border-t border-line pt-3 font-bold"><span>Total</span><span>{quote ? formatNaira(quote.totalMinor) : "…"}</span></p>
+        {quote ? <PriceSummary quote={quote} busy={busy} deliveryNote="Choose delivery" /> : <Skeleton className="h-32 w-full" />}
+        <p role="status" className="mt-2 text-caption text-muted">{calculating ? "Calculating your total…" : "Prices are calculated by our server."}</p>
       </aside>
     </div>
   );

@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Truck } from "lucide-react";
 import { useState } from "react";
 import { Dropdown } from "@/components/ui";
-import { getDeliveryQuote } from "@/lib/api/pricing";
+import { getDeliveryQuote, isDeliveryUnavailable } from "@/lib/api/pricing";
 import type { DeliveryOption } from "@/lib/api/types";
 import { formatDay } from "@/lib/format";
 import { NIGERIAN_STATES } from "@/lib/geo/states";
@@ -31,7 +31,7 @@ type Props = { variantId: string | undefined; state: string; onState: (state: st
 /** "Get it Tue 21 Oct in Lagos." with a Change link that reveals the state picker. */
 export function DeliveryEstimate({ variantId, state, onState }: Props) {
   const [changing, setChanging] = useState(false);
-  const { data, isFetching, isError } = useDeliveryOptions(variantId, state);
+  const { data, error, isFetching, isError } = useDeliveryOptions(variantId, state);
   const best = soonest(data?.options ?? []);
 
   return (
@@ -39,7 +39,7 @@ export function DeliveryEstimate({ variantId, state, onState }: Props) {
       <div className="flex items-center gap-3">
         <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-sm bg-surface-tint text-primary"><Truck size={20} strokeWidth={1.9} /></span>
         <p aria-live="polite" aria-busy={isFetching} className="flex-1 text-body-sm leading-[1.35]">
-          {!variantId ? "Choose your options to see delivery times." : isError ? "We couldn't check delivery for this state." : best ? (
+          {!variantId ? "Choose your options to see delivery times." : isError && !isDeliveryUnavailable(error) ? "We couldn't check delivery for this state." : best ? (
             <>Get it <strong>{formatDay(best.estimate!.earliestDate)}</strong> in <strong>{state}</strong>.</>
           ) : isFetching ? "Checking delivery…" : <>We don&apos;t deliver to <strong>{state}</strong> yet.</>}
         </p>

@@ -1,4 +1,4 @@
-# Jetty's Hair — API contract proposal
+# Jetty's Hairs — API contract proposal
 
 **Status:** Proposed implementation contract  
 **Style:** JSON over HTTPS, REST, rooted at `/api/v1`  
@@ -697,8 +697,8 @@ filter, which the admin nav uses as the "pending reviews" badge (`?status=pendin
 
 ## Payout account (Paystack subaccount)
 
-Sales settle to a Paystack **subaccount**. Connecting it is an owner action; until one is connected, sales go to the main
-Paystack account as before.
+Every sale is collected through a Paystack **subaccount**. Connecting it is an owner action, and until one is connected
+checkout (and a payment retry) is refused with `503 PAYOUT_ACCOUNT_NOT_CONFIGURED` before any order or stock hold is created.
 
 - `GET /admin/payouts/account` (`settings:read`): `{ configured: false, mode }` or `{ configured: true, mode, subaccountCode,
   businessName, bankCode, bankName, accountName, accountLast4, updatedAt }`. `mode` is `live` for an `sk_live_` key, else `test`.

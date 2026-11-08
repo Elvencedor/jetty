@@ -8,7 +8,9 @@ import { apiError, conflict, notFound } from '../../lib/errors.js';
 import { uniqueViolation } from '../../lib/sql.js';
 import { PaymentIndeterminateError, type PaymentProvider } from '../payments/provider.js';
 import { settleTransaction } from '../payments/settle.js';
+import { requirePayoutAccount } from '../payments/payouts.js';
 import { initializeAttempt, newPaymentReference, paymentResponse, type PaymentMethod } from './checkout.js';
+import type { Logger } from '../../lib/logger.js';
 
 type Order = typeof orders.$inferSelect;
 type Attempt = typeof paymentAttempts.$inferSelect;
@@ -150,10 +152,11 @@ export async function retryPayment(
   db: Db,
   provider: PaymentProvider,
   order: Order,
-  options: { callbackUrl?: string | undefined; emailDomain: string; now?: Date },
+  options: { callbackUrl?: string | undefined; logger?: Logger | undefined; emailDomain: string; now?: Date },
 ): Promise<RetryResult> {
   const now = options.now ?? new Date();
 
+  await requirePayoutAccount(db);
   const assertPayable = (o: Order) => {
     if (o.paymentStatus === 'paid') throw alreadyPaid();
     if (o.status !== 'pending_payment' || !o.reservationExpiresAt || o.reservationExpiresAt <= now) throw notPayable();
@@ -203,6 +206,7 @@ export async function retryPayment(
     currency: order.currency,
     method,
     callbackUrl: options.callbackUrl,
+    logger: options.logger,
   });
   if (!started.ok) return { status: 502, error: started.error };
   return {

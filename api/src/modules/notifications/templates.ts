@@ -3,7 +3,7 @@ import type { Message } from './senders.js';
 type Channel = 'sms' | 'email';
 type Payload = Record<string, unknown>;
 
-const STORE = "Jetty's Hair";
+const STORE = "Jetty's Hairs";
 export const OTP_TTL_MINUTES = 10;
 
 /** Returns null for events this service does not know how to send. */

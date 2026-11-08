@@ -10,7 +10,7 @@ describe("changedFields", () => {
 });
 
 describe("store details", () => {
-  const stored = { name: "Jetty's Hair", contactEmail: "hello@example.com", contactPhone: "+2348031234567", whatsappNumber: "", showroomAddress: " Lekki ", showroomHours: "" };
+  const stored = { name: "Jetty's Hairs", contactEmail: "hello@example.com", contactPhone: "+2348031234567", whatsappNumber: "", showroomAddress: " Lekki ", showroomHours: "" };
   it("shows phone numbers as people write them, and stores them in E.164", () => {
     const form = storeToForm(stored);
     expect(form.contactPhone).toBe("0803 123 4567");

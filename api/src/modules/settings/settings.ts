@@ -11,7 +11,7 @@ const phone = Joi.string().trim().pattern(/^\+[1-9]\d{7,14}$/).allow('').message
 /** Allow-listed, schema-validated settings. Anything not listed here cannot be written through the API. */
 export const SETTINGS = {
   store: {
-    defaults: { name: "Jetty's Hair", contactEmail: '', contactPhone: '', whatsappNumber: '', showroomAddress: '', showroomHours: '' },
+    defaults: { name: "Jetty's Hairs", contactEmail: '', contactPhone: '', whatsappNumber: '', showroomAddress: '', showroomHours: '' },
     schema: Joi.object({ name: Joi.string().trim().min(1).max(80), contactEmail: Joi.string().trim().email().max(254).allow(''), contactPhone: phone, whatsappNumber: phone, showroomAddress: text(300), showroomHours: text(200) }),
     public: true,
   },
@@ -35,7 +35,7 @@ export const SETTINGS = {
 
 export type SettingKey = keyof typeof SETTINGS;
 export const SETTING_KEYS = Object.keys(SETTINGS) as SettingKey[];
-export const isSettingKey = (k: string): k is SettingKey => k in SETTINGS;
+export const isSettingKey = (k: string): k is SettingKey => Object.hasOwn(SETTINGS, k);
 
 const dbKey = (key: SettingKey) => `app.${key}`;
 

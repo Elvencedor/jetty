@@ -11,6 +11,8 @@ test-results/
 playwright-report/
 
 # next.js
+# mock product images written by `npm run db:seed:dev`
+frontend/public/mock-media/
 .next/
 out/
 

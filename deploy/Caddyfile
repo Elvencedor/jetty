@@ -1,0 +1,22 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# Storefront and admin (admin lives under /admin).
+{$SITE_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy frontend:3000
+}
+
+# Public API. Paystack webhooks go to the separate webhook service.
+{$API_DOMAIN} {
+	encode zstd gzip
+
+	handle /webhooks/paystack {
+		reverse_proxy webhook:4001
+	}
+
+	handle {
+		reverse_proxy api:4000
+	}
+}

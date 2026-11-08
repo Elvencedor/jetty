@@ -1,4 +1,4 @@
-# Jetty's Hair — Database schema proposal
+# Jetty's Hairs — Database schema proposal
 
 **Status:** Proposed implementation contract  
 **Engine:** PostgreSQL 16+  

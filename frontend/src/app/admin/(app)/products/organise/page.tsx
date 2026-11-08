@@ -6,6 +6,9 @@ import { Skeleton } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Categories & collections" };
 
+// Rendered only once the browser confirms an admin session (AdminGate), so there is nothing for Next to validate.
+export const instant = false;
+
 export default function AdminTaxonomyPage() {
   return (
     <PermissionGate section="products">

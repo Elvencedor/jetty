@@ -1,7 +1,7 @@
 "use client";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useDebounced } from "@/components/shell/useDebounced";
 import { Button, Sheet, Spinner, Switch } from "@/components/ui";
 import { getListing, getScopedFacets, type ListScope } from "@/lib/api/catalog";
@@ -21,7 +21,7 @@ type Props = {
   state: ListState;
   scope?: ListScope;
   facets: Facets | null;
-  /** Which group to bring into view on opening (from the pill that was tapped). */
+  /** Show only this group (from the pill that was tapped); without it the sheet shows every filter. */
   focus?: FacetOption | "price";
   onApply: (next: ListState) => void;
 };
@@ -30,7 +30,7 @@ type Props = {
 export function FilterSheet({ open, onClose, state, scope, facets: initial, focus, onApply }: Props) {
   // The sheet renders its content only while open, so each opening starts from the applied filters.
   return (
-    <Sheet open={open} onClose={onClose} title="Filters">
+    <Sheet open={open} onClose={onClose} title={focus ? (focus === "price" ? "Price" : TITLES[focus]) : "Filters"}>
       <Body state={state} scope={scope} initial={initial} focus={focus} onClose={onClose} onApply={onApply} />
     </Sheet>
   );
@@ -38,10 +38,6 @@ export function FilterSheet({ open, onClose, state, scope, facets: initial, focu
 
 function Body({ state, scope, initial, focus, onClose, onApply }: { state: ListState; scope?: ListScope; initial: Facets | null; focus?: Props["focus"]; onClose: () => void; onApply: (next: ListState) => void }) {
   const [draft, setDraft] = useState(state);
-
-  useEffect(() => {
-    if (focus) document.getElementById(`facet-${focus}`)?.scrollIntoView({ block: "start" });
-  }, [focus]);
 
   // Stable between renders (it feeds a debounce and query keys), changing only when the draft does.
   const facetParams = useMemo(() => {
@@ -79,17 +75,32 @@ function Body({ state, scope, initial, focus, onClose, onApply }: { state: ListS
 
   const priceBounds = facets?.price ? { min: Math.floor(facets.price.minMinor / 100), max: Math.ceil(facets.price.maxMinor / 100) } : null;
   const busy = counting || isFetching;
+  // Reset clears what the sheet shows: everything, or just the one group it was opened for.
+  const reset = (d: ListState): ListState => {
+    if (!focus) return clearFilters(d);
+    if (focus === "price") {
+      const { minPriceNaira: _a, maxPriceNaira: _b, ...rest } = d;
+      return rest;
+    }
+    const { [focus]: _gone, ...options } = d.options;
+    return { ...d, options };
+  };
+  // A sheet opened from a pill shows just that group; "All filters" shows everything.
+  const shows = (group: FacetOption | "price") => !focus || focus === group;
+  const hasPrice = priceBounds !== null && priceBounds.max > priceBounds.min;
+  const hasChoices = FACET_OPTIONS.some((n) => shows(n) && (facets?.options[n]?.length ?? 0) > 0) || (shows("price") && hasPrice);
 
   return (
     <>
       <div className="flex flex-col gap-5">
+        {hasChoices ? null : <p className="rounded-card bg-surface-tint p-3.5 text-body-sm text-muted">There&apos;s nothing to filter by yet. Choices appear here once wigs are listed.</p>}
         {FACET_OPTIONS.map((name) => {
           const values = facets?.options[name] ?? [];
-          if (!values.length) return null;
+          if (!shows(name) || !values.length) return null;
           if (name === "colour") {
             return (
               <fieldset key={name} id="facet-colour" className="flex flex-col gap-2.5 scroll-mt-2">
-                <legend className="pb-2.5 font-bold">{TITLES[name]}</legend>
+                <legend className={cn("pb-2.5 font-bold", focus && "sr-only")}>{TITLES[name]}</legend>
                 <div className="flex flex-wrap gap-3">
                   {values.map((v) => {
                     const selected = draft.options.colour?.includes(v.valueKey) ?? false;
@@ -106,7 +117,7 @@ function Body({ state, scope, initial, focus, onClose, onApply }: { state: ListS
           }
           return (
             <fieldset key={name} id={`facet-${name}`} className="flex flex-col gap-2.5 scroll-mt-2">
-              <legend className="pb-2.5 font-bold">{TITLES[name]}</legend>
+              <legend className={cn("pb-2.5 font-bold", focus && "sr-only")}>{TITLES[name]}</legend>
               <div className="flex flex-wrap gap-2">
                 {values.map((v) => {
                   const selected = draft.options[name]?.includes(v.valueKey) ?? false;
@@ -128,7 +139,7 @@ function Body({ state, scope, initial, focus, onClose, onApply }: { state: ListS
           );
         })}
 
-        {priceBounds && priceBounds.max > priceBounds.min ? (
+        {shows("price") && priceBounds && hasPrice ? (
           <div id="facet-price" className="scroll-mt-2">
             <PriceRange min={priceBounds.min} max={priceBounds.max} from={draft.minPriceNaira} to={draft.maxPriceNaira} onChange={({ from, to }) => setDraft((d) => {
               const { minPriceNaira: _a, maxPriceNaira: _b, ...rest } = d;
@@ -137,7 +148,7 @@ function Body({ state, scope, initial, focus, onClose, onApply }: { state: ListS
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-3">
+        {focus ? null : <div className="flex flex-col gap-3">
           <label className="flex items-center justify-between gap-3 text-body-sm font-semibold">
             <span>In stock only{facets ? <span className="font-normal text-muted"> ({facets.inStockCount})</span> : null}</span>
             <Switch label="In stock only" checked={draft.inStock} onChange={(inStock) => setDraft((d) => ({ ...d, inStock }))} />
@@ -146,11 +157,11 @@ function Body({ state, scope, initial, focus, onClose, onApply }: { state: ListS
             <span>On offer{facets ? <span className="font-normal text-muted"> ({facets.onOfferCount})</span> : null}</span>
             <Switch label="On offer" checked={draft.onOffer} onChange={(onOffer) => setDraft((d) => ({ ...d, onOffer }))} />
           </label>
-        </div>
+        </div>}
       </div>
 
       <div className="sticky -bottom-4 -mx-5 mt-6 flex gap-2.5 bg-surface px-5 pb-1 pt-3">
-        <Button variant="outline" size="lg" className="h-[52px] flex-1 text-body-sm" onClick={() => setDraft(clearFilters(draft))}>
+        <Button variant="outline" size="lg" className="h-[52px] flex-1 text-body-sm" onClick={() => setDraft(reset)}>
           Reset
         </Button>
         <Button

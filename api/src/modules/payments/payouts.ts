@@ -29,6 +29,16 @@ export async function getPayoutAccount(db: Db): Promise<PayoutAccount | null> {
   return (row?.value as PayoutAccount | undefined) ?? null;
 }
 
+/**
+ * Every sale is collected through the payout subaccount, so nothing can be charged until one is connected. Checked
+ * before an order is created, so a shopper is never left holding a reservation that cannot be paid.
+ */
+export async function requirePayoutAccount(db: Db): Promise<PayoutAccount> {
+  const account = await getPayoutAccount(db);
+  if (!account) throw apiError(503, 'PAYOUT_ACCOUNT_NOT_CONFIGURED', 'Payments are not available right now. Please try again later.');
+  return account;
+}
+
 export async function savePayoutAccount(db: Db, adminId: string, account: PayoutAccount) {
   const before = await getPayoutAccount(db);
   await db

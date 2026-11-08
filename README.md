@@ -70,7 +70,7 @@ that prefix so platform health checks do not depend on the versioned contract.
 
 ## Deployment
 
-[docs/INFRASTRUCTURE.md](./docs/INFRASTRUCTURE.md) proposes Vercel for the
-storefront and Railway for the API, worker and PostgreSQL. Nothing is
-provisioned yet. When connecting providers, set the Vercel project root to
-`frontend/` and the Railway service root to `api/`.
+The services deploy to a Hostinger VPS with Docker Compose; see
+[docs/HOSTINGER.md](./docs/HOSTINGER.md) and [deploy/](./deploy). The earlier
+Vercel + Railway proposal remains in [docs/INFRASTRUCTURE.md](./docs/INFRASTRUCTURE.md)
+for reference.

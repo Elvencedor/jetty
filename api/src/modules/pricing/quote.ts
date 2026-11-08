@@ -2,10 +2,12 @@ import { randomUUID } from 'node:crypto';
 import type { Db } from '../../db/client.js';
 import { unprocessable } from '../../lib/errors.js';
 import { deliveryOptions, resolveZone, type DeliveryMethod, type DeliveryOption, type DeliveryZone, type Destination } from '../delivery/zones.js';
+import { estimatePaymentFee } from '../payments/fees.js';
 import { priceCart, type CartItem, type PricedCart } from './cart.js';
 
 export const QUOTE_TTL_MS = 15 * 60 * 1000;
 
+type PaymentMethod = 'card' | 'bank_transfer';
 type Common = { items: CartItem[]; promotionCodes: string[]; customerId?: string | undefined; now?: Date };
 
 async function requireZone(db: Db, destination: Destination): Promise<DeliveryZone> {
@@ -17,7 +19,7 @@ async function requireZone(db: Db, destination: Destination): Promise<DeliveryZo
 const feeFor = (option: DeliveryOption, cart: PricedCart) => (cart.freeDelivery ? 0 : option.baseFeeMinor);
 
 /** POST /pricing/quote: stateless, server-calculated totals. Never mutates stock or promotion usage. */
-export async function quote(db: Db, input: Common & { deliveryAddress?: Destination; deliveryMethod?: DeliveryMethod }) {
+export async function quote(db: Db, input: Common & { deliveryAddress?: Destination; deliveryMethod?: DeliveryMethod; paymentMethod?: PaymentMethod }) {
   const now = input.now ?? new Date();
 
   let zone: DeliveryZone | undefined;
@@ -35,6 +37,8 @@ export async function quote(db: Db, input: Common & { deliveryAddress?: Destinat
   const cart = await priceCart(db, { items: input.items, promotionCodes: input.promotionCodes, zoneId: zone?.id, customerId: input.customerId, now });
   const deliveryFeeMinor = option ? feeFor(option, cart) : 0;
   const taxMinor = 0; // Tax/VAT settings are P1 (SET-06).
+  const totalMinor = cart.subtotalMinor - cart.discountMinor + deliveryFeeMinor + taxMinor;
+  const paymentFeeMinor = estimatePaymentFee(totalMinor, input.paymentMethod);
 
   return {
     currency: cart.currency,
@@ -57,7 +61,10 @@ export async function quote(db: Db, input: Common & { deliveryAddress?: Destinat
         : null,
     deliveryFeeMinor,
     taxMinor,
-    totalMinor: cart.subtotalMinor - cart.discountMinor + deliveryFeeMinor + taxMinor,
+    totalMinor,
+    // Estimated card fee the customer pays to Paystack on top of the order total (0 until a payment method is chosen).
+    paymentFeeMinor,
+    payableMinor: totalMinor + paymentFeeMinor,
     // Display-only: checkout recomputes everything and never accepts this id as a price lock.
     quoteId: randomUUID(),
     quoteExpiresAt: new Date(now.getTime() + QUOTE_TTL_MS).toISOString(),

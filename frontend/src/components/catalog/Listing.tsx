@@ -99,6 +99,9 @@ export function Listing({ title, crumbs, path, scope, state, initial, facets }: 
     go({ ...state, view });
   };
   const pillActive = (key: FacetOption | "price") => (key === "price" ? state.minPriceNaira !== undefined || state.maxPriceNaira !== undefined : (state.options[key]?.length ?? 0) > 0);
+  const pillCount = (key: FacetOption | "price") => (key === "price" ? Number(pillActive(key)) : (state.options[key]?.length ?? 0));
+  // A pill with nothing behind it (no products yet, or nothing in that group) is shown disabled rather than opening an empty sheet.
+  const pillHasChoices = (key: FacetOption | "price") => (key === "price" ? !!facets?.price && facets.price.maxMinor > facets.price.minMinor : (facets?.options[key]?.length ?? 0) > 0);
   const open = (focus?: FacetOption | "price") => setSheet({ open: true, ...(focus ? { focus } : {}) });
   const viewButton = (view: ListView, Icon: typeof List, label: string) => (
     <button type="button" aria-label={label} aria-pressed={state.view === view} onClick={() => setView(view)} className={cn("flex h-9 w-10 items-center justify-center rounded-pill", state.view === view ? "bg-primary text-on-primary" : "text-ink")}>
@@ -132,8 +135,9 @@ export function Listing({ title, crumbs, path, scope, state, initial, facets }: 
             All filters{filterCount ? ` · ${filterCount}` : ""}
           </button>
           {PILLS.map((p) => (
-            <button key={p.key} type="button" onClick={() => open(p.key)} className={cn("flex h-10 shrink-0 items-center gap-1 rounded-pill border-[1.5px] pl-3.5 pr-3 text-body-sm font-semibold", pillActive(p.key) ? "border-primary bg-surface-tint text-primary-strong" : "border-line-strong bg-surface text-ink")}>
+            <button key={p.key} type="button" disabled={!pillHasChoices(p.key) && !pillActive(p.key)} onClick={() => open(p.key)} className={cn("flex h-10 shrink-0 items-center gap-1 rounded-pill border-[1.5px] pl-3.5 pr-3 text-body-sm font-semibold disabled:opacity-40", pillActive(p.key) ? "border-primary bg-surface-tint text-primary-strong" : "border-line-strong bg-surface text-ink")}>
               {p.label}
+              {pillCount(p.key) ? <span className="flex size-5 items-center justify-center rounded-full bg-primary text-micro font-bold text-on-primary">{pillCount(p.key)}</span> : null}
               <ChevronDown aria-hidden="true" size={14} strokeWidth={2.2} />
             </button>
           ))}

@@ -2,6 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LogOut, Menu } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -76,7 +77,7 @@ export function AdminTopNav() {
     <header className="border-b border-line bg-surface px-[clamp(16px,3vw,36px)] py-3">
       <div className="mx-auto flex max-w-admin flex-wrap items-center gap-x-5 gap-y-3">
         <Link href="/admin" className="flex items-center gap-2">
-          <span aria-hidden="true" className="flex size-[34px] items-center justify-center rounded-[11px] bg-primary font-display text-heading-xs font-extrabold text-on-primary">J</span>
+          <Image src="/brand/jettys-hairs-transparent.png" alt="" width={712} height={754} className="h-10 w-auto" />
           <span className="font-display text-heading-xs font-extrabold">jetty admin</span>
         </Link>
 

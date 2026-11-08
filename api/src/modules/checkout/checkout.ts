@@ -19,9 +19,10 @@ import { InsufficientStockError, reserveStockInTx } from '../inventory/reservati
 import { priceCart, type CartItem } from '../pricing/cart.js';
 import { normaliseCode } from '../pricing/load-promotions.js';
 import { PaymentIndeterminateError, PaymentRejectedError, type InitializeResult, type PaymentProvider } from '../payments/provider.js';
-import { getPayoutAccount } from '../payments/payouts.js';
+import { requirePayoutAccount } from '../payments/payouts.js';
 import type { AppliedPromotionSnapshot } from '../payments/settle.js';
 import { getSetting } from '../settings/settings.js';
+import type { Logger } from '../../lib/logger.js';
 
 /** How long unpaid stock is held while the buyer pays. */
 export const GUEST_TOKEN_TTL_MS = 6 * 60 * 60 * 1000;
@@ -84,10 +85,11 @@ export async function checkout(
   db: Db,
   provider: PaymentProvider,
   input: CheckoutInput,
-  options: { callbackUrl?: string | undefined; emailDomain: string; customerId?: string | undefined; guestToken?: string | undefined; now?: Date },
+  options: { callbackUrl?: string | undefined; logger?: Logger | undefined; emailDomain: string; customerId?: string | undefined; guestToken?: string | undefined; now?: Date },
 ): Promise<CheckoutResult> {
   const now = options.now ?? new Date();
 
+  await requirePayoutAccount(db);
   const { enabledMethods, cardHoldMinutes, transferHoldMinutes } = await getSetting(db, 'payments');
   if (!enabledMethods.includes(input.paymentMethod)) {
     throw unprocessable('PAYMENT_METHOD_UNAVAILABLE', 'That payment method is not available right now.', [{ method: input.paymentMethod, enabledMethods }]);
@@ -243,6 +245,7 @@ export async function checkout(
     currency: cart.currency,
     method: input.paymentMethod,
     callbackUrl: options.callbackUrl,
+    logger: options.logger,
   });
   if (!started.ok) return { status: 502, error: started.error, guestToken };
 
@@ -274,6 +277,8 @@ export type PaymentAttemptRequest = {
   currency: string;
   method: CheckoutInput['paymentMethod'];
   callbackUrl?: string | undefined;
+  /** Where to record why the provider call did not complete, so a dead payment start can be diagnosed. */
+  logger?: Logger | undefined;
 };
 
 export type AttemptStart =
@@ -289,8 +294,8 @@ export type AttemptStart =
 export async function initializeAttempt(db: Db, provider: PaymentProvider, a: PaymentAttemptRequest): Promise<AttemptStart> {
   const details = [{ orderId: a.orderId, orderNumber: a.orderNumber }];
   try {
-    // Sales settle to the connected payout account, when there is one.
-    const payout = await getPayoutAccount(db);
+    // Every sale is collected through the payout subaccount.
+    const payout = await requirePayoutAccount(db);
     const init = await provider.initialize({
       email: a.email,
       amountMinor: a.amountMinor,
@@ -299,7 +304,8 @@ export async function initializeAttempt(db: Db, provider: PaymentProvider, a: Pa
       callbackUrl: a.callbackUrl,
       channels: channelsFor(a.method),
       metadata: { orderId: a.orderId, paymentAttemptId: a.attemptId },
-      ...(payout ? { subaccount: payout.subaccountCode, bearer: payout.feeBearer } : {}),
+      subaccount: payout.subaccountCode,
+      bearer: payout.feeBearer,
     });
     await db
       .update(paymentAttempts)
@@ -308,6 +314,7 @@ export async function initializeAttempt(db: Db, provider: PaymentProvider, a: Pa
     return { ok: true, init };
   } catch (err) {
     if (err instanceof PaymentRejectedError) {
+      a.logger?.warn('payment initialization refused by the provider', { orderNumber: a.orderNumber, method: a.method, reason: err.message, providerMessage: err.detail });
       await db
         .update(paymentAttempts)
         .set({ status: 'failed' })
@@ -315,6 +322,7 @@ export async function initializeAttempt(db: Db, provider: PaymentProvider, a: Pa
       return { ok: false, error: { code: 'PAYMENT_INITIALIZATION_FAILED', message: 'Payment could not be started. You can retry for this order.', details } };
     }
     if (err instanceof PaymentIndeterminateError) {
+      a.logger?.warn('payment initialization did not complete', { orderNumber: a.orderNumber, method: a.method, reason: err.message });
       return { ok: false, error: { code: 'PAYMENT_INITIALIZATION_PENDING', message: 'Payment start is being confirmed. Check the order status shortly.', details } };
     }
     throw err;

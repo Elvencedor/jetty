@@ -1,4 +1,4 @@
-# Jetty's Hair — Engineering documentation
+# Jetty's Hairs — Engineering documentation
 
 This documentation turns the feature inventory into an implementation-ready
 reference design. The feature inventory remains the product source of truth;

@@ -181,11 +181,11 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
     it('is owner-written, merges partial updates, and validates', async () => {
       assert.equal((await call('GET', '/admin/settings/store', undefined, support)).status, 403);
       assert.equal((await call('PATCH', '/admin/settings/store', { name: 'X' }, manager)).status, 403);
-      assert.equal((await call('GET', '/admin/settings/store', undefined, manager)).body.name, "Jetty's Hair", 'managers can read; defaults apply');
+      assert.equal((await call('GET', '/admin/settings/store', undefined, manager)).body.name, "Jetty's Hairs", 'managers can read; defaults apply');
 
       const updated = await call('PATCH', '/admin/settings/store', { contactPhone: '+2348012345678', showroomAddress: '12 Allen Ave, Ikeja' });
       assert.equal(updated.status, 200, JSON.stringify(updated.body));
-      assert.equal(updated.body.name, "Jetty's Hair");
+      assert.equal(updated.body.name, "Jetty's Hairs");
       assert.equal(updated.body.contactPhone, '+2348012345678');
       assert.equal((await call('PATCH', '/admin/settings/store', { contactPhone: '0801' })).status, 422);
       assert.equal((await call('PATCH', '/admin/settings/store', { notAField: 1 })).status, 422);

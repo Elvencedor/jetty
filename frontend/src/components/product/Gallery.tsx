@@ -2,8 +2,7 @@
 
 import { Search } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { BackLink } from "@/components/shell/BackLink";
+import { useEffect, useId, useRef, useState } from "react";
 import { isOptimisable, Media } from "@/components/ui";
 import type { ProductMedia } from "@/lib/api/types";
 import { cn } from "@/lib/cn";
@@ -15,15 +14,13 @@ type Props = {
   title: string;
   /** Scrolls to a photo, for example the one tied to the chosen variant. */
   focusId?: string | null;
-  /** The buttons floating at the top right (share, save). */
-  actions: ReactNode;
 };
 
 /**
- * The full-bleed photo area: swipeable photos (native scroll-snap), floating back, share and save buttons, a chip per
+ * The full-bleed photo area: swipeable photos (native scroll-snap), a chip per
  * camera angle along the bottom, and a full-screen zoom. The content sheet below overlaps its last 32px.
  */
-export function Gallery({ media, title, focusId, actions }: Props) {
+export function Gallery({ media, title, focusId }: Props) {
   const images = media.filter((m) => m.mediaType === "image");
   const stripId = useId();
   const zoom = useRef<HTMLDialogElement>(null);
@@ -74,11 +71,6 @@ export function Gallery({ media, title, focusId, actions }: Props) {
       ) : (
         <div role="img" aria-label={title} className="flex size-full items-center justify-center text-label font-semibold text-primary-deep">Photo coming soon</div>
       )}
-
-      <div className="pointer-events-none absolute inset-x-4 top-3 flex justify-between">
-        <BackLink fallback="/shop" className="pointer-events-auto lg:invisible" />
-        <div className="pointer-events-auto flex gap-2">{actions}</div>
-      </div>
 
       {images.length ? (
         <div className="absolute inset-x-4 bottom-14 flex gap-1.5 overflow-x-auto lg:bottom-4 [scrollbar-width:none]">

@@ -19,6 +19,7 @@
     "db:migrate": "tsx --env-file-if-exists=.env src/db/migrate.ts",
     "db:check": "drizzle-kit check",
     "db:seed": "tsx --env-file-if-exists=.env src/db/seed.ts",
+    "db:seed:dev": "tsx --env-file-if-exists=.env src/db/seed-dev.ts",
     "lint": "eslint src"
   },
   "dependencies": {
