@@ -9,7 +9,7 @@ beforeEach(() => {
 describe("checkout draft", () => {
   it("keeps what was typed across a reload, in session storage only", async () => {
     useCheckoutDraft.getState().setDetails({ name: "Ada", state: "Lagos" });
-    useCheckoutDraft.getState().setDeliveryMethod("same_day");
+    useCheckoutDraft.getState().setDeliveryMethod("delivery");
     expect(sessionStorage.getItem("jh.checkout-draft.v1")).toContain("Ada");
     expect(localStorage.getItem("jh.checkout-draft.v1")).toBeNull();
     // A fresh page load: the store starts empty, storage still has what was saved.
@@ -18,7 +18,7 @@ describe("checkout draft", () => {
     sessionStorage.setItem("jh.checkout-draft.v1", saved);
     await useCheckoutDraft.persist.rehydrate();
     expect(useCheckoutDraft.getState().details.name).toBe("Ada");
-    expect(useCheckoutDraft.getState().deliveryMethod).toBe("same_day");
+    expect(useCheckoutDraft.getState().deliveryMethod).toBe("delivery");
   });
 
   it("drops anything unexpected from storage", async () => {

@@ -3,7 +3,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import { orderItems, orders, paymentAttempts, stockReservations } from '../../db/schema/index.js';
-import { estimateFor } from '../delivery/zones.js';
+import { estimateFor, promisedDays } from '../delivery/zones.js';
 import { apiError, conflict, notFound } from '../../lib/errors.js';
 import { uniqueViolation } from '../../lib/sql.js';
 import { PaymentIndeterminateError, type PaymentProvider } from '../payments/provider.js';
@@ -75,7 +75,7 @@ export async function orderStatus(db: Db, orderId: string) {
     currency: o.currency,
     reservationExpiresAt: o.reservationExpiresAt?.toISOString() ?? null,
     deliveryMethod: o.deliveryMethod,
-    estimate: estimateFor(o.deliveryMethod, o.placedAt ?? o.createdAt),
+    estimate: estimateFor(o.deliveryMethod, o.placedAt ?? o.createdAt, promisedDays(o.deliveryAddressSnapshot)),
     itemCount: count?.n ?? 0,
     // Enough for "Yay, it's yours, Adaeze!" without exposing the address or contact details.
     recipientFirstName: recipient.trim().split(/\s+/)[0] || null,

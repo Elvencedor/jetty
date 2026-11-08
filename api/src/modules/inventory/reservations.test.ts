@@ -38,7 +38,7 @@ describe('stock reservations', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL 
         subtotalMinor: 1000,
         totalMinor: 1000,
         deliveryAddressSnapshot: {},
-        deliveryMethod: 'same_day',
+        deliveryMethod: 'delivery',
         termsAcceptedAt: new Date(),
       })
       .returning();

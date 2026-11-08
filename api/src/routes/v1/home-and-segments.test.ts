@@ -106,10 +106,9 @@ describe('home sections, customer segments and CDN URLs', { skip: !TEST_DATABASE
       assert.equal(await section('flash'), undefined, 'deactivated');
     });
 
-    it('offers same-day delivery in the trust block only when a zone provides it', async () => {
+    it('never promises same-day delivery in the trust block, whatever the zones offer', async () => {
+      await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', deliveryFeeMinor: 300000, deliveryMinDays: 0, deliveryMaxDays: 0, active: true });
       assert.ok(!(await section('trust'))!.items.some((i: Json) => i.title === 'Same-day Lagos'));
-      await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', sameDayFeeMinor: 300000, active: true });
-      assert.ok((await section('trust'))!.items.some((i: Json) => i.title === 'Same-day Lagos'));
     });
 
     it('obeys the home layout: order, hidden blocks, blocks left out, and one layout only', async () => {
@@ -144,7 +143,7 @@ describe('home sections, customer segments and CDN URLs', { skip: !TEST_DATABASE
       return c!.id;
     };
     const order = (customerId: string, totalMinor: number, ageDays: number) =>
-      t.db.insert(orders).values({ orderNumber: `JH-SEG-${Math.random().toString(36).slice(2, 9)}`, customerId, phoneE164: '+2348000000000', subtotalMinor: totalMinor, totalMinor, deliveryAddressSnapshot: {}, deliveryMethod: 'next_day', termsAcceptedAt: new Date(), status: 'delivered', paymentStatus: 'paid', placedAt: new Date(Date.now() - ageDays * day) });
+      t.db.insert(orders).values({ orderNumber: `JH-SEG-${Math.random().toString(36).slice(2, 9)}`, customerId, phoneE164: '+2348000000000', subtotalMinor: totalMinor, totalMinor, deliveryAddressSnapshot: {}, deliveryMethod: 'delivery', termsAcceptedAt: new Date(), status: 'delivered', paymentStatus: 'paid', placedAt: new Date(Date.now() - ageDays * day) });
     const list = async (query = '') => ((await api.inject({ url: `/api/v1/admin/customers?limit=100${query}`, headers: owner.headers })).result as Json).data as Json[];
 
     before(async () => {
@@ -154,7 +153,7 @@ describe('home sections, customer segments and CDN URLs', { skip: !TEST_DATABASE
       await order(await customer('lapsed', '+2348060000004'), 20_000, 200);
       await order(await customer('fresh', '+2348060000005'), 20_000, 2);
       await customer('never', '+2348060000006');
-      await t.db.insert(orders).values({ orderNumber: 'JH-SEG-UNPAID', customerId: ids.never!, phoneE164: '+2348000000000', subtotalMinor: 1, totalMinor: 1, deliveryAddressSnapshot: {}, deliveryMethod: 'next_day', termsAcceptedAt: new Date() });
+      await t.db.insert(orders).values({ orderNumber: 'JH-SEG-UNPAID', customerId: ids.never!, phoneE164: '+2348000000000', subtotalMinor: 1, totalMinor: 1, deliveryAddressSnapshot: {}, deliveryMethod: 'delivery', termsAcceptedAt: new Date() });
     });
 
     it('counts each segment and explains its rule', async () => {

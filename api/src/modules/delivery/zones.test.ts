@@ -1,17 +1,22 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { deliveryOptions, type DeliveryZone } from './zones.js';
+import { deliveryOptions, estimateFor, promisedDays, type DeliveryZone } from './zones.js';
 
 const zone = (over: Partial<DeliveryZone> = {}): DeliveryZone => ({
   id: 'z',
   name: 'Lagos',
+  scope: 'state',
   state: 'Lagos',
+  states: [],
   areas: [],
   active: true,
-  sameDayCutoffLocal: '14:00',
   timezone: 'Africa/Lagos',
-  sameDayFeeMinor: 300000,
-  nextDayFeeMinor: 200000,
+  deliveryFeeMinor: 300000,
+  deliveryMinDays: 1,
+  deliveryMaxDays: 3,
+  sameDayCutoffLocal: null,
+  sameDayFeeMinor: null,
+  nextDayFeeMinor: null,
   nationwideFeeMinor: null,
   pickupEnabled: true,
   createdAt: new Date(),
@@ -23,33 +28,56 @@ const zone = (over: Partial<DeliveryZone> = {}): DeliveryZone => ({
 const at = (iso: string) => new Date(iso);
 
 describe('deliveryOptions', () => {
-  it('offers only configured methods, using the admin-set fees', () => {
+  it('offers delivery at the zone price, then pickup', () => {
     const methods = deliveryOptions(zone(), at('2026-10-17T09:00:00Z')).map((o) => [o.method, o.baseFeeMinor]);
-    assert.deepEqual(methods, [['same_day', 300000], ['next_day', 200000], ['pickup', 0]]);
+    assert.deepEqual(methods, [['delivery', 300000], ['pickup', 0]]);
   });
 
-  it('allows same day before the local cutoff and blocks it from the cutoff onward', () => {
-    const before = deliveryOptions(zone(), at('2026-10-17T12:59:00Z')).find((o) => o.method === 'same_day')!;
-    assert.equal(before.available, true);
-    assert.deepEqual(before.estimate, { earliestDate: '2026-10-17', latestDate: '2026-10-17' });
-    const after = deliveryOptions(zone(), at('2026-10-17T13:00:00Z')).find((o) => o.method === 'same_day')!;
-    assert.equal(after.available, false);
-    assert.equal(after.reason, 'CUTOFF_PASSED');
+  it('counts the admin-set duration from the local date', () => {
+    const delivery = deliveryOptions(zone({ deliveryMinDays: 2, deliveryMaxDays: 4 }), at('2026-10-17T09:00:00Z'))[0]!;
+    assert.deepEqual(delivery.estimate, { earliestDate: '2026-10-19', latestDate: '2026-10-21' });
   });
 
   it('computes estimates in the zone timezone, not UTC', () => {
-    const o = deliveryOptions(zone({ nationwideFeeMinor: 500000 }), at('2026-10-17T23:30:00Z'));
-    assert.deepEqual(o.find((x) => x.method === 'next_day')!.estimate, { earliestDate: '2026-10-19', latestDate: '2026-10-19' });
-    assert.deepEqual(o.find((x) => x.method === 'nationwide')!.estimate, { earliestDate: '2026-10-20', latestDate: '2026-10-22' });
+    // 23:30 UTC is 00:30 the next day in Lagos.
+    const delivery = deliveryOptions(zone({ deliveryMinDays: 0, deliveryMaxDays: 0 }), at('2026-10-17T23:30:00Z'))[0]!;
+    assert.deepEqual(delivery.estimate, { earliestDate: '2026-10-18', latestDate: '2026-10-18' });
   });
 
-  it('treats a missing cutoff as always eligible and an invalid one as unavailable', () => {
-    assert.equal(deliveryOptions(zone({ sameDayCutoffLocal: null }), at('2026-10-17T22:00:00Z'))[0]!.available, true);
-    assert.equal(deliveryOptions(zone({ sameDayCutoffLocal: 'soon' }), at('2026-10-17T08:00:00Z'))[0]!.available, false);
+  it('treats a free delivery price as offered', () => {
+    assert.deepEqual(deliveryOptions(zone({ deliveryFeeMinor: 0, pickupEnabled: false })).map((o) => [o.method, o.baseFeeMinor]), [['delivery', 0]]);
   });
 
-  it('offers nothing when no fee is configured and pickup is off', () => {
-    const empty = zone({ sameDayFeeMinor: null, nextDayFeeMinor: null, pickupEnabled: false });
-    assert.deepEqual(deliveryOptions(empty), []);
+  it('offers pickup only when there is no delivery price', () => {
+    assert.deepEqual(deliveryOptions(zone({ deliveryFeeMinor: null })).map((o) => o.method), ['pickup']);
+  });
+
+  it('offers nothing when there is no price and pickup is off', () => {
+    assert.deepEqual(deliveryOptions(zone({ deliveryFeeMinor: null, pickupEnabled: false })), []);
+  });
+});
+
+describe('estimateFor', () => {
+  const placed = at('2026-10-17T09:00:00Z');
+  it('uses the days saved with the order', () => {
+    assert.deepEqual(estimateFor('delivery', placed, { minDays: 2, maxDays: 5 }), { earliestDate: '2026-10-19', latestDate: '2026-10-22' });
+  });
+  it('has no window when the order saved no days', () => {
+    assert.equal(estimateFor('delivery', placed), null);
+  });
+  it('keeps the old windows for orders placed under the old methods', () => {
+    assert.deepEqual(estimateFor('same_day', placed), { earliestDate: '2026-10-17', latestDate: '2026-10-17' });
+    assert.deepEqual(estimateFor('nationwide', placed), { earliestDate: '2026-10-19', latestDate: '2026-10-21' });
+  });
+  it('has no window for pickup', () => {
+    assert.equal(estimateFor('pickup', placed, { minDays: 1, maxDays: 2 }), null);
+  });
+});
+
+describe('promisedDays', () => {
+  it('reads the days from an order snapshot and ignores anything else', () => {
+    assert.deepEqual(promisedDays({ deliveryMinDays: 1, deliveryMaxDays: 3, state: 'Lagos' }), { minDays: 1, maxDays: 3 });
+    assert.deepEqual(promisedDays({ deliveryMinDays: '1' }), {});
+    assert.deepEqual(promisedDays(null), {});
   });
 });

@@ -1,5 +1,6 @@
 import type { ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
+import { attachProductToPromotion, detachProductFromPromotion, promotionsForProduct } from '../../../modules/admin/product-promotions.js';
 import { CODE_PATTERN, createPromotion, getAdminPromotion, listAdminPromotions, setPromotionState, SUPPORTED_KINDS, updatePromotion, type PromotionInput, type PromotionPatch } from '../../../modules/admin/promotions.js';
 import { audited, db, guard, NO_STORE, pageQuery, uuidParam } from './shared.js';
 
@@ -97,4 +98,30 @@ export const adminPromotionRoutes: ServerRoute[] = [
       },
     }),
   ),
+  {
+    method: 'GET',
+    path: '/admin/products/{id}/promotions',
+    options: { ...read, description: 'The promotions that apply to a product, or could be attached to it', tags: ['api', 'admin'], validate: { params: uuidParam('id') } },
+    handler: async (request, h) => h.response(await promotionsForProduct(db(request), (request.params as { id: string }).id)).header('Cache-Control', NO_STORE),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/products/{id}/promotions/{promotionId}',
+    options: { ...write, description: 'Attach a product to a promotion that is limited to chosen products or collections', tags: ['api', 'admin'], validate: { params: Joi.object({ id: Joi.string().uuid().required(), promotionId: Joi.string().uuid().required() }) } },
+    handler: async (request, h) => {
+      const { id, promotionId } = request.params as { id: string; promotionId: string };
+      await audited(request, (tx) => attachProductToPromotion(tx, id, promotionId), ({ before, after }) => ({ action: 'promotion.attach_product', resourceType: 'promotion', resourceId: promotionId, before: { scope: before.scope }, after: { scope: after.scope, productId: id } }));
+      return h.response(await promotionsForProduct(db(request), id)).header('Cache-Control', NO_STORE);
+    },
+  },
+  {
+    method: 'DELETE',
+    path: '/admin/products/{id}/promotions/{promotionId}',
+    options: { ...write, description: 'Take a product off a promotion that names it', tags: ['api', 'admin'], validate: { params: Joi.object({ id: Joi.string().uuid().required(), promotionId: Joi.string().uuid().required() }) } },
+    handler: async (request, h) => {
+      const { id, promotionId } = request.params as { id: string; promotionId: string };
+      await audited(request, (tx) => detachProductFromPromotion(tx, id, promotionId), ({ before, after }) => ({ action: 'promotion.detach_product', resourceType: 'promotion', resourceId: promotionId, before: { scope: before.scope, productId: id }, after: { scope: after.scope } }));
+      return h.response(await promotionsForProduct(db(request), id)).header('Cache-Control', NO_STORE);
+    },
+  },
 ];

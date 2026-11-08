@@ -129,8 +129,8 @@ describe('estimateFor', () => {
     assert.equal(estimateFor('nationwide', new Date('2026-12-30T10:00:00Z'))!.latestDate, '2027-01-03');
   });
   it('respects another timezone', () => {
-    assert.equal(estimateFor('same_day', new Date('2026-10-17T22:30:00Z'), 'UTC')!.earliestDate, '2026-10-17');
-    assert.equal(estimateFor('same_day', new Date('2026-10-17T22:30:00Z'), 'Pacific/Auckland')!.earliestDate, '2026-10-18');
+    assert.equal(estimateFor('same_day', new Date('2026-10-17T22:30:00Z'), undefined, 'UTC')!.earliestDate, '2026-10-17');
+    assert.equal(estimateFor('same_day', new Date('2026-10-17T22:30:00Z'), undefined, 'Pacific/Auckland')!.earliestDate, '2026-10-18');
   });
   it('has no window for pickup or unknown methods', () => {
     assert.equal(estimateFor('pickup', placed), null);

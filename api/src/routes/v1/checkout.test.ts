@@ -38,7 +38,7 @@ describe('POST /checkout', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not 
     items: [{ variantId: v.wig, quantity: 1 }],
     contact: { email: 'Buyer@Example.com', phone: '+2348012345678' },
     deliveryAddress: address,
-    deliveryMethod: 'next_day',
+    deliveryMethod: 'delivery',
     paymentMethod: 'card',
     termsAccepted: true,
     ...over,
@@ -69,7 +69,7 @@ describe('POST /checkout', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not 
     await variant('wig', 100000, 10);
     await variant('scarce', 5000, 2);
     await variant('freebie', 0, 5);
-    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', nextDayFeeMinor: 150000 });
+    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', deliveryFeeMinor: 150000 });
     const [promo] = await t.db.insert(promotions).values({ name: 'Welcome', kind: 'fixed_amount', configuration: { version: 1, amountMinor: 20000 }, status: 'active' }).returning();
     await t.db.insert(promotionCodes).values({ promotionId: promo!.id, code: 'WELCOME' });
   });
@@ -217,7 +217,8 @@ describe('POST /checkout', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not 
     const abroad = await submit(base({ deliveryAddress: { ...address, state: 'Oyo', area: undefined } }));
     assert.equal(abroad.status, 422);
     assert.equal(abroad.body.error.code, 'DELIVERY_UNAVAILABLE');
-    const method = await submit(base({ deliveryMethod: 'same_day' }));
+    // The zone has no showroom pickup, so that method is not offered here.
+    const method = await submit(base({ deliveryMethod: 'pickup' }));
     assert.equal(method.body.error.code, 'DELIVERY_METHOD_UNAVAILABLE');
   });
 

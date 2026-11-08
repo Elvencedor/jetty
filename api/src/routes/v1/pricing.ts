@@ -74,7 +74,7 @@ export const pricingRoutes: ServerRoute[] = [
     options: {
       auth: { strategy: 'customer', mode: 'try' },
       plugins: { rateLimit: { ip: [LIMITS.quote] } },
-      description: 'Delivery zone, methods, fees, ETAs and same-day eligibility for a destination and cart',
+      description: 'Delivery zone, methods, fees and ETAs for a destination and cart',
       tags: ['api', 'delivery'],
       validate: { payload: Joi.object({ items, promotionCodes, deliveryAddress: deliveryAddress.required() }) },
     },

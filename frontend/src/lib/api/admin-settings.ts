@@ -13,16 +13,20 @@ export type SettingKey = keyof SettingsByKey;
 export type DeliveryZone = {
   id: string;
   name: string;
-  state: string;
+  /** One state ("state") or several that share a price ("nationwide"). A state with a zone of its own is never priced by a nationwide one. */
+  scope: "state" | "nationwide";
+  /** The state of a "state" zone; null for a nationwide one. */
+  state: string | null;
+  /** The states a nationwide zone covers; empty for a state zone. */
+  states: string[];
   areas: string[];
   active: boolean;
-  /** "14:00" in the zone's time zone, or null for no same-day delivery cutoff. */
-  sameDayCutoffLocal: string | null;
   timezone: string;
-  /** A fee in kobo; null means the option is not offered. */
-  sameDayFeeMinor: number | null;
-  nextDayFeeMinor: number | null;
-  nationwideFeeMinor: number | null;
+  /** The zone's one delivery price in kobo; null means delivery is not offered (pickup only). */
+  deliveryFeeMinor: number | null;
+  /** How long delivery takes, in whole days from the day the order is placed. */
+  deliveryMinDays: number;
+  deliveryMaxDays: number;
   pickupEnabled: boolean;
 };
 

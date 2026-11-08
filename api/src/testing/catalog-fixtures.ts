@@ -39,7 +39,7 @@ export async function paidOrder(t: TestDatabase, lines: { productId: string; var
   const total = lines.reduce((s, l) => s + 1000 * l.quantity, 0);
   const [o] = await t.db
     .insert(orders)
-    .values({ orderNumber: `JH-FX-${++orderSeq}-${Math.random().toString(36).slice(2, 7)}`, phoneE164: '+2348000000000', subtotalMinor: total, totalMinor: total, deliveryAddressSnapshot: { recipientName: 'Fixture Buyer' }, deliveryMethod: 'next_day', termsAcceptedAt: new Date(), status: 'placed', paymentStatus: 'paid', placedAt: new Date(), ...over })
+    .values({ orderNumber: `JH-FX-${++orderSeq}-${Math.random().toString(36).slice(2, 7)}`, phoneE164: '+2348000000000', subtotalMinor: total, totalMinor: total, deliveryAddressSnapshot: { recipientName: 'Fixture Buyer', deliveryMinDays: 1, deliveryMaxDays: 1 }, deliveryMethod: 'delivery', termsAcceptedAt: new Date(), status: 'placed', paymentStatus: 'paid', placedAt: new Date(), ...over })
     .returning();
   for (const l of lines) await t.db.insert(orderItems).values({ orderId: o!.id, productId: l.productId, variantId: l.variantId, skuSnapshot: 's', titleSnapshot: 't', quantity: l.quantity, unitPriceMinor: 1000, lineTotalMinor: 1000 * l.quantity });
   return o!;

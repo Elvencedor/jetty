@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { SelectField, TextareaField, TextField } from "@/components/ui";
 import { adminErrorMessage } from "@/lib/admin/concurrency";
+import { onAmountChange } from "@/lib/admin/amount";
 import { parseNairaToMinor, refundable } from "@/lib/admin/orders";
 import { cancelAdminOrder, confirmTransfer, refundAdminOrder, type AdminOrderDetail } from "@/lib/api/admin-orders";
 import { isApiError } from "@/lib/api/client";
@@ -115,7 +116,7 @@ export function RefundDialog({ open, detail, onCancel, onDone }: DialogProps) {
             <label className="flex items-center gap-2"><input type="radio" name="refund-mode" checked={mode === "full"} onChange={() => setMode("full")} className="size-[18px] accent-primary" />Everything left ({formatNaira(ceiling)})</label>
             <label className="flex items-center gap-2"><input type="radio" name="refund-mode" checked={mode === "partial"} onChange={() => setMode("partial")} className="size-[18px] accent-primary" />Part of it</label>
           </fieldset>
-          {mode === "partial" ? <TextField size="admin" label="Amount to refund" prefix="₦" inputMode="decimal" value={amount} error={errors.amount} onChange={(e) => setAmount(e.target.value)} /> : null}
+          {mode === "partial" ? <TextField size="admin" label="Amount to refund" prefix="₦" inputMode="decimal" value={amount} error={errors.amount} onChange={onAmountChange(amount, setAmount)} /> : null}
           <TextareaField size="admin" label="Reason" rows={2} value={reason} error={errors.reason} onChange={(e) => setReason(e.target.value)} />
           <Problem>{error}</Problem>
         </div>

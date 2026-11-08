@@ -34,7 +34,7 @@ describe("PriceSummary", () => {
     expect(screen.getByText(/You’re saving ₦15,000/)).toBeInTheDocument();
   });
   it("shows a delivery fee, or 'Free' when delivery is zero for a chosen method", () => {
-    const delivery = { method: "next_day", zoneId: "z", zoneName: "Lagos", baseFeeMinor: 200_000, feeMinor: 200_000, freeDeliveryPromotionId: null, estimate: null } as const;
+    const delivery = { method: "delivery", zoneId: "z", zoneName: "Lagos", baseFeeMinor: 200_000, feeMinor: 200_000, freeDeliveryPromotionId: null, estimate: null } as const;
     const { rerender } = render(<PriceSummary busy={false} quote={summary({ delivery, deliveryFeeMinor: 200_000 })} />);
     expect(screen.getByText("Delivery").nextSibling).toHaveTextContent("₦2,000");
     rerender(<PriceSummary busy={false} quote={summary({ delivery: { ...delivery, feeMinor: 0 }, deliveryFeeMinor: 0 })} />);

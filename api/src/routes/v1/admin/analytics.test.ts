@@ -31,7 +31,7 @@ describe('admin dashboard and analytics', { skip: !TEST_DATABASE_URL && 'TEST_DA
   async function sale(daysAgo: number, product: string, total: number, over: Partial<typeof orders.$inferInsert> = {}) {
     const [o] = await t.db
       .insert(orders)
-      .values({ orderNumber: `JH-A-${++n}`, phoneE164: '+2348000000000', subtotalMinor: total, totalMinor: total, deliveryAddressSnapshot: {}, deliveryMethod: 'next_day', termsAcceptedAt: new Date(), status: 'placed', paymentStatus: 'paid', placedAt: at(daysAgo), ...over })
+      .values({ orderNumber: `JH-A-${++n}`, phoneE164: '+2348000000000', subtotalMinor: total, totalMinor: total, deliveryAddressSnapshot: {}, deliveryMethod: 'delivery', termsAcceptedAt: new Date(), status: 'placed', paymentStatus: 'paid', placedAt: at(daysAgo), ...over })
       .returning();
     await t.db.insert(orderItems).values({ orderId: o!.id, productId: ids[product]!, skuSnapshot: product, titleSnapshot: product, quantity: 1, unitPriceMinor: total, lineTotalMinor: total });
     return o!;

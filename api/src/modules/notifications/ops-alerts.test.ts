@@ -59,7 +59,7 @@ describe('operations alerts and order messages', { skip: !TEST_DATABASE_URL && '
   });
 
   it('renders fulfilment and refund messages for both channels, with pickup wording', () => {
-    const payload = { orderNumber: 'JH-1', deliveryMethod: 'next_day' };
+    const payload = { orderNumber: 'JH-1', deliveryMethod: 'delivery' };
     assert.match(render('order.packed', 'sms', '+234', payload)!.text, /packed and will be on its way/);
     assert.match(render('order.out_for_delivery', 'email', 'a@b.co', payload)!.subject!, /out for delivery/);
     assert.match(render('order.delivered', 'sms', '+234', payload)!.text, /delivered/);

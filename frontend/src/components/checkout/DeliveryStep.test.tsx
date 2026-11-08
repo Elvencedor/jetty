@@ -36,8 +36,8 @@ describe("DeliveryStep delivery options", () => {
   });
 
   it("lists the options when the state is served", async () => {
-    server.use(http.post(`${API}/delivery/quotes`, () => HttpResponse.json({ currency: "NGN", zone: { id: "z1", name: "Lagos", state: "Lagos" }, options: [{ method: "next_day", available: true, baseFeeMinor: 250000, feeMinor: 250000, freeDeliveryApplied: false, estimate: { earliestDate: "2026-11-04", latestDate: "2026-11-04" } }] })));
+    server.use(http.post(`${API}/delivery/quotes`, () => HttpResponse.json({ currency: "NGN", zone: { id: "z1", name: "Lagos", state: "Lagos" }, options: [{ method: "delivery", available: true, baseFeeMinor: 250000, feeMinor: 250000, freeDeliveryApplied: false, estimate: { earliestDate: "2026-11-04", latestDate: "2026-11-04" } }] })));
     setup("Lagos");
-    expect(await screen.findByText("Next-day delivery")).toBeInTheDocument();
+    expect(await screen.findByText("Delivery")).toBeInTheDocument();
   });
 });

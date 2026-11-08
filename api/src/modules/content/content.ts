@@ -1,7 +1,7 @@
 import Joi from 'joi';
 import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
-import { contentEntries, deliveryZones, promotionCodes, promotions } from '../../db/schema/index.js';
+import { contentEntries, promotionCodes, promotions } from '../../db/schema/index.js';
 import { listProducts, type ProductCard } from '../catalog/listing.js';
 import { getSetting } from '../settings/settings.js';
 
@@ -137,14 +137,10 @@ export async function getHome(db: Db) {
       return items.length ? { type: 'tiles', items } : null;
     },
     trust: async () => {
-      const [policies, sameDay] = await Promise.all([
-        getSetting(db, 'policies'),
-        db.select({ id: deliveryZones.id }).from(deliveryZones).where(and(eq(deliveryZones.active, true), sql`${deliveryZones.sameDayFeeMinor} is not null`)).limit(1),
-      ]);
+      const policies = await getSetting(db, 'policies');
       const items = [
         { icon: 'shield-check', title: 'Secure pay', caption: 'Protected checkout' },
         ...(policies.returnWindowDays > 0 ? [{ icon: 'rotate-ccw', title: `${policies.returnWindowDays}-day returns`, caption: 'Unworn, lace uncut' }] : []),
-        ...(sameDay.length ? [{ icon: 'truck', title: 'Same-day Lagos', caption: 'Order before the cut-off' }] : []),
         { icon: 'star', title: 'Real reviews', caption: 'Verified buyers only' },
       ];
       return { type: 'trust', items };

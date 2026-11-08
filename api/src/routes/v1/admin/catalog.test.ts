@@ -350,7 +350,7 @@ describe('admin catalog, media and inventory', { skip: !TEST_DATABASE_URL && 'TE
       assert.ok(moves.every((m) => m.reason === 'initial_stock' || m.adminUserId === owner.id));
 
       // Reserve 6 for an open order: on-hand may not drop below that.
-      const [o] = await t.db.insert(orders).values({ orderNumber: 'JH-INV-1', phoneE164: '+2348000000001', subtotalMinor: 1, totalMinor: 1, deliveryAddressSnapshot: {}, deliveryMethod: 'next_day', termsAcceptedAt: new Date() }).returning();
+      const [o] = await t.db.insert(orders).values({ orderNumber: 'JH-INV-1', phoneE164: '+2348000000001', subtotalMinor: 1, totalMinor: 1, deliveryAddressSnapshot: {}, deliveryMethod: 'delivery', termsAcceptedAt: new Date() }).returning();
       await t.db.insert(stockReservations).values({ orderId: o!.id, variantId, quantity: 6, expiresAt: new Date(Date.now() + 3_600_000) });
       await t.db.update(inventory).set({ reservedQuantity: 6 }).where(eq(inventory.variantId, variantId));
       const blocked = await call('PATCH', `/admin/inventory/${variantId}`, { mode: 'set', quantity: 5, reason: 'correction' });

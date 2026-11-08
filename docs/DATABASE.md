@@ -208,7 +208,7 @@ identifier. Never trust the browser callback as payment proof.
 |---|---|---|
 | `reviews` | `id`, `product_id`, `customer_id`, nullable `order_item_id`, `rating` 1–5, `title`, `body`, `location`, `status` (`pending`, `approved`, `rejected`, `hidden`), `verified_buyer`, `created_at`, `moderated_at`; unique `(order_item_id, customer_id)` when linked | P0 |
 | `review_media` | `id`, `review_id`, `object_key`, `alt_text`, `status`, `sort_order` | P1 |
-| `delivery_zones` | `id`, `name`, `state`, `areas` JSONB or normalized zone-area rows, `active`, `same_day_cutoff_local`, `timezone`, `same_day_fee_minor`, `next_day_fee_minor`, `nationwide_fee_minor`, `pickup_enabled`; rates/cutoff are configured, not hard-coded | P0 |
+| `delivery_zones` | `id`, `name`, `scope` (`state` or `nationwide`), `state` (null for nationwide), `states` JSONB (the states a nationwide zone covers), `areas` JSONB, `active`, `timezone`, `delivery_fee_minor` (null = pickup only), `delivery_min_days`, `delivery_max_days`, `pickup_enabled`; prices and times are configured, not hard-coded. The old `same_day_*`, `next_day_fee_minor` and `nationwide_fee_minor` columns are retired and unused, to be dropped in a later migration | P0 |
 | `store_settings` | `key` PK, `value` JSONB, `updated_by_admin_id`, `updated_at`; allow-list keys and validate types in application code | P0 |
 | `content_entries` | `id`, unique `(content_type, slug)`, `content_type`, `title`, `body` JSONB, `status`, `starts_at`, `ends_at`, `sort_order`, `created_by_admin_id`, timestamps | P0 announcements, heroes, static pages; P1 advanced sections |
 | `content_placements` | `id`, `content_entry_id`, `placement`, `sort_order`, `settings` JSONB | P0 |
@@ -239,7 +239,7 @@ from PostgreSQL catalog, inventory, promotions, and delivery configuration.
     }
   ],
   "promotionCodes": ["WELCOME"],
-  "deliveryMethod": "same_day",
+  "deliveryMethod": "delivery",
   "contact": {
     "email": "buyer@example.com",
     "phone": "+2348012345678"

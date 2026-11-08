@@ -86,3 +86,23 @@ export const createAdminPromotion = (input: PromotionInput) => apiFetch<Promotio
 export const updateAdminPromotion = (id: string, patch: Partial<PromotionInput>) => apiFetch<PromotionDetail>(`/admin/promotions/${id}`, { method: "PATCH", body: patch, auth: "admin" });
 export const setPromotionActive = (id: string, active: boolean) => apiFetch<PromotionDetail>(`/admin/promotions/${id}/${active ? "activate" : "deactivate"}`, { method: "POST", body: {}, auth: "admin" });
 export const listAdminCollections = (init: Init = {}) => apiFetch<{ data: Collection[] }>("/admin/collections", { auth: "admin", ...init }).then((r) => r.data);
+
+/** How a promotion relates to one product: it names the product, reaches it through a collection, applies to everything, lists it as an exception, or could have it added. */
+export type ProductPromotionRelation = "attached" | "collection" | "all" | "excluded" | "available";
+export type ProductPromotion = {
+  id: string;
+  name: string;
+  kind: PromotionKind;
+  lifecycle: PromotionStatus;
+  configuration: PromotionConfiguration;
+  startsAt: string | null;
+  endsAt: string | null;
+  usageCount: number;
+  relation: ProductPromotionRelation;
+  /** Whether the product can be taken off from the product: only when it is named and the promotion keeps something else chosen. */
+  removable: boolean;
+};
+
+export const listProductPromotions = (productId: string, init: Init = {}) => apiFetch<{ data: ProductPromotion[] }>(`/admin/products/${productId}/promotions`, { auth: "admin", ...init }).then((r) => r.data);
+export const attachProductPromotion = (productId: string, promotionId: string) => apiFetch<{ data: ProductPromotion[] }>(`/admin/products/${productId}/promotions/${promotionId}`, { method: "PUT", auth: "admin" }).then((r) => r.data);
+export const detachProductPromotion = (productId: string, promotionId: string) => apiFetch<{ data: ProductPromotion[] }>(`/admin/products/${productId}/promotions/${promotionId}`, { method: "DELETE", auth: "admin" }).then((r) => r.data);

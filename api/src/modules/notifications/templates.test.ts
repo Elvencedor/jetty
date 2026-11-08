@@ -16,7 +16,7 @@ describe('render', () => {
   it('words fulfilment updates for delivery vs pickup', () => {
     const packed = (m: string) => render('order.packed', 'sms', 'x', { orderNumber: 'N1', deliveryMethod: m })!.text;
     assert.match(packed('pickup'), /ready for you to collect/);
-    assert.match(packed('next_day'), /on its way/);
+    assert.match(packed('delivery'), /on its way/);
     assert.match(render('order.out_for_delivery', 'sms', 'x', { orderNumber: 'N1' })!.text, /out for delivery/);
     assert.match(render('order.delivered', 'sms', 'x', { orderNumber: 'N1' })!.text, /delivered/);
     assert.match(render('order.delivered', 'sms', 'x', { orderNumber: 'N1', deliveryMethod: 'pickup' })!.text, /collected/);

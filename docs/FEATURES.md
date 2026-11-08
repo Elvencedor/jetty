@@ -72,7 +72,7 @@ IDs are stable so tickets can reference them (e.g. `PROMO-04`).
 | PDP-08 | Promotion messaging pulled from the live rules (e.g. "Free bonnet with this wig") | P0 |
 | PDP-09 | Quantity selector and add to bag with confirmation (no blocking modal) | P0 |
 | PDP-10 | Sticky add-to-bag bar on mobile | P1 |
-| PDP-11 | Delivery estimate with a same-day cutoff countdown, based on location | P1 |
+| PDP-11 | Delivery estimate (earliest to latest date) based on location | P1 |
 | PDP-12 | Cap size guide / measuring help | P0 |
 | PDP-13 | Details, fit, care and delivery/returns info (accordion or tabs) | P0 |
 | PDP-14 | "Complete the install" add-ons (manual picks or automatic) | P1 |
@@ -144,7 +144,7 @@ IDs are stable so tickets can reference them (e.g. `PROMO-04`).
 | CHK-01 | Checkout flow: contact → delivery → payment → review (single page or steps) | P0 |
 | CHK-02 | Collapsible order summary throughout checkout | P0 |
 | CHK-03 | Address entry with state/area, landmark and rider note | P0 |
-| CHK-04 | Delivery options: same-day Lagos (cutoff time), next day, nationwide 2–4 days, showroom pickup; zone-based rates | P0 |
+| CHK-04 | Delivery options: one delivery price and duration per zone (a single state or a nationwide zone of chosen states; the state's own zone wins), showroom pickup | P0 |
 | CHK-05 | Card payment through a payment gateway (Visa, Mastercard, Verve) | P0 |
 | CHK-06 | Bank transfer with a one-time account number and auto-confirmation | P0 |
 | CHK-07 | USSD payment | P1 |
@@ -275,7 +275,7 @@ IDs are stable so tickets can reference them (e.g. `PROMO-04`).
 | ID | Feature | Priority |
 |---|---|---|
 | SET-01 | Store details, contact info, WhatsApp number, showroom address | P0 |
-| SET-02 | Delivery zones, rates, same-day cutoff, pickup locations | P0 |
+| SET-02 | Delivery zones (one state or nationwide), one price and duration per zone, pickup locations | P0 |
 | SET-03 | Payment method configuration | P0 |
 | SET-04 | Notification templates (email, WhatsApp, SMS) | P1 |
 | SET-05 | Policies (returns window, POD limits) | P0 |

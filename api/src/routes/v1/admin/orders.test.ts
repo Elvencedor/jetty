@@ -26,7 +26,7 @@ describe('admin orders, fulfilment and bank-transfer confirmation', { skip: !TES
     const res = await api.inject({ method: method as 'GET', url: `/api/v1${url}`, ...(payload ? { payload } : {}), headers: who.headers });
     return { status: res.statusCode, body: res.result as Json };
   };
-  const place = async (paymentMethod: 'card' | 'bank_transfer', deliveryMethod = 'next_day', email?: string) => {
+  const place = async (paymentMethod: 'card' | 'bank_transfer', deliveryMethod = 'delivery', email?: string) => {
     const phone = `+23484${String(50_000_000 + ++phones)}`;
     const res = await api.inject({
       method: 'POST',
@@ -61,7 +61,7 @@ describe('admin orders, fulfilment and bank-transfer confirmation', { skip: !TES
     const [v] = await t.db.insert(productVariants).values({ productId: p!.id, sku: 'ORD-1', optionSignature: {}, priceMinor: 100000 }).returning();
     await t.db.insert(inventory).values({ variantId: v!.id, onHandQuantity: 100 });
     variantId = v!.id;
-    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', nextDayFeeMinor: 150000, pickupEnabled: true });
+    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', deliveryFeeMinor: 150000, pickupEnabled: true });
   });
   after(async () => {
     await api?.stop();
@@ -117,7 +117,7 @@ describe('admin orders, fulfilment and bank-transfer confirmation', { skip: !TES
   });
 
   it('walks a paid order through fulfilment, notifying the customer at each step', async () => {
-    const o = await place('card', 'next_day', 'ada@example.com');
+    const o = await place('card', 'delivery', 'ada@example.com');
     const early = await call('PATCH', `/admin/orders/${o.orderId}/status`, { status: 'packed' }, fulfilment);
     assert.equal(early.status, 409);
     assert.equal(early.body.error.code, 'ORDER_NOT_PAID');

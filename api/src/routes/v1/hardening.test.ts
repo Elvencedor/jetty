@@ -26,7 +26,7 @@ describe('review hardening', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL no
   const body = (phone: string, over: Json = {}) => ({
     items: [{ variantId, quantity: 1 }], promotionCodes: [], contact: { phone },
     deliveryAddress: { recipientName: 'B', addressLine1: '1 St', city: 'Lagos', state: 'Lagos', countryCode: 'NG' },
-    deliveryMethod: 'next_day', paymentMethod: 'card', termsAccepted: true, ...over,
+    deliveryMethod: 'delivery', paymentMethod: 'card', termsAccepted: true, ...over,
   });
   const checkout = (phone: string, key: string, over: Json = {}, headers: Record<string, string> = {}) =>
     api.inject({ method: 'POST', url: '/api/v1/checkout', payload: body(phone, over), headers: { 'idempotency-key': key, ...headers } });
@@ -43,7 +43,7 @@ describe('review hardening', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL no
     await t.db.insert(inventory).values({ variantId: v!.id, onHandQuantity: 500 });
     await t.db.insert(productMedia).values({ productId: p!.id, objectKey: `products/${p!.id}/cover.webp`, isCover: true });
     variantId = v!.id;
-    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', nextDayFeeMinor: 150000 });
+    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', deliveryFeeMinor: 150000 });
   });
   after(async () => {
     await api?.stop();

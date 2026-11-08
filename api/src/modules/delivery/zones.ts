@@ -2,7 +2,8 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import { deliveryZones } from '../../db/schema/index.js';
 
-export const DELIVERY_METHODS = ['same_day', 'next_day', 'nationwide', 'pickup'] as const;
+/** `delivery` is the one priced option (a zone's fee and duration); `pickup` is collection from the showroom. */
+export const DELIVERY_METHODS = ['delivery', 'pickup'] as const;
 export type DeliveryMethod = (typeof DELIVERY_METHODS)[number];
 
 export type DeliveryZone = typeof deliveryZones.$inferSelect;
@@ -11,42 +12,51 @@ export type Destination = { state: string; area?: string | undefined };
 export type DeliveryOption = {
   method: DeliveryMethod;
   available: boolean;
-  reason?: 'CUTOFF_PASSED';
   /** Admin-configured fee for the zone, in minor units. */
   baseFeeMinor: number;
   /** Local-date window (YYYY-MM-DD in the zone's timezone); null when no date applies (pickup). */
   estimate: { earliestDate: string; latestDate: string } | null;
 };
 
-// Transit windows from FEATURES.md CHK-04; fees and cutoffs are admin-configured, these are not.
-const TRANSIT_DAYS: Record<Exclude<DeliveryMethod, 'pickup'>, [number, number]> = {
-  same_day: [0, 0],
-  next_day: [1, 1],
-  nationwide: [2, 4],
-};
+// Orders placed before delivery had one price carry the method they were sold under. Their windows stay as they were.
+const LEGACY_TRANSIT_DAYS: Record<string, [number, number]> = { same_day: [0, 0], next_day: [1, 1], nationwide: [2, 4] };
 
 const normalise = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
 
+const statesOf = (z: DeliveryZone) => (Array.isArray(z.states) ? z.states.filter((s): s is string => typeof s === 'string').map(normalise) : []);
+
 /**
- * Resolves the zone for a destination from admin-managed configuration.
- * A zone that lists the destination area wins over a state-wide zone (empty
- * `areas`); a zone that lists areas never covers other areas of its state.
+ * Resolves the zone for a destination from admin-managed configuration, most specific first:
+ * 1. a state zone that lists the destination area;
+ * 2. the state-wide zone for the destination state (empty `areas`);
+ * 3. the nationwide zone whose `states` include the destination state.
+ * A state zone that lists areas never covers other areas of its state, so those customers fall through to a nationwide
+ * zone if one covers the state. A state with its own zone is never priced by a nationwide one.
  */
 export async function resolveZone(db: Db, destination: Destination): Promise<DeliveryZone | undefined> {
-  const zones = await db
+  const state = normalise(destination.state);
+  const stateZones = await db
     .select()
     .from(deliveryZones)
-    .where(and(eq(deliveryZones.active, true), sql`lower(btrim(${deliveryZones.state})) = ${normalise(destination.state)}`))
+    .where(and(eq(deliveryZones.active, true), eq(deliveryZones.scope, 'state'), sql`lower(btrim(${deliveryZones.state})) = ${state}`))
     .orderBy(asc(deliveryZones.name), asc(deliveryZones.id));
 
   const area = destination.area ? normalise(destination.area) : undefined;
   const areasOf = (z: DeliveryZone) => (Array.isArray(z.areas) ? z.areas.filter((a): a is string => typeof a === 'string').map(normalise) : []);
 
   if (area) {
-    const specific = zones.find((z) => areasOf(z).includes(area));
+    const specific = stateZones.find((z) => areasOf(z).includes(area));
     if (specific) return specific;
   }
-  return zones.find((z) => areasOf(z).length === 0);
+  const stateWide = stateZones.find((z) => areasOf(z).length === 0);
+  if (stateWide) return stateWide;
+
+  const nationwide = await db
+    .select()
+    .from(deliveryZones)
+    .where(and(eq(deliveryZones.active, true), eq(deliveryZones.scope, 'nationwide')))
+    .orderBy(asc(deliveryZones.name), asc(deliveryZones.id));
+  return nationwide.find((z) => statesOf(z).includes(state));
 }
 
 function localClock(now: Date, timeZone: string) {
@@ -72,13 +82,7 @@ function addDays(date: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function cutoffMinutes(cutoff: string | null): number | null | 'invalid' {
-  if (cutoff === null) return null;
-  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(cutoff);
-  return m ? Number(m[1]) * 60 + Number(m[2]) : 'invalid';
-}
-
-/** Methods the zone offers. A method with no configured fee is not offered. */
+/** Methods the zone offers. A zone with no delivery price is pickup only. */
 export function deliveryOptions(zone: DeliveryZone, now: Date = new Date()): DeliveryOption[] {
   const clock = (() => {
     try {
@@ -88,29 +92,13 @@ export function deliveryOptions(zone: DeliveryZone, now: Date = new Date()): Del
     }
   })();
   const options: DeliveryOption[] = [];
-
-  const timed = (method: Exclude<DeliveryMethod, 'pickup'>, fee: number | null): DeliveryOption | null => {
-    if (fee === null) return null;
-    const [from, to] = TRANSIT_DAYS[method];
-    return {
-      method,
+  if (zone.deliveryFeeMinor !== null) {
+    options.push({
+      method: 'delivery',
       available: true,
-      baseFeeMinor: fee,
-      estimate: { earliestDate: addDays(clock.date, from), latestDate: addDays(clock.date, to) },
-    };
-  };
-
-  const sameDay = timed('same_day', zone.sameDayFeeMinor);
-  if (sameDay) {
-    const cutoff = cutoffMinutes(zone.sameDayCutoffLocal);
-    if (cutoff === 'invalid' || (cutoff !== null && clock.minutes >= cutoff)) {
-      sameDay.available = false;
-      sameDay.reason = 'CUTOFF_PASSED';
-    }
-    options.push(sameDay);
-  }
-  for (const option of [timed('next_day', zone.nextDayFeeMinor), timed('nationwide', zone.nationwideFeeMinor)]) {
-    if (option) options.push(option);
+      baseFeeMinor: zone.deliveryFeeMinor,
+      estimate: { earliestDate: addDays(clock.date, zone.deliveryMinDays), latestDate: addDays(clock.date, zone.deliveryMaxDays) },
+    });
   }
   if (zone.pickupEnabled) options.push({ method: 'pickup', available: true, baseFeeMinor: 0, estimate: null });
   return options;
@@ -118,13 +106,26 @@ export function deliveryOptions(zone: DeliveryZone, now: Date = new Date()): Del
 
 export type DeliveryEstimate = { earliestDate: string; latestDate: string };
 
+/** The delivery days saved in an order's address snapshot when it was placed; empty for orders from before they were kept. */
+export function promisedDays(snapshot: unknown): { minDays?: number; maxDays?: number } {
+  const s = (snapshot ?? {}) as { deliveryMinDays?: unknown; deliveryMaxDays?: unknown };
+  return {
+    ...(typeof s.deliveryMinDays === 'number' ? { minDays: s.deliveryMinDays } : {}),
+    ...(typeof s.deliveryMaxDays === 'number' ? { maxDays: s.deliveryMaxDays } : {}),
+  };
+}
+
 /**
- * Delivery window for an order that was placed at `placedAt`: the method's transit days counted from the local
- * date it was placed. Pickup has no window.
+ * Delivery window for an order that was placed at `placedAt`: the days the zone promised when the order was placed,
+ * counted from the local date it was placed. Pickup has no window. Orders from before delivery had one price carry
+ * their old method and use its old window.
  */
-export function estimateFor(method: string, placedAt: Date, timeZone = 'Africa/Lagos'): DeliveryEstimate | null {
-  if (method === 'pickup' || !(method in TRANSIT_DAYS)) return null;
-  const [from, to] = TRANSIT_DAYS[method as keyof typeof TRANSIT_DAYS];
+export function estimateFor(method: string, placedAt: Date, promised?: { minDays?: number; maxDays?: number }, timeZone = 'Africa/Lagos'): DeliveryEstimate | null {
+  if (method === 'pickup') return null;
+  const legacy = LEGACY_TRANSIT_DAYS[method];
+  const from = legacy ? legacy[0] : promised?.minDays;
+  const to = legacy ? legacy[1] : promised?.maxDays;
+  if (from === undefined || to === undefined) return null;
   const today = localClock(placedAt, timeZone).date;
   return { earliestDate: addDays(today, from), latestDate: addDays(today, to) };
 }

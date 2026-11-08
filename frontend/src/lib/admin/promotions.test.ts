@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PromotionRow } from "@/lib/api/admin-promotions";
-import { formFromPromotion, announcementText, bagPreview, calendarRows, emptyForm, fromLagosInput, generateCode, normaliseCodeText, sentenceParts, submitLabel, summaryText, toInput, toLagosInput, validateForm, type PromoForm } from "./promotions";
+import { formFromPromotion, announcementText, bagPreview, calendarRows, emptyForm, fromLagosInput, generateCode, normaliseCodeText, promotionSummary, quickPromoForm, sentenceParts, submitLabel, summaryText, toInput, toLagosInput, validateForm, type PromoForm } from "./promotions";
 
 const form = (over: Partial<PromoForm> = {}): PromoForm => ({ ...emptyForm(), name: "Flash sale", ...over });
 const collections = [{ id: "c1", name: "Bob wigs", slug: "bob", active: true }, { id: "c2", name: "Frontals", slug: "f", active: true }];
@@ -159,5 +159,22 @@ describe("list and calendar", () => {
       row({ id: "undated", name: "Undated" }),
     ];
     expect(calendarRows(rows, 2026, 10).map((c) => [c.id, c.from, c.to, c.label])).toEqual([["long", 1, 31, "Code"], ["in", 10, 14, "Auto"]]);
+  });
+});
+
+describe("promotions made from a product", () => {
+  it("says what a promotion does in a few words", () => {
+    expect(promotionSummary("percentage", { percent: 15 })).toBe("15% off");
+    expect(promotionSummary("fixed_amount", { amountMinor: 500_000 })).toBe("₦5,000 off");
+    expect(promotionSummary("buy_x_get_y", { buy: 1, get: 1, percentOff: 100 })).toBe("Buy 1, get 1 free");
+    expect(promotionSummary("buy_x_get_y", { buy: 2, get: 1, percentOff: 50 })).toBe("Buy 2, get 1 at 50% off");
+    expect(promotionSummary("free_gift", {})).toBe("Free gift");
+  });
+  it("starts a quick promotion limited to that one product, automatic and without a per-customer limit", () => {
+    const form = quickPromoForm("p1", "Bone Straight");
+    expect(form).toMatchObject({ name: "Bone Straight offer", scope: "products", productIds: ["p1"], access: "automatic", perCustomer: "" });
+    const input = toInput({ ...form, percent: "20" });
+    expect(input.scope).toEqual({ include: { productIds: ["p1"] } });
+    expect(input).toMatchObject({ kind: "percentage", configuration: { percent: 20 }, perCustomerLimit: null });
   });
 });

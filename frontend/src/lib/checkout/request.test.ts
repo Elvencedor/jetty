@@ -3,14 +3,14 @@ import { buildCheckoutRequest, fingerprint, submissionFor } from "./request";
 import { emptyDelivery, type DeliveryDetails } from "./validation";
 
 const details = (over: Partial<DeliveryDetails> = {}): DeliveryDetails => ({ ...emptyDelivery(), name: " Ada Obi ", phone: "0803 123 4567", addressLine1: "12 Admiralty Way", city: "Lagos", state: "Lagos", ...over });
-const input = (over = {}) => ({ lines: [{ variantId: "v1", quantity: 2 }], promotionCodes: ["SAVE10"], details: details(), deliveryMethod: "same_day" as const, paymentMethod: "card" as const, ...over });
+const input = (over = {}) => ({ lines: [{ variantId: "v1", quantity: 2 }], promotionCodes: ["SAVE10"], details: details(), deliveryMethod: "delivery" as const, paymentMethod: "card" as const, ...over });
 
 describe("buildCheckoutRequest", () => {
   it("normalises the phone, trims text and leaves empty optional fields out", () => {
     const request = buildCheckoutRequest(input())!;
     expect(request.contact).toEqual({ phone: "+2348031234567" });
     expect(request.deliveryAddress).toEqual({ recipientName: "Ada Obi", addressLine1: "12 Admiralty Way", city: "Lagos", state: "Lagos", countryCode: "NG" });
-    expect(request).toMatchObject({ items: [{ variantId: "v1", quantity: 2 }], promotionCodes: ["SAVE10"], deliveryMethod: "same_day", paymentMethod: "card", termsAccepted: true });
+    expect(request).toMatchObject({ items: [{ variantId: "v1", quantity: 2 }], promotionCodes: ["SAVE10"], deliveryMethod: "delivery", paymentMethod: "card", termsAccepted: true });
   });
 
   it("includes optional fields when given, lower-casing the email", () => {

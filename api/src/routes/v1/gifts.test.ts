@@ -25,14 +25,14 @@ describe('free gift with purchase', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE
     v[key] = pv!.id;
   }
   const quote = async (items: { variantId: string; quantity: number }[], codes: string[] = ['GIFTME']) => {
-    const res = await api.inject({ method: 'POST', url: '/api/v1/pricing/quote', payload: { items, promotionCodes: codes, deliveryAddress: { state: 'Lagos', area: 'Lekki' }, deliveryMethod: 'next_day' } });
+    const res = await api.inject({ method: 'POST', url: '/api/v1/pricing/quote', payload: { items, promotionCodes: codes, deliveryAddress: { state: 'Lagos', area: 'Lekki' }, deliveryMethod: 'delivery' } });
     return { status: res.statusCode, body: res.result as Json };
   };
   const checkout = (items: { variantId: string; quantity: number }[]) =>
     api.inject({
       method: 'POST',
       url: '/api/v1/checkout',
-      payload: { items, promotionCodes: ['GIFTME'], contact: { phone: '+2348455100001' }, deliveryAddress: { recipientName: 'Ada', addressLine1: '1 Street', city: 'Lagos', state: 'Lagos', countryCode: 'NG' }, deliveryMethod: 'next_day', paymentMethod: 'card', termsAccepted: true },
+      payload: { items, promotionCodes: ['GIFTME'], contact: { phone: '+2348455100001' }, deliveryAddress: { recipientName: 'Ada', addressLine1: '1 Street', city: 'Lagos', state: 'Lagos', countryCode: 'NG' }, deliveryMethod: 'delivery', paymentMethod: 'card', termsAccepted: true },
       headers: { 'idempotency-key': `gift-${++n}-abcdefgh-0123456789abcdefghijklmnopqrstuvwxyz` },
     });
 
@@ -42,7 +42,7 @@ describe('free gift with purchase', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE
     await api.initialize();
     await variant('wig', 200_000, 10);
     await variant('bonnet', 20_000, 5);
-    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', nextDayFeeMinor: 100_000 });
+    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', deliveryFeeMinor: 100_000 });
     const [promo] = await t.db.insert(promotions).values({ name: 'Free bonnet', kind: 'free_gift', configuration: { version: 1, variantId: v.bonnet, quantity: 1 }, status: 'active', minimumSubtotalMinor: 150_000 }).returning();
     await t.db.insert(promotionCodes).values({ promotionId: promo!.id, code: 'GIFTME' });
   });

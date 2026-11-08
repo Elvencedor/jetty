@@ -15,11 +15,13 @@ type Props<V extends string> = {
   tone?: "white" | "primary";
   /** `tabs` swaps content (role tablist, arrow keys); `filter` filters a list (buttons with aria-pressed). */
   mode?: "tabs" | "filter";
+  /** Each option is its own outlined button, so a choice between a few things reads as buttons even when none is selected. */
+  outlined?: boolean;
   className?: string;
 };
 
 /** Pill track holding pill buttons. */
-export function Segmented<V extends string>({ items, value, onChange, label, tone = "white", mode = "filter", className }: Props<V>) {
+export function Segmented<V extends string>({ items, value, onChange, label, tone = "white", mode = "filter", outlined = false, className }: Props<V>) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const tabs = mode === "tabs";
   // Exactly one tab is a tab stop. If `value` matches nothing, the first item is, so the control is never unreachable.
@@ -36,7 +38,7 @@ export function Segmented<V extends string>({ items, value, onChange, label, ton
   }
 
   return (
-    <div role={tabs ? "tablist" : "group"} aria-label={label} className={cn("inline-flex max-w-full gap-1 overflow-x-auto rounded-pill bg-surface-tint p-1", className)}>
+    <div role={tabs ? "tablist" : "group"} aria-label={label} className={cn("inline-flex max-w-full overflow-x-auto", outlined ? "gap-2" : "gap-1 rounded-pill bg-surface-tint p-1", className)}>
       {items.map((item, i) => {
         const selected = item.value === value;
         return (
@@ -54,11 +56,16 @@ export function Segmented<V extends string>({ items, value, onChange, label, ton
             onKeyDown={(e) => onKeyDown(e, i)}
             className={cn(
               "inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-pill px-3.5 text-label font-semibold transition-colors duration-(--duration-base) ease-standard",
-              selected ? (tone === "primary" ? "bg-primary text-on-primary" : "bg-surface text-ink") : "text-muted hover:text-ink",
+              outlined
+                ? cn("border-[1.5px]", selected ? "border-primary bg-primary text-on-primary" : "border-line-strong bg-surface text-ink hover:border-primary")
+                : selected ? (tone === "primary" ? "bg-primary text-on-primary" : "bg-surface text-ink") : "text-muted hover:text-ink",
             )}
           >
             {item.label}
-            {item.count !== undefined ? <span className={cn("text-caption font-bold", selected && tone === "primary" ? "text-on-primary" : "text-muted")}>{item.count}</span> : null}
+            {item.count !== undefined ? (
+              // A small badge of its own, so the number reads as a count and not as part of the label.
+              <span className={cn("inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-micro font-bold leading-none", selected ? (tone === "primary" ? "bg-white/25 text-on-primary" : "bg-primary text-on-primary") : "bg-surface text-ink-soft")}>{item.count}</span>
+            ) : null}
           </button>
         );
       })}

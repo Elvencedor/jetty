@@ -32,7 +32,9 @@ test("checking out with a bag walks the three steps and reaches payment", async 
   await expect(page.getByLabel("Full name")).toBeFocused();
 
   await fillDelivery(page);
-  await page.getByRole("radio", { name: /Same-day delivery/ }).check({ force: true });
+  await page.getByRole("radio", { name: /^Delivery/ }).check({ force: true });
+  // Choosing a method asks for a new quote, and the totals are dimmed while it loads: scan once they have settled.
+  await expect(page.locator('section[aria-label="Order summary"][aria-busy="true"]')).toHaveCount(0);
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
   await page.getByRole("button", { name: "Continue to payment" }).click();
@@ -52,7 +54,7 @@ test("checking out with a bag walks the three steps and reaches payment", async 
 test("details survive a reload and a step can't be reached early", async ({ page }) => {
   await addWigAndOpenCheckout(page);
   await fillDelivery(page);
-  await page.getByRole("radio", { name: /Same-day delivery/ }).check({ force: true });
+  await page.getByRole("radio", { name: /^Delivery/ }).check({ force: true });
   await page.reload();
   await expect(page.getByLabel("Full name")).toHaveValue("Ada Obi");
   await page.goto("/checkout?step=review");
@@ -62,7 +64,7 @@ test("details survive a reload and a step can't be reached early", async ({ page
 test("returning from Paystack confirms with the server and lands on the confirmation", async ({ page }) => {
   await addWigAndOpenCheckout(page);
   await fillDelivery(page);
-  await page.getByRole("radio", { name: /Same-day delivery/ }).check({ force: true });
+  await page.getByRole("radio", { name: /^Delivery/ }).check({ force: true });
   await page.getByRole("button", { name: "Continue to payment" }).click();
   await page.getByRole("radio", { name: /Card/ }).check({ force: true });
   await page.getByRole("button", { name: "Review order" }).click();
@@ -87,7 +89,7 @@ test("returning from Paystack confirms with the server and lands on the confirma
 test("a failed payment says no money was taken and can be retried", async ({ page }) => {
   await addWigAndOpenCheckout(page);
   await fillDelivery(page, "Fail Test");
-  await page.getByRole("radio", { name: /Same-day delivery/ }).check({ force: true });
+  await page.getByRole("radio", { name: /^Delivery/ }).check({ force: true });
   await page.getByRole("button", { name: "Continue to payment" }).click();
   await page.getByRole("radio", { name: /Card/ }).check({ force: true });
   await page.getByRole("button", { name: "Review order" }).click();

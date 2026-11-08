@@ -20,7 +20,7 @@ const future = () => new Date(Date.now() + 30 * 60_000).toISOString();
 
 const status = (over: Record<string, unknown> = {}) => ({
   orderId: ORDER, orderNumber: "JH-1", status: "pending_payment", paymentStatus: "pending", amountMinor: 5_600_000, currency: "NGN", reservationExpiresAt: future(),
-  deliveryMethod: "next_day", estimate: null, itemCount: 1, recipientFirstName: "Ada", paymentAttempt: { id: "a1", status: "pending" }, ...over,
+  deliveryMethod: "delivery", estimate: null, itemCount: 1, recipientFirstName: "Ada", paymentAttempt: { id: "a1", status: "pending" }, ...over,
 });
 
 function setup(method: "card" | "bank_transfer", body: Record<string, unknown>) {

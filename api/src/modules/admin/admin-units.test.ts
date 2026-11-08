@@ -34,9 +34,9 @@ describe('permits', () => {
 
 describe('order fulfilment transitions', () => {
   it('steps forward one state at a time for delivery orders', () => {
-    assert.deepEqual(allowedNext('placed', 'next_day'), ['packed']);
-    assert.deepEqual(allowedNext('packed', 'next_day'), ['out_for_delivery']);
-    assert.deepEqual(allowedNext('out_for_delivery', 'next_day'), ['delivered']);
+    assert.deepEqual(allowedNext('placed', 'delivery'), ['packed']);
+    assert.deepEqual(allowedNext('packed', 'delivery'), ['out_for_delivery']);
+    assert.deepEqual(allowedNext('out_for_delivery', 'delivery'), ['delivered']);
   });
   it('skips dispatch for pickup: packed goes straight to collected', () => {
     assert.deepEqual(allowedNext('placed', 'pickup'), ['packed']);
@@ -44,7 +44,7 @@ describe('order fulfilment transitions', () => {
   });
   it('offers nothing from terminal or unpaid states', () => {
     for (const s of ['delivered', 'cancelled', 'pending_payment', 'refunded'] as const) {
-      assert.deepEqual(allowedNext(s as never, 'next_day'), [], s);
+      assert.deepEqual(allowedNext(s as never, 'delivery'), [], s);
     }
   });
 });
@@ -107,13 +107,20 @@ describe('stock reasons', () => {
 describe('delivery zone schema', () => {
   const ok = (v: unknown) => zoneSchema.validate(v).error === undefined;
   it('accepts a full zone', () => {
-    assert.equal(ok({ name: 'Lagos Mainland', state: 'Lagos', areas: ['Yaba', 'Surulere'], active: true, sameDayCutoffLocal: '14:00', timezone: 'Africa/Lagos', sameDayFeeMinor: 300000, nextDayFeeMinor: 200000, nationwideFeeMinor: null, pickupEnabled: true }), true);
+    assert.equal(ok({ name: 'Lagos Mainland', state: 'Lagos', areas: ['Yaba', 'Surulere'], active: true, timezone: 'Africa/Lagos', deliveryFeeMinor: 300000, deliveryMinDays: 1, deliveryMaxDays: 3, pickupEnabled: true }), true);
   });
-  it('validates the cutoff as HH:MM, or null', () => {
-    assert.equal(ok({ sameDayCutoffLocal: '00:00' }), true);
-    assert.equal(ok({ sameDayCutoffLocal: '23:59' }), true);
-    assert.equal(ok({ sameDayCutoffLocal: null }), true);
-    for (const bad of ['24:00', '9:00', '14:60', '2pm', '']) assert.equal(ok({ sameDayCutoffLocal: bad }), false, bad);
+  it('no longer takes the retired same-day, next-day, nationwide or cut-off fields', () => {
+    for (const field of ['sameDayCutoffLocal', 'sameDayFeeMinor', 'nextDayFeeMinor', 'nationwideFeeMinor']) assert.equal(ok({ [field]: null }), false, field);
+  });
+  it('delivery time is whole days from 0 to 60', () => {
+    for (const good of [0, 1, 60]) assert.equal(ok({ deliveryMinDays: good, deliveryMaxDays: good }), true, String(good));
+    for (const bad of [-1, 61, 1.5, '2days']) assert.equal(ok({ deliveryMinDays: bad }), false, String(bad));
+  });
+  it('covers one state or a list of states', () => {
+    assert.equal(ok({ scope: 'state', state: 'Lagos' }), true);
+    assert.equal(ok({ scope: 'nationwide', state: null, states: ['Kano', 'Kaduna'] }), true);
+    assert.equal(ok({ scope: 'region' }), false);
+    assert.equal(ok({ states: ['Kano', 'kano'] }), false, 'no state twice');
   });
   it('only accepts real IANA timezones', () => {
     assert.equal(ok({ timezone: 'Africa/Lagos' }), true);
@@ -121,11 +128,11 @@ describe('delivery zone schema', () => {
     assert.equal(ok({ timezone: 'Mars/Olympus' }), false);
   });
   it('fees are whole non-negative amounts up to a billion, or null', () => {
-    assert.equal(ok({ sameDayFeeMinor: 0 }), true);
-    assert.equal(ok({ sameDayFeeMinor: null }), true);
-    assert.equal(ok({ nextDayFeeMinor: -1 }), false);
-    assert.equal(ok({ nextDayFeeMinor: 1.5 }), false);
-    assert.equal(ok({ nationwideFeeMinor: 1_000_000_001 }), false);
+    assert.equal(ok({ deliveryFeeMinor: 0 }), true);
+    assert.equal(ok({ deliveryFeeMinor: null }), true);
+    assert.equal(ok({ deliveryFeeMinor: -1 }), false);
+    assert.equal(ok({ deliveryFeeMinor: 1.5 }), false);
+    assert.equal(ok({ deliveryFeeMinor: 1_000_000_001 }), false);
   });
   it('areas must be unique ignoring case', () => {
     assert.equal(ok({ areas: ['Yaba', 'yaba'] }), false);

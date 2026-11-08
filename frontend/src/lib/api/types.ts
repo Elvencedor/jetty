@@ -134,7 +134,8 @@ export type StaticPage = { slug: string; title: string; markdown: string; update
 
 // ------------------------------------------------------------- pricing & checkout
 
-export type DeliveryMethod = "same_day" | "next_day" | "nationwide" | "pickup";
+/** `delivery` is the one priced option for a zone (its fee and how many days it takes); `pickup` is collection from the showroom. */
+export type DeliveryMethod = "delivery" | "pickup";
 export type PaymentMethod = "card" | "bank_transfer";
 export type DeliveryEstimate = { earliestDate: string; latestDate: string };
 
@@ -187,7 +188,6 @@ export type Quote = {
 export type DeliveryOption = {
   method: DeliveryMethod;
   available: boolean;
-  reason?: "CUTOFF_PASSED";
   baseFeeMinor: number;
   feeMinor: number;
   freeDeliveryPromotionId: string | null;
