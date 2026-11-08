@@ -788,3 +788,11 @@ the gift is an order item at no charge and its stock is reserved like any other 
 **Security headers (frontend).** Every storefront and admin response carries `X-Content-Type-Options`, `X-Frame-Options`,
 `Referrer-Policy`, a `Permissions-Policy` and a `Content-Security-Policy-Report-Only`; the policy is to be tightened and
 enforced after a staging run shows nothing legitimate is flagged.
+
+### Deleting a delivery zone
+
+`DELETE /admin/settings/delivery-zones/{id}` (needs `settings:write`) deletes a zone for good and returns the remaining
+`{ zones }`. Past orders keep the zone's name in their own address snapshot, so they are untouched. It is refused with
+`409 ZONE_IN_USE` while a free delivery promotion that is not yet ended is limited to the zone (the message names them),
+because that promotion would be left pointing at nothing. To keep a zone but stop serving it, switch it off with
+`PATCH` and `active: false`. The change is audited as `settings.delivery_zone_delete`.

@@ -157,6 +157,12 @@ export function zoneCoverage(z: DeliveryZone): string {
   return `${z.state ?? ""}${z.areas.length ? ` · ${z.areas.join(", ")}` : " · whole state"}`;
 }
 
+/** What a zone charges and how long it takes, for a row of the zones table: nulls where there is no delivery. */
+export function zoneDelivery(z: DeliveryZone, format: (minor: number) => string): { price: string | null; time: string | null } {
+  if (z.deliveryFeeMinor === null) return { price: null, time: null };
+  return { price: z.deliveryFeeMinor === 0 ? "Free" : format(z.deliveryFeeMinor), time: deliveryDaysLabel(z.deliveryMinDays, z.deliveryMaxDays) };
+}
+
 /** The options a zone offers, for its card. */
 export function zoneOptions(z: DeliveryZone, format: (minor: number) => string): { name: string; note: string; price: string }[] {
   const price = (m: number) => (m === 0 ? "Free" : format(m));

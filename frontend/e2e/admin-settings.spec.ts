@@ -74,10 +74,15 @@ test("the landing page nudges until the contact details are filled in, then goes
 
 test("delivery zones show what checkout charges, can be switched off with a warning, and edited in a drawer", async ({ page }) => {
   await signIn(page, "owner", "/admin/settings/delivery");
-  const mainland = page.getByRole("listitem").filter({ hasText: "Lagos Mainland" }).first();
+  // The zones are a table: a row each, with the price, how long it takes, pickup and whether it is on.
+  const table = page.getByRole("table", { name: "Delivery zones" });
+  await expect(table.getByRole("columnheader")).toContainText(["Zone", "Delivery price", "Takes", "Pickup", "Delivering"]);
+  const mainland = table.getByRole("row", { name: /Lagos Mainland/ });
+  const tableScan = await new AxeBuilder({ page }).analyze();
+  expect(tableScan.violations).toEqual([]);
   await expect(mainland.getByText("1 to 2 days")).toBeVisible();
   await expect(mainland.getByText("₦3,500")).toBeVisible();
-  await expect(page.getByRole("listitem").filter({ hasText: "Abuja" }).first().getByText("₦8,000")).toBeVisible();
+  await expect(table.getByRole("row", { name: /Abuja/ }).getByText("₦8,000")).toBeVisible();
 
   await page.getByRole("switch", { name: "Deliver to Abuja" }).click();
   const confirm = page.getByRole("dialog", { name: "Switch off Abuja?" });
@@ -92,9 +97,9 @@ test("delivery zones show what checkout charges, can be switched off with a warn
   await drawer.getByLabel("Areas").fill("Yaba\nIkeja\nMaryland");
   await drawer.getByRole("button", { name: "Save zone" }).click();
   await expect(drawer).toBeHidden();
-  await expect(page.getByText("₦4,000")).toBeVisible();
+  await expect(mainland.getByText("₦4,000")).toBeVisible();
   await expect(mainland.getByText("1 to 3 days")).toBeVisible();
-  await expect(page.getByText(/Maryland/)).toBeVisible();
+  await expect(table.getByText(/Maryland/)).toBeVisible();
 
   await page.getByRole("button", { name: "Add zone" }).click();
   const add = page.getByRole("dialog", { name: "Add delivery zone" });
@@ -105,7 +110,7 @@ test("delivery zones show what checkout charges, can be switched off with a warn
   await add.getByLabel("Zone name").fill("Port Harcourt");
   await choose(add.getByLabel("State"), "Rivers");
   await add.getByRole("button", { name: "Save zone" }).click();
-  await expect(page.getByRole("heading", { name: "Port Harcourt" })).toBeVisible();
+  await expect(table.getByRole("row", { name: /Port Harcourt/ })).toBeVisible();
 
   // A nationwide zone is picked state by state; saving with none chosen is refused.
   await page.getByRole("button", { name: "Add zone" }).click();
@@ -120,9 +125,21 @@ test("delivery zones show what checkout charges, can be switched off with a warn
   await nationwide.getByLabel("Kaduna", { exact: true }).check();
   await expect(nationwide.getByText("2 of 37 selected")).toBeVisible();
   await nationwide.getByRole("button", { name: "Save zone" }).click();
-  const north = page.getByRole("listitem").filter({ hasText: "Northern states" }).first();
+  const north = table.getByRole("row", { name: /Northern states/ });
   await expect(north.getByText("Nationwide · 2 states")).toBeVisible();
   await expect(north.getByText("₦6,000")).toBeVisible();
+
+  // A zone can be deleted for good, after a warning that says what it means and offers switching off instead.
+  await north.getByRole("button", { name: "Delete Northern states" }).click();
+  const confirmDelete = page.getByRole("dialog", { name: "Delete Northern states?" });
+  await expect(confirmDelete).toContainText("removed for good");
+  await expect(confirmDelete).toContainText("switch the zone off");
+  await confirmDelete.getByRole("button", { name: "Keep it" }).or(confirmDelete.getByRole("button", { name: "Cancel" })).first().click();
+  await expect(north).toBeVisible();
+  await north.getByRole("button", { name: "Delete Northern states" }).click();
+  await page.getByRole("dialog", { name: "Delete Northern states?" }).getByRole("button", { name: "Delete zone" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Northern states deleted" })).toBeVisible();
+  await expect(table.getByRole("row", { name: /Northern states/ })).toHaveCount(0);
 });
 
 test("payments keep one method on, and policies change the return window", async ({ page }) => {

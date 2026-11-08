@@ -549,6 +549,17 @@ const server = createServer(async (req, res) => {
       (json.scope?.include?.productIds?.length ? productPromos : promos).push(x);
       return send(201, promoDetail(x));
     }
+    const zoneDelete = path.match(/^\/admin\/settings\/delivery-zones\/([^/]+)$/);
+    if (zoneDelete && req.method === "DELETE") {
+      if (!can(a, "settings:write")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");
+      const zone = adminZones.find((z) => z.id === zoneDelete[1]);
+      if (!zone) return fail(404, "NOT_FOUND", "That delivery zone does not exist.");
+      // A free delivery promotion limited to the zone keeps it from being deleted.
+      const using = everyPromo().filter((x) => x.kind === "free_delivery" && (x.configuration.zoneIds ?? []).includes(zone.id));
+      if (using.length) return fail(409, "ZONE_IN_USE", `Free delivery promotions still use this zone: ${using.map((x) => `"${x.name}"`).join(", ")}. Take it out of ${using.length === 1 ? "that promotion" : "those promotions"} first, or switch the zone off instead.`);
+      adminZones = adminZones.filter((z) => z.id !== zone.id);
+      return send(200, { zones: adminZones });
+    }
     const attachRoute = path.match(/^\/admin\/products\/([^/]+)\/promotions\/([^/]+)$/);
     if (attachRoute && ["PUT", "DELETE"].includes(req.method)) {
       if (!can(a, "promotions:write")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");

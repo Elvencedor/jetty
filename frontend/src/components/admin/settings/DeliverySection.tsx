@@ -4,14 +4,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog";
+import { DataTable, type Column } from "../DataTable";
 import { FormSection } from "../FormSection";
 import { SideDrawer } from "../SideDrawer";
-import { Button, EmptyState, Segmented, SelectField, Skeleton, Switch, TextareaField, TextField } from "@/components/ui";
+import { Button, EmptyState, Segmented, SelectField, StatusPill, Switch, TextareaField, TextField } from "@/components/ui";
 import { adminErrorMessage } from "@/lib/admin/concurrency";
 import { onAmountChange } from "@/lib/admin/amount";
 import { adminKeys } from "@/lib/admin/keys";
-import { emptyZone, validateZone, zoneCoverage, zoneOptions, zoneToForm, zoneToInput, type ZoneErrors, type ZoneForm } from "@/lib/admin/settings";
-import { listZones, saveZone, type DeliveryZone } from "@/lib/api/admin-settings";
+import { emptyZone, validateZone, zoneCoverage, zoneDelivery, zoneToForm, zoneToInput, type ZoneErrors, type ZoneForm } from "@/lib/admin/settings";
+import { deleteZone, listZones, saveZone, type DeliveryZone } from "@/lib/api/admin-settings";
 import { cn } from "@/lib/cn";
 import { NIGERIAN_STATES } from "@/lib/geo/states";
 import { formatNaira } from "@/lib/format";
@@ -24,6 +25,20 @@ export function DeliverySection({ canWrite }: { canWrite: boolean }) {
   const zones = useQuery({ queryKey: key, queryFn: ({ signal }) => listZones({ signal }), staleTime: 0 });
   const [editing, setEditing] = useState<DeliveryZone | "new" | null>(null);
   const [switchOff, setSwitchOff] = useState<DeliveryZone | null>(null);
+  const [removing, setRemoving] = useState<DeliveryZone | null>(null);
+
+  const remove = useMutation({
+    mutationFn: (zone: DeliveryZone) => deleteZone(zone.id),
+    onSuccess: (next, zone) => {
+      queryClient.setQueryData(key, next);
+      setRemoving(null);
+      toast.success(`${zone.name} deleted`);
+    },
+    onError: (err) => {
+      setRemoving(null);
+      toast.error(adminErrorMessage(err));
+    },
+  });
 
   const toggle = useMutation({
     mutationFn: ({ zone, active }: { zone: DeliveryZone; active: boolean }) => saveZone({ id: zone.id, active }),
@@ -38,45 +53,121 @@ export function DeliverySection({ canWrite }: { canWrite: boolean }) {
     },
   });
 
+  const columns: Column<DeliveryZone>[] = [
+    {
+      key: "zone",
+      header: "Zone",
+      className: "min-w-52",
+      cell: (z) => (
+        <span className={cn("flex flex-col gap-0.5 leading-[1.3]", !z.active && "opacity-60")}>
+          <span className="font-bold">{z.name}</span>
+          <span className="text-caption font-normal text-muted">{zoneCoverage(z)}</span>
+        </span>
+      ),
+    },
+    {
+      key: "price",
+      header: "Delivery price",
+      cell: (z) => {
+        const { price } = zoneDelivery(z, formatNaira);
+        return price ? <span className={cn("font-bold tabular-nums", !z.active && "opacity-60")}>{price}</span> : <span className="text-muted">Pickup only</span>;
+      },
+    },
+    {
+      key: "time",
+      header: "Takes",
+      cell: (z) => <span className={cn(!z.active && "opacity-60")}>{zoneDelivery(z, formatNaira).time ?? <span className="text-muted">—</span>}</span>,
+    },
+    {
+      key: "pickup",
+      header: "Pickup",
+      cell: (z) => (z.pickupEnabled ? <StatusPill tone="success">Offered</StatusPill> : <span className="text-muted">—</span>),
+    },
+    {
+      key: "status",
+      header: "Delivering",
+      cell: (z) => (
+        <span className="flex items-center gap-2.5">
+          <Switch checked={z.active} label={`Deliver to ${z.name}`} disabled={!canWrite || toggle.isPending} onChange={(on) => (on ? toggle.mutate({ zone: z, active: true }) : setSwitchOff(z))} />
+          <span className={cn("text-caption font-semibold", z.active ? "text-success" : "text-muted")}>{z.active ? "On" : "Off"}</span>
+        </span>
+      ),
+    },
+    ...(canWrite
+      ? [{
+          key: "actions",
+          header: "Actions",
+          hideHeader: true,
+          align: "right" as const,
+          className: "w-px whitespace-nowrap",
+          cell: (z: DeliveryZone) => (
+            <span className="inline-flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setEditing(z)}>Edit<span className="sr-only"> {z.name}</span></Button>
+              <Button size="sm" variant="danger-soft" onClick={() => setRemoving(z)}>Delete<span className="sr-only"> {z.name}</span></Button>
+            </span>
+          ),
+        }]
+      : []),
+  ];
+
   return (
     <>
       <FormSection title="Delivery zones" description="Customers only see options that apply to their address. Prices here are what checkout charges.">
         {canWrite ? <Button size="sm" variant="outline" className="self-start" iconLeft={<Plus aria-hidden="true" size={16} />} onClick={() => setEditing("new")}>Add zone</Button> : null}
-        {zones.isError && !zones.data ? (
-          <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-danger-bg p-3 text-danger">
-            <span>{adminErrorMessage(zones.error)}</span>
-            <Button size="sm" variant="outline" onClick={() => void zones.refetch()}>Retry</Button>
-          </div>
-        ) : !zones.data ? (
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(260px,100%),1fr))] gap-3">{Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-44 rounded-[20px]" />)}</div>
-        ) : zones.data.length === 0 ? (
-          <EmptyState title="No delivery zones yet">Add a zone so customers can have orders delivered.</EmptyState>
-        ) : (
-          <ul className="grid grid-cols-[repeat(auto-fit,minmax(min(260px,100%),1fr))] gap-3">
-            {zones.data.map((z) => (
-              <li key={z.id} className={cn("flex flex-col gap-2.5 rounded-[20px] border-2 p-4", z.active ? "border-primary bg-surface-tint" : "border-line bg-surface")}>
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="font-display text-body-lg font-extrabold">{z.name}</h3>
-                  <Switch checked={z.active} label={`Deliver to ${z.name}`} disabled={!canWrite || toggle.isPending} onChange={(on) => (on ? toggle.mutate({ zone: z, active: true }) : setSwitchOff(z))} />
-                </div>
-                <p className="text-caption text-muted">{zoneCoverage(z)}</p>
-                <ul className="flex flex-col gap-1.5">
-                  {zoneOptions(z, formatNaira).map((o) => (
-                    <li key={o.name} className="flex items-center justify-between gap-2 rounded-[12px] border border-line bg-surface px-2.5 py-2 text-body-sm">
-                      <span className="flex flex-col leading-[1.3]"><span className="font-bold">{o.name}</span><span className="text-caption text-muted">{o.note}</span></span>
-                      <span className="font-bold">{o.price}</span>
-                    </li>
-                  ))}
-                  {zoneOptions(z, formatNaira).length === 0 ? <li className="text-caption text-muted">No delivery options are priced for this zone.</li> : null}
-                </ul>
-                {canWrite ? <Button size="sm" variant="outline" className="self-start" onClick={() => setEditing(z)}>Edit<span className="sr-only"> {z.name}</span></Button> : null}
-              </li>
-            ))}
+        {/* From the small breakpoint up the zones are a table. On a phone a table would scroll sideways and hide columns, so
+            the same zones are a stack of cards there; while loading, on an error or with none, the table's own states show. */}
+        <div className={zones.data?.length ? "hidden sm:block" : ""}>
+          <DataTable
+            caption="Delivery zones"
+            spacing="roomy"
+            columns={columns}
+            rows={zones.data}
+            rowKey={(z) => z.id}
+            loading={!zones.data && !zones.isError}
+            error={zones.isError && !zones.data ? { message: adminErrorMessage(zones.error), onRetry: () => void zones.refetch() } : undefined}
+            empty={<EmptyState title="No delivery zones yet">Add a zone so customers can have orders delivered.</EmptyState>}
+            {...(canWrite ? { onOpen: (z: DeliveryZone) => setEditing(z) } : {})}
+            skeletonRows={4}
+          />
+        </div>
+        {zones.data?.length ? (
+          <ul aria-label="Delivery zones" className="flex flex-col gap-3 sm:hidden">
+            {zones.data.map((z) => {
+              const { price, time } = zoneDelivery(z, formatNaira);
+              return (
+                <li key={z.id} className={cn("flex flex-col gap-3 rounded-card border p-4", z.active ? "border-line bg-surface" : "border-line-soft bg-surface-subtle")}>
+                  <div className="flex items-start justify-between gap-3">
+                    <span className={cn("flex min-w-0 flex-col gap-0.5 leading-[1.3]", !z.active && "opacity-60")}>
+                      <span className="font-bold">{z.name}</span>
+                      <span className="text-caption text-muted">{zoneCoverage(z)}</span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span className={cn("text-caption font-semibold", z.active ? "text-success" : "text-muted")}>{z.active ? "On" : "Off"}</span>
+                      <Switch checked={z.active} label={`Deliver to ${z.name}`} disabled={!canWrite || toggle.isPending} onChange={(on) => (on ? toggle.mutate({ zone: z, active: true }) : setSwitchOff(z))} />
+                    </span>
+                  </div>
+                  <dl className={cn("grid grid-cols-3 gap-2 text-body-sm", !z.active && "opacity-60")}>
+                    <div className="flex flex-col"><dt className="text-micro font-bold uppercase tracking-wide text-muted">Price</dt><dd className="font-bold tabular-nums">{price ?? <span className="font-normal text-muted">Pickup only</span>}</dd></div>
+                    <div className="flex flex-col"><dt className="text-micro font-bold uppercase tracking-wide text-muted">Takes</dt><dd>{time ?? <span className="text-muted">—</span>}</dd></div>
+                    <div className="flex flex-col"><dt className="text-micro font-bold uppercase tracking-wide text-muted">Pickup</dt><dd>{z.pickupEnabled ? "Offered" : <span className="text-muted">—</span>}</dd></div>
+                  </dl>
+                  {canWrite ? (
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="flex-1" onClick={() => setEditing(z)}>Edit<span className="sr-only"> {z.name}</span></Button>
+                      <Button size="sm" variant="danger-soft" className="flex-1" onClick={() => setRemoving(z)}>Delete<span className="sr-only"> {z.name}</span></Button>
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
-        )}
+        ) : null}
       </FormSection>
 
       {editing ? <ZoneDrawer zone={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={(next) => { queryClient.setQueryData(key, next); setEditing(null); toast.success("Delivery settings saved"); }} /> : null}
+      <ConfirmDialog open={!!removing} title={`Delete ${removing?.name ?? "this zone"}?`} confirmLabel="Delete zone" tone="danger" busy={remove.isPending} onCancel={() => setRemoving(null)} onConfirm={() => removing && remove.mutate(removing)}>
+        <p>{removing?.name} will be removed for good, and customers it served will not be able to check out with delivery unless another zone covers them. Orders already placed keep their details. To pause it instead, switch the zone off.</p>
+      </ConfirmDialog>
       <ConfirmDialog open={!!switchOff} title={`Switch off ${switchOff?.name ?? "this zone"}?`} confirmLabel="Switch off" tone="danger" busy={toggle.isPending} onCancel={() => setSwitchOff(null)} onConfirm={() => switchOff && toggle.mutate({ zone: switchOff, active: false })}>
         Customers there will no longer be able to check out with delivery. Orders already placed are still delivered.
       </ConfirmDialog>

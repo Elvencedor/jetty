@@ -13,6 +13,29 @@ async function signIn(page: Page, email: string, url = "/admin/login") {
 
 const nav = (page: Page) => page.getByRole("navigation", { name: "Admin" });
 
+test("the sign-in page shows the brand with an Admin tag, can reveal what was typed, and is accessible", async ({ page }) => {
+  await page.goto("/admin/login");
+  await page.waitForLoadState("networkidle");
+  // The brand logo, not text, with a visible tag that says this is the admin side.
+  await expect(page.getByRole("img", { name: "Jetty's Hairs" }).locator("visible=true").first()).toBeVisible();
+  await expect(page.getByText("Admin", { exact: true }).locator("visible=true").first()).toBeVisible();
+  await expect(page.getByText("jetty admin", { exact: false })).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1, name: "Welcome back" })).toBeVisible();
+  await expect(page.getByText("Admin sign-in")).toBeVisible();
+
+  const password = page.getByLabel("Password");
+  await expect(password).toHaveAttribute("type", "password");
+  await password.fill("not-shown");
+  await page.getByRole("button", { name: /^Show/ }).click();
+  await expect(password).toHaveAttribute("type", "text");
+  await page.getByRole("button", { name: /^Hide/ }).click();
+  await expect(password).toHaveAttribute("type", "password");
+  await expect(page.getByRole("link", { name: "Back to the store" })).toHaveAttribute("href", "/");
+
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+});
+
 test("an owner signs in and sees every section, with badges for what waits on someone", async ({ page, isMobile }) => {
   await signIn(page, "owner@example.com");
   await expect(page).toHaveURL(/\/admin$/);
