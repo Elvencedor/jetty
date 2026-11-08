@@ -51,7 +51,7 @@ test("registration checks the fields, explains a taken email, and signs the new 
   await page.getByLabel("Email").fill("taken@example.com");
   await page.getByLabel("Password").fill("short");
   await page.getByRole("button", { name: "Create account" }).last().click();
-  await expect(page.getByText("Use at least 10 characters")).toBeVisible();
+  await expect(page.getByText("Use at least 8 characters")).toBeVisible();
 
   await page.getByLabel("Password").fill("a-long-enough-password");
   await page.getByRole("button", { name: "Create account" }).last().click();

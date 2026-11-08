@@ -1,5 +1,6 @@
 import type { Collection, PromotionDetail, PromotionInput, PromotionKind, PromotionRow, PromotionStatus } from "@/lib/api/admin-promotions";
 import { formatNaira, lagosDateKey } from "@/lib/format";
+import { minorToAmountText } from "./amount";
 import { parseNairaToMinor } from "./orders";
 
 export type BuiltKind = PromotionKind;
@@ -12,9 +13,21 @@ export const TYPES: { kind: BuiltKind; glyph: string; label: string; note: strin
   { kind: "free_gift", glyph: "♡", label: "Free gift", note: "Like a free bonnet with a wig" },
   { kind: "free_delivery", glyph: "→", label: "Free delivery", note: "Delivery costs nothing" },
 ];
-export const KIND_LABEL: Record<PromotionKind, string> = { percentage: "Percentage off", fixed_amount: "Fixed amount off", buy_x_get_y: "Buy X get Y", free_delivery: "Free delivery", free_gift: "Free gift" };
+/** What a promotion does, in a few words, from its saved rule: "15% off", "₦5,000 off", "Buy 1, get 1 free", "Free gift". */
+export function promotionSummary(kind: PromotionKind, c: { percent?: number; amountMinor?: number; buy?: number; get?: number; percentOff?: number }): string {
+  if (kind === "percentage") return `${c.percent ?? 0}% off`;
+  if (kind === "fixed_amount") return `${formatNaira(c.amountMinor ?? 0)} off`;
+  if (kind === "buy_x_get_y") return `Buy ${c.buy ?? 1}, get ${c.get ?? 1} ${(c.percentOff ?? 100) >= 100 ? "free" : `at ${c.percentOff}% off`}`;
+  if (kind === "free_gift") return "Free gift";
+  return "Free delivery";
+}
 
-export const STEPS = ["Type", "Rule", "Who & limits", "Schedule"] as const;
+/** The form behind "create a promotion for this product": a percentage or fixed amount off this one product, applying automatically. */
+export function quickPromoForm(productId: string, productTitle: string): PromoForm {
+  return { ...emptyForm(), name: `${productTitle} offer`, scope: "products", productIds: [productId], perCustomer: "" };
+}
+
+export const KIND_LABEL: Record<PromotionKind, string> = { percentage: "Percentage off", fixed_amount: "Fixed amount off", buy_x_get_y: "Buy X get Y", free_delivery: "Free delivery", free_gift: "Free gift" };
 
 export type PromoForm = {
   kind: BuiltKind;
@@ -89,7 +102,7 @@ export function formFromPromotion(d: PromotionDetail): PromoForm {
     kind: p.kind,
     name: p.name,
     percent: c.percent !== undefined ? String(c.percent) : "10",
-    amount: c.amountMinor !== undefined ? String(c.amountMinor / 100) : "",
+    amount: c.amountMinor !== undefined ? minorToAmountText(c.amountMinor) : "",
     buy: String(c.buy ?? 1),
     get: String(c.get ?? 1),
     percentOff: String(c.percentOff ?? 100),
@@ -106,7 +119,7 @@ export function formFromPromotion(d: PromotionDetail): PromoForm {
     access: d.codes.length ? "code" : "automatic",
     code: d.codes[0]?.code ?? "",
     firstOrderOnly: p.firstOrderOnly,
-    minSpend: p.minimumSubtotalMinor ? String(p.minimumSubtotalMinor / 100) : "",
+    minSpend: p.minimumSubtotalMinor ? minorToAmountText(p.minimumSubtotalMinor) : "",
     totalUses: p.totalUsageLimit ? String(p.totalUsageLimit) : "",
     perCustomer: p.perCustomerLimit ? String(p.perCustomerLimit) : "",
     stackable: p.stackable,

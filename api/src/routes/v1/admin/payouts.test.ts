@@ -37,7 +37,7 @@ describe('payout account (Paystack subaccount)', { skip: !TEST_DATABASE_URL && '
     const [v] = await t.db.insert(productVariants).values({ productId: p!.id, sku: 'PAY-1', optionSignature: {}, priceMinor: 100000 }).returning();
     await t.db.insert(inventory).values({ variantId: v!.id, onHandQuantity: 100 });
     variantId = v!.id;
-    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', nextDayFeeMinor: 150000 });
+    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', deliveryFeeMinor: 150000 });
   });
   beforeEach(() => {
     provider.reset();
@@ -52,7 +52,7 @@ describe('payout account (Paystack subaccount)', { skip: !TEST_DATABASE_URL && '
     api.inject({
       method: 'POST',
       url: '/api/v1/checkout',
-      payload: { items: [{ variantId, quantity: 1 }], promotionCodes: [], contact: { phone: '+2348455000001' }, deliveryAddress: { recipientName: 'Ada', addressLine1: '1 Street', city: 'Lagos', state: 'Lagos', countryCode: 'NG' }, deliveryMethod: 'next_day', paymentMethod: 'card', termsAccepted: true },
+      payload: { items: [{ variantId, quantity: 1 }], promotionCodes: [], contact: { phone: '+2348455000001' }, deliveryAddress: { recipientName: 'Ada', addressLine1: '1 Street', city: 'Lagos', state: 'Lagos', countryCode: 'NG' }, deliveryMethod: 'delivery', paymentMethod: 'card', termsAccepted: true },
       headers: { 'idempotency-key': `${key}-abcdefgh-0123456789abcdefghijklmnopqrstuvwxyz` },
     });
 
@@ -121,8 +121,8 @@ describe('payout account (Paystack subaccount)', { skip: !TEST_DATABASE_URL && '
     const [p] = await fresh.db.insert(products).values({ slug: 'plain-wig', title: 'Plain Wig', status: 'active', publishedAt: new Date('2026-01-01') }).returning();
     const [v] = await fresh.db.insert(productVariants).values({ productId: p!.id, sku: 'PL-1', optionSignature: {}, priceMinor: 100000 }).returning();
     await fresh.db.insert(inventory).values({ variantId: v!.id, onHandQuantity: 5 });
-    await fresh.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', nextDayFeeMinor: 150000 });
-    const place = (key: string) => bare.inject({ method: 'POST', url: '/api/v1/checkout', payload: { items: [{ variantId: v!.id, quantity: 1 }], promotionCodes: [], contact: { phone: '+2348455000002' }, deliveryAddress: { recipientName: 'Ada', addressLine1: '1 Street', city: 'Lagos', state: 'Lagos', countryCode: 'NG' }, deliveryMethod: 'next_day', paymentMethod: 'card', termsAccepted: true }, headers: { 'idempotency-key': `${key}-abcdefgh-0123456789abcdefghijklmnopqrstuvwxyz` } });
+    await fresh.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', deliveryFeeMinor: 150000 });
+    const place = (key: string) => bare.inject({ method: 'POST', url: '/api/v1/checkout', payload: { items: [{ variantId: v!.id, quantity: 1 }], promotionCodes: [], contact: { phone: '+2348455000002' }, deliveryAddress: { recipientName: 'Ada', addressLine1: '1 Street', city: 'Lagos', state: 'Lagos', countryCode: 'NG' }, deliveryMethod: 'delivery', paymentMethod: 'card', termsAccepted: true }, headers: { 'idempotency-key': `${key}-abcdefgh-0123456789abcdefghijklmnopqrstuvwxyz` } });
     const callsBefore = provider.calls.length;
     const refused = await place('plain-1');
     assert.deepEqual([refused.statusCode, (refused.result as Json).error.code], [503, 'PAYOUT_ACCOUNT_NOT_CONFIGURED']);

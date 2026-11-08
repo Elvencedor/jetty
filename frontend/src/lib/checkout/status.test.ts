@@ -5,7 +5,7 @@ import { phaseOf } from "./status";
 const NOW = Date.parse("2026-10-20T12:00:00Z");
 const status = (over: Partial<CheckoutStatus> = {}): CheckoutStatus => ({
   orderId: "o", orderNumber: "JH-1", status: "pending_payment", paymentStatus: "pending", amountMinor: 100, currency: "NGN", reservationExpiresAt: "2026-10-20T12:30:00Z",
-  deliveryMethod: "same_day", estimate: null, itemCount: 1, recipientFirstName: null, paymentAttempt: { id: "a", status: "pending" }, ...over,
+  deliveryMethod: "delivery", estimate: null, itemCount: 1, recipientFirstName: null, paymentAttempt: { id: "a", status: "pending" }, ...over,
 });
 
 describe("phaseOf", () => {

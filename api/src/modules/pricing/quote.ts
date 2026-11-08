@@ -27,9 +27,9 @@ export async function quote(db: Db, input: Common & { deliveryAddress?: Destinat
   if (input.deliveryAddress && input.deliveryMethod) {
     zone = await requireZone(db, input.deliveryAddress);
     option = deliveryOptions(zone, now).find((o) => o.method === input.deliveryMethod);
-    if (!option || !option.available) {
+    if (!option) {
       throw unprocessable('DELIVERY_METHOD_UNAVAILABLE', 'That delivery method is not available for this location right now.', [
-        { method: input.deliveryMethod, reason: option?.reason ?? 'NOT_OFFERED' },
+        { method: input.deliveryMethod, reason: 'NOT_OFFERED' },
       ]);
     }
   }
@@ -71,7 +71,7 @@ export async function quote(db: Db, input: Common & { deliveryAddress?: Destinat
   };
 }
 
-/** POST /delivery/quotes: zone, methods, prices, ETAs and same-day eligibility for a destination and cart. */
+/** POST /delivery/quotes: zone, methods, prices, ETAs for a destination and cart. */
 export async function deliveryQuote(db: Db, input: Common & { deliveryAddress: Destination }) {
   const now = input.now ?? new Date();
   const zone = await requireZone(db, input.deliveryAddress);
@@ -79,11 +79,10 @@ export async function deliveryQuote(db: Db, input: Common & { deliveryAddress: D
 
   return {
     currency: cart.currency,
-    zone: { id: zone.id, name: zone.name, state: zone.state },
+    zone: { id: zone.id, name: zone.name, scope: zone.scope, state: zone.state },
     options: deliveryOptions(zone, now).map((o) => ({
       method: o.method,
       available: o.available,
-      ...(o.reason ? { reason: o.reason } : {}),
       baseFeeMinor: o.baseFeeMinor,
       feeMinor: feeFor(o, cart),
       freeDeliveryPromotionId: cart.freeDelivery?.promotionId ?? null,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AdminProductDetail } from "@/lib/api/admin-catalog";
-import { addOption, addValue, availableOf, basePrice, computedPrice, deleteValue, editValue, filterVariants, fromDetail, groupVariants, hasCustomPrice, isChanged, keyFromLabel, MAX_VARIANTS, singleVariant, skuFor, skuPrefix, stockLevel, toPayload, totalUnits, unitsWith, updateVariant, variantName, variantsCreatedByAdding, type MatrixDraft } from "./matrix";
+import { addOption, addOptionWithValues, bucketVariants, addValue, availableOf, basePrice, computedPrice, deleteValue, editValue, filterVariants, fromDetail, groupVariants, hasCustomPrice, isChanged, keyFromLabel, MAX_VARIANTS, singleVariant, skuFor, skuPrefix, stockLevel, toPayload, totalUnits, unitsWith, updateVariant, variantName, variantsCreatedByAdding, type MatrixDraft } from "./matrix";
 
 const BASE = 14_500_000;
 const detail: AdminProductDetail = {
@@ -113,6 +113,33 @@ describe("deleting", () => {
   });
 });
 
+describe("adding an option with several values", () => {
+  it("starts a product with no options from its one variant and makes one variant per value", () => {
+    const res = addOptionWithValues(singleVariant("BONNET-1", 500_000, 4), "Colour", ["Black", "Red", "Gold"], "BONNET");
+    if (!res.ok) throw new Error();
+    expect(res.draft.options).toHaveLength(1);
+    expect(res.draft.options[0]!.values.map((v) => v.label)).toEqual(["Black", "Red", "Gold"]);
+    expect(res.draft.variants).toHaveLength(3);
+    // The variant that was already there takes the first value and keeps its stock; the others start empty at the same price.
+    expect(res.draft.variants.map((v) => [v.values.Colour, v.onHand, v.priceMinor])).toEqual([["black", 4, 500_000], ["red", 0, 500_000], ["gold", 0, 500_000]]);
+  });
+  it("makes a variant for every mix with the options it already has", () => {
+    const before = draft();
+    const mixes = before.variants.length;
+    const res = addOptionWithValues(before, "Cap size", ["S", "M", "L"], "BS");
+    if (!res.ok) throw new Error();
+    expect(res.draft.variants).toHaveLength(mixes * 3);
+    expect(new Set(res.draft.variants.map((v) => v.sku)).size).toBe(mixes * 3);
+  });
+  it("refuses no values, a duplicate option, repeated values, and too many variants", () => {
+    expect(addOptionWithValues(draft(), "Cap size", [], "BS")).toMatchObject({ ok: false });
+    expect(addOptionWithValues(draft(), "lace", ["x"], "BS")).toMatchObject({ ok: false });
+    expect(addOptionWithValues(draft(), "Cap size", ["M", "m"], "BS")).toMatchObject({ ok: false });
+    const lots = Array.from({ length: MAX_VARIANTS + 1 }, (_, i) => `v${i}`);
+    expect(addOptionWithValues(singleVariant("X-1", 100, 0), "Big", lots, "X")).toMatchObject({ ok: false });
+  });
+});
+
 describe("adding an option", () => {
   it("gives every variant its one value and leaves prices alone", () => {
     const res = addOption(draft(), "Cap size", { label: "M" });
@@ -196,5 +223,31 @@ describe("keys and SKUs", () => {
     expect(skuPrefix(draft(), "Anything")).toBe("BS");
     expect(skuPrefix({ options: [], variants: [] }, "Body Wave Frontal")).toBe("BWF");
     expect(skuPrefix({ options: [], variants: [] }, "!!")).toBe("SKU");
+  });
+});
+
+describe("bucketVariants", () => {
+  it("groups by any option, with whole-group counts whatever is filtered", () => {
+    const d = draft();
+    const byLace = bucketVariants(d, "Lace", { values: {}, lowOnly: false });
+    expect(byLace.map((g) => g.label)).toEqual(d.options.find((o) => o.name === "Lace")!.values.map((v) => v.label));
+    expect(byLace.reduce((n, g) => n + g.all.length, 0)).toBe(d.variants.length);
+    const first = byLace[0]!;
+    const narrowed = bucketVariants(d, "Lace", { values: { Length: d.options[0]!.values[0]!.key }, lowOnly: false })[0]!;
+    expect(narrowed.all).toHaveLength(first.all.length);
+    expect(narrowed.shown.length).toBeLessThanOrEqual(first.all.length);
+    expect(narrowed.units).toBe(first.units);
+  });
+  it("puts everything in one bucket when not grouping, or when the option is unknown", () => {
+    const d = draft();
+    expect(bucketVariants(d, null, { values: {}, lowOnly: false })).toHaveLength(1);
+    expect(bucketVariants(d, "Nope", { values: {}, lowOnly: false })[0]!.all).toHaveLength(d.variants.length);
+  });
+  it("searches by SKU or name", () => {
+    const d = draft();
+    const sku = d.variants[0]!.sku;
+    const hit = bucketVariants(d, null, { values: {}, lowOnly: false, search: sku.toLowerCase() })[0]!;
+    expect(hit.shown.map((v) => v.sku)).toContain(sku);
+    expect(bucketVariants(d, null, { values: {}, lowOnly: false, search: "zzzz-no-such" })[0]!.shown).toEqual([]);
   });
 });

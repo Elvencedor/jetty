@@ -75,7 +75,7 @@ test("the landing page nudges until the contact details are filled in, then goes
 test("delivery zones show what checkout charges, can be switched off with a warning, and edited in a drawer", async ({ page }) => {
   await signIn(page, "owner", "/admin/settings/delivery");
   const mainland = page.getByRole("listitem").filter({ hasText: "Lagos Mainland" }).first();
-  await expect(mainland.getByText("Order before 2:00 pm")).toBeVisible();
+  await expect(mainland.getByText("1 to 2 days")).toBeVisible();
   await expect(mainland.getByText("₦3,500")).toBeVisible();
   await expect(page.getByRole("listitem").filter({ hasText: "Abuja" }).first().getByText("₦8,000")).toBeVisible();
 
@@ -87,22 +87,42 @@ test("delivery zones show what checkout charges, can be switched off with a warn
 
   await mainland.getByRole("button", { name: "Edit Lagos Mainland" }).click();
   const drawer = page.getByRole("dialog", { name: "Edit Lagos Mainland" });
-  await drawer.getByLabel("Same-day", { exact: true }).fill("4,000");
+  await drawer.getByLabel("Delivery price", { exact: true }).fill("4,000");
+  await drawer.getByLabel("Slowest (days)").fill("3");
   await drawer.getByLabel("Areas").fill("Yaba\nIkeja\nMaryland");
   await drawer.getByRole("button", { name: "Save zone" }).click();
   await expect(drawer).toBeHidden();
   await expect(page.getByText("₦4,000")).toBeVisible();
+  await expect(mainland.getByText("1 to 3 days")).toBeVisible();
   await expect(page.getByText(/Maryland/)).toBeVisible();
 
   await page.getByRole("button", { name: "Add zone" }).click();
   const add = page.getByRole("dialog", { name: "Add delivery zone" });
-  await add.getByLabel("Next day", { exact: true }).fill("1,500");
+  await add.getByLabel("Delivery price", { exact: true }).fill("1,500");
   await add.getByRole("button", { name: "Save zone" }).click();
   await expect(add.getByText("Name the zone, like Lagos Mainland")).toBeVisible();
+  await expect(add.getByText("Choose the state")).toBeVisible();
   await add.getByLabel("Zone name").fill("Port Harcourt");
-  await add.getByLabel("State").fill("Rivers");
+  await choose(add.getByLabel("State"), "Rivers");
   await add.getByRole("button", { name: "Save zone" }).click();
   await expect(page.getByRole("heading", { name: "Port Harcourt" })).toBeVisible();
+
+  // A nationwide zone is picked state by state; saving with none chosen is refused.
+  await page.getByRole("button", { name: "Add zone" }).click();
+  const nationwide = page.getByRole("dialog", { name: "Add delivery zone" });
+  await nationwide.getByLabel("Zone name").fill("Northern states");
+  await nationwide.getByRole("button", { name: "Nationwide" }).click();
+  await expect(nationwide.getByLabel("State", { exact: true })).toHaveCount(0);
+  await nationwide.getByLabel("Delivery price", { exact: true }).fill("6,000");
+  await nationwide.getByRole("button", { name: "Save zone" }).click();
+  await expect(nationwide.getByText("Pick at least one state")).toBeVisible();
+  await nationwide.getByLabel("Kano", { exact: true }).check();
+  await nationwide.getByLabel("Kaduna", { exact: true }).check();
+  await expect(nationwide.getByText("2 of 37 selected")).toBeVisible();
+  await nationwide.getByRole("button", { name: "Save zone" }).click();
+  const north = page.getByRole("listitem").filter({ hasText: "Northern states" }).first();
+  await expect(north.getByText("Nationwide · 2 states")).toBeVisible();
+  await expect(north.getByText("₦6,000")).toBeVisible();
 });
 
 test("payments keep one method on, and policies change the return window", async ({ page }) => {
@@ -119,14 +139,17 @@ test("payments keep one method on, and policies change the return window", async
 
   await page.getByRole("link", { name: /^Returns & policies/ }).click();
   await choose(page.getByLabel("Return window"), "14 days after delivery");
-  await page.getByLabel("Pay on delivery limit").fill("abc");
-  await page.getByRole("button", { name: "Save changes" }).click();
-  await expect(page.getByText("Enter an amount like 300,000, or leave blank")).toBeVisible();
-  await page.getByLabel("Pay on delivery limit").fill("300,000");
+  // An amount box takes only digits, so letters never get in, and thousands are separated as you type.
+  const limit = page.getByLabel("Pay on delivery limit");
+  await limit.fill("abc");
+  await expect(limit).toHaveValue("");
+  await limit.fill("");
+  await limit.pressSequentially("300000");
+  await expect(limit).toHaveValue("300,000");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Policies saved" })).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel("Pay on delivery limit")).toHaveValue("300000");
+  await expect(page.getByLabel("Pay on delivery limit")).toHaveValue("300,000");
 });
 
 test("a payout account is connected by checking the account name first, and shown with only its last four digits", async ({ page }) => {

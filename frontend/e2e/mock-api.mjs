@@ -91,7 +91,7 @@ const customer = (email) => ({ id: id(500), phone: null, email, emailVerified: f
 const session = (email) => ({ accessToken: "tok", tokenType: "Bearer", expiresIn: 900, customer: customer(email) });
 const SEEDED = {
   id: id(700), orderNumber: "JH-20001", status: "delivered", paymentStatus: "paid", currency: "NGN", totalMinor: 18300000, itemCount: 1, placedAt: "2026-09-01T10:00:00Z", createdAt: "2026-09-01T10:00:00Z",
-  contact: { phone: "+2348031234567", email: null }, deliveryMethod: "same_day", deliveryAddress: { recipientName: "Ada Obi", addressLine1: "12 Admiralty Way", city: "Lekki", state: "Lagos" }, estimate: null, rider: null,
+  contact: { phone: "+2348031234567", email: null }, deliveryMethod: "delivery", deliveryAddress: { recipientName: "Ada Obi", addressLine1: "12 Admiralty Way", city: "Lekki", state: "Lagos" }, estimate: null, rider: null,
   items: [{ id: id(701), slug: "bone-straight-frontal", image: null, reviewable: true, productId: id(1), variantId: id(11), sku: "BS-14-HD", title: "Bone Straight Frontal Wig", options: { Length: "14 inch" }, quantity: 1, unitPriceMinor: 18000000, discountMinor: 0, lineTotalMinor: 18000000 }],
   totals: { subtotalMinor: 18000000, discountMinor: 0, deliveryFeeMinor: 300000, taxMinor: 0, totalMinor: 18300000 }, promotions: [], reservationExpiresAt: null,
   timeline: [{ status: "placed", at: "2026-09-01T10:00:00Z" }, { status: "delivered", at: "2026-09-02T10:00:00Z" }],
@@ -176,7 +176,7 @@ const orderDetail = (o) => ({
   items: o.items.map((i, n) => ({ id: `${o.id}-i${n}`, titleSnapshot: i.title, skuSnapshot: i.sku, optionsSnapshot: i.options, quantity: i.qty, unitPriceMinor: i.unit, discountMinor: 0, lineTotalMinor: i.unit * i.qty, image: null })),
   timeline: o.timeline.map(([from, to, note], n) => ({ id: `${o.id}-t${n}`, fromStatus: from, toStatus: to, actorType: "system", actorId: null, note: note ?? null, createdAt: EVENT_TIMES[Math.min(n, 2)] })),
   payments: [{ id: `${o.id}-p`, provider: "paystack", reference: `ref-${o.number}`, method: o.method, status: o.paymentStatus === "paid" || o.paymentStatus === "refunded" ? "succeeded" : "pending", amountMinor: orderTotal(o), currency: "NGN", paidAt: null, createdAt: o.createdAt }],
-  delivery: o.deliveryMethod === "pickup" ? null : { carrier: null, riderName: o.rider, riderPhoneE164: o.riderPhone, trackingReference: null, estimatedDeliveryAt: null, zone: "Same-day" },
+  delivery: o.deliveryMethod === "pickup" ? null : { carrier: null, riderName: o.rider, riderPhoneE164: o.riderPhone, trackingReference: null, estimatedDeliveryAt: null, zone: "Lagos" },
   refunds: o.refunds, notes: o.notes, allowedTransitions: allowedFor(o),
 });
 seedAdminOrders();
@@ -192,10 +192,10 @@ function seedAdminSettings() {
   adminSettings.store = { name: "Jetty's Hairs", contactEmail: "hello@example.com", contactPhone: "+2348031234567", whatsappNumber: "+2348031234567", showroomAddress: "Lekki Phase 1, Lagos", showroomHours: "Mon–Sat, 9am–7pm" };
   adminSettings.policies = { returnWindowDays: 7, podMaxOrderMinor: null };
   adminSettings.payments = { enabledMethods: ["card", "bank_transfer"], cardHoldMinutes: 30, transferHoldMinutes: 120 };
-  const zone = (n, over) => ({ id: id(700 + n), timezone: "Africa/Lagos", sameDayCutoffLocal: null, sameDayFeeMinor: null, nextDayFeeMinor: null, nationwideFeeMinor: null, pickupEnabled: false, active: true, areas: [], ...over });
+  const zone = (n, over) => ({ id: id(700 + n), timezone: "Africa/Lagos", scope: "state", state: null, states: [], deliveryFeeMinor: null, deliveryMinDays: 1, deliveryMaxDays: 3, pickupEnabled: false, active: true, areas: [], ...over });
   adminZones = [
-    zone(1, { name: "Lagos Mainland", state: "Lagos", areas: ["Yaba", "Ikeja", "Surulere"], sameDayFeeMinor: 350_000, sameDayCutoffLocal: "14:00", nextDayFeeMinor: 200_000, pickupEnabled: true }),
-    zone(2, { name: "Abuja", state: "FCT", nextDayFeeMinor: 500_000, nationwideFeeMinor: 800_000 }),
+    zone(1, { name: "Lagos Mainland", state: "Lagos", areas: ["Yaba", "Ikeja", "Surulere"], deliveryFeeMinor: 350_000, deliveryMinDays: 1, deliveryMaxDays: 2, pickupEnabled: true }),
+    zone(2, { name: "Abuja", state: "FCT", deliveryFeeMinor: 800_000, deliveryMinDays: 2, deliveryMaxDays: 4 }),
   ];
 }
 seedAdminSettings();
@@ -241,6 +241,30 @@ const lifecycle = (x) => (x.status === "draft" ? "draft" : x.status === "inactiv
 const promoRow = (x) => ({ id: x.id, name: x.name, kind: x.kind, status: lifecycle(x), startsAt: x.startsAt, endsAt: x.endsAt, priority: x.priority, stackable: x.stackable, type: x.codes.length ? "code" : "automatic", usage: { redemptions: x.usageCount, openHolds: 0, limit: x.totalUsageLimit }, createdAt: x.createdAt });
 const promoDetail = (x) => ({ promotion: { ...x, lifecycle: lifecycle(x), codes: undefined }, codes: x.codes, stats: { redemptions: x.usageCount, discountMinor: x.usageCount * 1_500_000, orderRevenueMinor: x.usageCount * 21_000_000, openHolds: 0 } });
 seedPromos();
+
+// Promotions limited to chosen products live apart from the list above: the promotions screens never show them, so the
+// product editor's tests can attach, remove and create them while those screens are being tested in parallel.
+let productPromos = [];
+function seedProductPromos() {
+  const base = { status: "active", kind: "percentage", configuration: { version: 1, percent: 15 }, priority: 0, stackable: false, startsAt: null, endsAt: null, totalUsageLimit: null, perCustomerLimit: null, usageCount: 0, firstOrderOnly: false, minimumSubtotalMinor: null, createdAt: new Date().toISOString(), codes: [] };
+  productPromos = [
+    { ...base, id: id(960), name: "Bone Straight sale", scope: { include: { productIds: [id(2001), id(2002)] } } },
+    { ...base, id: id(961), name: "Bonnet offer", status: "draft", configuration: { version: 1, percent: 20 }, scope: { include: { productIds: [id(2002)] } } },
+  ];
+}
+seedProductPromos();
+const everyPromo = () => [...promos, ...productPromos];
+const relationFor = (x, productId) => {
+  const inc = x.scope?.include ?? {};
+  if ((x.scope?.excludeProductIds ?? []).includes(productId)) return "excluded";
+  if ((inc.productIds ?? []).includes(productId)) return "attached";
+  if ((inc.collectionIds ?? []).length === 0 && (inc.productIds ?? []).length === 0) return "all";
+  return "available";
+};
+const productPromotionRows = (productId) => everyPromo().filter((x) => x.kind !== "free_delivery" && !["ended", "draft"].includes(lifecycle(x))).map((x) => {
+  const relation = relationFor(x, productId);
+  return { id: x.id, name: x.name, kind: x.kind, lifecycle: lifecycle(x), configuration: x.configuration, startsAt: x.startsAt, endsAt: x.endsAt, usageCount: x.usageCount, relation, removable: relation === "attached" && (x.scope.include.productIds.length > 1 || (x.scope.include.collectionIds ?? []).length > 0) };
+});
 
 // ---- admin storefront content
 let content = [];
@@ -363,9 +387,11 @@ const server = createServer(async (req, res) => {
         if (!can(a, "promotions:read")) return send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
         return send(200, { data: [...promos].reverse().map(promoRow), page: { nextCursor: null } });
       }
+      const productPromoList = path.match(/^\/admin\/products\/([^/]+)\/promotions$/);
+      if (productPromoList) return can(a, "promotions:read") ? send(200, { data: productPromotionRows(productPromoList[1]) }) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
       const promoGet = path.match(/^\/admin\/promotions\/([^/]+)$/);
       if (promoGet) {
-        const x = promos.find((q) => q.id === promoGet[1]);
+        const x = everyPromo().find((q) => q.id === promoGet[1]);
         return can(a, "promotions:read") ? (x ? send(200, promoDetail(x)) : send(404, { error: { code: "NOT_FOUND", message: "Promotion not found.", requestId: "r" } })) : send(403, { error: { code: "FORBIDDEN", message: "No access", requestId: "r" } });
       }
       if (path === "/admin/content") {
@@ -462,7 +488,7 @@ const server = createServer(async (req, res) => {
     }
   }
   if ((path.startsWith("/admin/") && !path.startsWith("/admin/auth/") || path.startsWith("/__test/touch-product/") || path === "/__test/reset-products" || path === "/__test/reset-orders" || path === "/__test/reset-promotions" || path === "/__test/reset-taxonomy" || path === "/__test/reset-content" || path === "/__test/reset-settings" || path === "/__test/reset-reviews" || path.startsWith("/__upload/")) && ["PATCH", "PUT", "POST", "DELETE"].includes(req.method)) {
-    if (path === "/__test/reset-products") { seedAdminProducts(); return send(204); }
+    if (path === "/__test/reset-products") { seedAdminProducts(); seedProductPromos(); return send(204); }
     if (path === "/__test/reset-orders") { seedAdminOrders(); return send(204); }
     if (path === "/__test/reset-promotions") { seedPromos(); return send(204); }
     if (path === "/__test/reset-taxonomy") { seedTaxonomy(); return send(204); }
@@ -520,13 +546,29 @@ const server = createServer(async (req, res) => {
       if (!can(a, "promotions:write")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");
       if (json.codes?.some((c) => promos.some((x) => x.codes.some((y) => y.code === c.code.toUpperCase())))) return fail(409, "CODE_TAKEN", "One of these codes is already used by another promotion.");
       const x = { id: id(990 + promos.length), status: "draft", priority: 0, usageCount: 0, createdAt: new Date().toISOString(), ...json, codes: (json.codes ?? []).map((c, i) => ({ id: `c${i}`, code: c.code.toUpperCase(), maxRedemptions: null, active: true })) };
-      promos.push(x);
+      (json.scope?.include?.productIds?.length ? productPromos : promos).push(x);
       return send(201, promoDetail(x));
+    }
+    const attachRoute = path.match(/^\/admin\/products\/([^/]+)\/promotions\/([^/]+)$/);
+    if (attachRoute && ["PUT", "DELETE"].includes(req.method)) {
+      if (!can(a, "promotions:write")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");
+      const x = everyPromo().find((q) => q.id === attachRoute[2]);
+      if (!x) return fail(404, "NOT_FOUND", "Promotion not found.");
+      const ids = x.scope?.include?.productIds ?? [];
+      if (req.method === "PUT") {
+        if (relationFor(x, attachRoute[1]) === "all") return fail(422, "VALIDATION_FAILED", "This promotion already applies to every product.");
+        x.scope = { include: { ...(x.scope.include ?? {}), productIds: [...new Set([...ids, attachRoute[1]])] } };
+      } else {
+        if (!ids.includes(attachRoute[1])) return fail(422, "VALIDATION_FAILED", "This promotion does not name the product.");
+        if (ids.length === 1) return fail(409, "PROMOTION_WOULD_WIDEN", "This is the only product on the promotion, so removing it would make it apply to every product. Switch the promotion off or edit it in Promotions instead.");
+        x.scope = { include: { ...(x.scope.include ?? {}), productIds: ids.filter((i) => i !== attachRoute[1]) } };
+      }
+      return send(200, { data: productPromotionRows(attachRoute[1]) });
     }
     const promoAct = path.match(/^\/admin\/promotions\/([^/]+)(?:\/(activate|deactivate))?$/);
     if (promoAct && ["PATCH", "POST"].includes(req.method)) {
       if (!can(a, "promotions:write")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");
-      const x = promos.find((q) => q.id === promoAct[1]);
+      const x = everyPromo().find((q) => q.id === promoAct[1]);
       if (!x) return fail(404, "NOT_FOUND", "Promotion not found.");
       if (promoAct[2]) x.status = promoAct[2] === "activate" ? "active" : "inactive";
       else { const { codes, ...rest } = json; Object.assign(x, rest); if (codes) for (const c of codes) if (!x.codes.some((y) => y.code === c.code.toUpperCase())) x.codes.push({ id: `c${x.codes.length}`, code: c.code.toUpperCase(), maxRedemptions: null, active: true }); }
@@ -588,7 +630,7 @@ const server = createServer(async (req, res) => {
         for (const z of json.zones) {
           const at = adminZones.findIndex((x) => x.id === z.id);
           if (at >= 0) adminZones[at] = { ...adminZones[at], ...z };
-          else adminZones.push({ id: id(750 + adminZones.length), timezone: "Africa/Lagos", active: true, areas: [], sameDayCutoffLocal: null, sameDayFeeMinor: null, nextDayFeeMinor: null, nationwideFeeMinor: null, pickupEnabled: false, ...z });
+          else adminZones.push({ id: id(750 + adminZones.length), timezone: "Africa/Lagos", scope: "state", state: null, states: [], active: true, areas: [], deliveryFeeMinor: null, deliveryMinDays: 1, deliveryMaxDays: 3, pickupEnabled: false, ...z });
         }
         return send(200, { zones: adminZones });
       }
@@ -700,7 +742,7 @@ const server = createServer(async (req, res) => {
     }
     if (path === "/pricing/quote") return send(200, quote(json.items ?? [], json.promotionCodes ?? []));
     if (path === "/delivery/quotes") {
-      return send(200, { currency: "NGN", zone: { id: "z", name: "Lagos", state: json.deliveryAddress?.state ?? "Lagos" }, warnings: [], options: [{ method: "same_day", available: true, baseFeeMinor: 300000, feeMinor: 300000, freeDeliveryPromotionId: null, estimate: { earliestDate: "2026-10-21", latestDate: "2026-10-21" } }] });
+      return send(200, { currency: "NGN", zone: { id: "z", name: "Lagos", state: json.deliveryAddress?.state ?? "Lagos" }, warnings: [], options: [{ method: "delivery", available: true, baseFeeMinor: 300000, feeMinor: 300000, freeDeliveryPromotionId: null, estimate: { earliestDate: "2026-10-21", latestDate: "2026-10-21" } }] });
     }
     if (path === "/checkout") {
       const q = quote(json.items ?? [], json.promotionCodes ?? []);

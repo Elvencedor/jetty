@@ -70,7 +70,6 @@ export async function seed(db: Db, { ownerEmail, ownerPassword }: SeedOptions = 
         name: 'Lagos',
         state: 'Lagos',
         active: false,
-        sameDayCutoffLocal: '14:00',
         timezone: 'Africa/Lagos',
       });
     }

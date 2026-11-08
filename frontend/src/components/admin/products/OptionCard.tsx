@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button, Switch } from "@/components/ui";
+import { minorToAmountText, onAmountChange } from "@/lib/admin/amount";
 import { addValue, basePrice, deleteValue, editValue, unitsWith, variantsCreatedByAdding, variantsWith, type MatrixDraft, type OptionDraft, type ValueDraft } from "@/lib/admin/matrix";
 import { cn } from "@/lib/cn";
 import { formatNaira, formatNairaK } from "@/lib/format";
@@ -74,7 +75,7 @@ function ValueEditor({ option, first, draft, skuBase, valueKey, base, onClose, o
   const existing = option.values.find((v) => v.key === valueKey);
   const isNew = !existing;
   const [label, setLabel] = useState(existing?.label ?? "");
-  const [difference, setDifference] = useState(existing ? String(existing.deltaMinor / 100) : "0");
+  const [difference, setDifference] = useState(existing ? minorToAmountText(existing.deltaMinor) : "0");
   const [swatch, setSwatch] = useState(existing?.swatch ?? SWATCHES[0]!);
   const [visible, setVisible] = useState(existing?.active ?? true);
   const [confirming, setConfirming] = useState(false);
@@ -127,7 +128,7 @@ function ValueEditor({ option, first, draft, skuBase, valueKey, base, onClose, o
       </label>
       <label className="flex flex-col gap-1 text-label font-semibold">
         Price difference (₦)
-        <span className="flex h-11 items-center overflow-hidden rounded-md border-[1.5px] border-line-strong bg-surface"><span aria-hidden="true" className="pl-3.5 pr-2.5 font-bold text-muted">±</span><input value={difference} onChange={(e) => { setDifference(e.target.value); setError(undefined); }} inputMode="numeric" className="h-full min-w-0 flex-1 border-0 font-normal outline-none" /></span>
+        <span className="flex h-11 items-center overflow-hidden rounded-md border-[1.5px] border-line-strong bg-surface"><span aria-hidden="true" className="pl-3.5 pr-2.5 font-bold text-muted">±</span><input value={difference} onChange={(e) => { onAmountChange(difference, setDifference, { decimal: false, signed: true })(e); setError(undefined); }} inputMode="numeric" className="h-full min-w-0 flex-1 border-0 font-normal outline-none" /></span>
         <span className="text-caption font-normal text-muted">
           {first ? `Added to the ${formatNaira(base)} base. This ${kind} would cost ${formatNaira(base + (deltaMinor ?? 0))} before other options.` : `Added to every variant with this ${kind}. Use a minus for cheaper, e.g. -10000.`}
         </span>

@@ -15,6 +15,7 @@ import {
   collections,
   contentEntries,
   customers,
+  deliveryZones,
   inventory,
   orderItems,
   orders,
@@ -304,27 +305,40 @@ const NATIONWIDE_STATES = [
   'Oyo', 'Plateau', 'Rivers', 'Sokoto', 'Taraba', 'Yobe', 'Zamfara',
 ];
 
+/** Zones from before delivery had one price still carry the old tiered prices in columns nothing reads any more. */
+const hasLegacyPrices = (z: { sameDayFeeMinor: number | null; nextDayFeeMinor: number | null; nationwideFeeMinor: number | null }) => z.sameDayFeeMinor !== null || z.nextDayFeeMinor !== null || z.nationwideFeeMinor !== null;
+const noLegacyPrices = { sameDayFeeMinor: null, nextDayFeeMinor: null, nationwideFeeMinor: null, sameDayCutoffLocal: null };
+
 async function seedZones(db: Db) {
+  // A database seeded before zones had one price and a coverage: bring what that seed made up to date, and leave anything
+  // the owner added alone. Lagos and Abuja take the rates below. The one-zone-per-state rows (named after their state) are
+  // retired, because the Nationwide zone below now covers those states, and a retired zone keeps past orders' zone id valid.
+  for (const z of await listZones(db)) {
+    if (z.scope !== 'state' || !hasLegacyPrices(z)) continue;
+    if (z.name === 'Lagos') await db.update(deliveryZones).set({ ...noLegacyPrices, deliveryFeeMinor: naira(3500), deliveryMinDays: 1, deliveryMaxDays: 2, updatedAt: new Date() }).where(eq(deliveryZones.id, z.id));
+    else if (z.name === 'Abuja') await db.update(deliveryZones).set({ ...noLegacyPrices, deliveryFeeMinor: naira(4500), deliveryMinDays: 1, deliveryMaxDays: 2, updatedAt: new Date() }).where(eq(deliveryZones.id, z.id));
+    else if (z.name === z.state && NATIONWIDE_STATES.includes(z.name)) await db.update(deliveryZones).set({ ...noLegacyPrices, active: false, updatedAt: new Date() }).where(eq(deliveryZones.id, z.id));
+  }
   const zones = await listZones(db);
   const lagos = zones.find((z) => z.name === 'Lagos');
   const lagosFields = {
     active: true,
     // No areas: a zone that lists areas covers only those, and the product page asks by state alone.
     areas: [] as string[],
-    sameDayFeeMinor: naira(3500),
-    nextDayFeeMinor: naira(2500),
-    nationwideFeeMinor: null,
+    deliveryFeeMinor: naira(3500),
+    deliveryMinDays: 1,
+    deliveryMaxDays: 2,
     pickupEnabled: true,
   };
   // An inactive Lagos zone is the pristine reference-seed one; an owner who has already switched it on keeps their own rates.
   if (lagos && !lagos.active) await upsertZones(db, [{ id: lagos.id, ...lagosFields }]);
-  if (!lagos) await upsertZones(db, [{ name: 'Lagos', state: 'Lagos', sameDayCutoffLocal: '14:00', timezone: 'Africa/Lagos', ...lagosFields }]);
+  if (!lagos) await upsertZones(db, [{ name: 'Lagos', state: 'Lagos', timezone: 'Africa/Lagos', ...lagosFields }]);
   if (!zones.some((z) => z.name === 'Abuja')) {
-    await upsertZones(db, [{ name: 'Abuja', state: 'FCT', active: true, areas: [], nextDayFeeMinor: naira(4500), nationwideFeeMinor: null, pickupEnabled: false, timezone: 'Africa/Lagos' }]);
+    await upsertZones(db, [{ name: 'Abuja', state: 'FCT', active: true, areas: [], deliveryFeeMinor: naira(4500), deliveryMinDays: 1, deliveryMaxDays: 2, pickupEnabled: false, timezone: 'Africa/Lagos' }]);
   }
-  // Zones are per state, so nationwide delivery needs a zone for each state it reaches: every other state, so none is refused.
-  for (const state of NATIONWIDE_STATES) {
-    if (!zones.some((z) => z.state === state)) await upsertZones(db, [{ name: state, state, active: true, areas: [], nationwideFeeMinor: naira(6500), pickupEnabled: false, timezone: 'Africa/Lagos' }]);
+  // One nationwide zone covers every other state. Lagos and the FCT keep their own zones, which always win over it.
+  if (!zones.some((z) => z.scope === 'nationwide')) {
+    await upsertZones(db, [{ name: 'Nationwide', scope: 'nationwide', states: NATIONWIDE_STATES, active: true, deliveryFeeMinor: naira(6500), deliveryMinDays: 2, deliveryMaxDays: 4, pickupEnabled: false, timezone: 'Africa/Lagos' }]);
   }
 }
 
@@ -409,18 +423,18 @@ type OrderSeed = {
   daysAgo: number;
   status: 'pending_payment' | 'placed' | 'packed' | 'out_for_delivery' | 'delivered' | 'cancelled';
   payment: 'pending' | 'paid' | 'failed';
-  method: 'same_day' | 'next_day' | 'nationwide' | 'pickup';
+  method: 'delivery' | 'pickup';
   lines: { slug: string; pick: Record<string, string>; qty: number }[];
   review?: { rating: number; title: string; body: string; status: 'approved' | 'pending' };
 };
 
 const ORDER_SEEDS: OrderSeed[] = [
-  { number: 'JH-DEV-1001', customer: 0, daysAgo: 21, status: 'delivered', payment: 'paid', method: 'next_day', lines: [{ slug: 'body-wave-hd-frontal-wig', pick: { Texture: 'body-wave', Lace: 'hd-frontal', Length: '22', Density: '180' }, qty: 1 }], review: { rating: 5, title: 'Worth every naira', body: 'The lace melted into my skin and the curls held up after two washes. Delivery was fast too.', status: 'approved' } },
-  { number: 'JH-DEV-1002', customer: 1, daysAgo: 14, status: 'delivered', payment: 'paid', method: 'same_day', lines: [{ slug: 'classic-bob-wig', pick: { Texture: 'straight', Lace: '13x4-frontal', Length: '10', Density: '150' }, qty: 1 }, { slug: 'satin-sleep-bonnet', pick: { Colour: 'burgundy' }, qty: 2 }], review: { rating: 4, title: 'Sharp cut, great value', body: 'Sat perfectly with barely any styling. Knocked one star because the straps were a bit tight.', status: 'approved' } },
-  { number: 'JH-DEV-1003', customer: 2, daysAgo: 9, status: 'delivered', payment: 'paid', method: 'nationwide', lines: [{ slug: 'kinky-curly-glueless-wig', pick: { Texture: 'kinky-curly', Lace: 'transparent', Length: '16', Density: '150' }, qty: 1 }], review: { rating: 5, title: 'Truly glueless', body: 'Put it on in minutes and it stayed all day.', status: 'pending' } },
-  { number: 'JH-DEV-1004', customer: 0, daysAgo: 3, status: 'out_for_delivery', payment: 'paid', method: 'same_day', lines: [{ slug: 'wig-shampoo-conditioner-set', pick: { Size: '250ml' }, qty: 1 }, { slug: 'edge-control-gel', pick: { Size: '60ml' }, qty: 2 }] },
-  { number: 'JH-DEV-1005', customer: 1, daysAgo: 1, status: 'placed', payment: 'paid', method: 'next_day', lines: [{ slug: 'straight-13x4-frontal-wig', pick: { Texture: 'straight', Lace: '13x4-frontal', Length: '20', Density: '150' }, qty: 1 }] },
-  { number: 'JH-DEV-1006', customer: 2, daysAgo: 0, status: 'pending_payment', payment: 'pending', method: 'next_day', lines: [{ slug: 'colour-pop-straight-wig', pick: { Texture: 'straight', Lace: '13x4-frontal', Length: '20', Colour: 'burgundy', Density: '150' }, qty: 1 }] },
+  { number: 'JH-DEV-1001', customer: 0, daysAgo: 21, status: 'delivered', payment: 'paid', method: 'delivery', lines: [{ slug: 'body-wave-hd-frontal-wig', pick: { Texture: 'body-wave', Lace: 'hd-frontal', Length: '22', Density: '180' }, qty: 1 }], review: { rating: 5, title: 'Worth every naira', body: 'The lace melted into my skin and the curls held up after two washes. Delivery was fast too.', status: 'approved' } },
+  { number: 'JH-DEV-1002', customer: 1, daysAgo: 14, status: 'delivered', payment: 'paid', method: 'delivery', lines: [{ slug: 'classic-bob-wig', pick: { Texture: 'straight', Lace: '13x4-frontal', Length: '10', Density: '150' }, qty: 1 }, { slug: 'satin-sleep-bonnet', pick: { Colour: 'burgundy' }, qty: 2 }], review: { rating: 4, title: 'Sharp cut, great value', body: 'Sat perfectly with barely any styling. Knocked one star because the straps were a bit tight.', status: 'approved' } },
+  { number: 'JH-DEV-1003', customer: 2, daysAgo: 9, status: 'delivered', payment: 'paid', method: 'delivery', lines: [{ slug: 'kinky-curly-glueless-wig', pick: { Texture: 'kinky-curly', Lace: 'transparent', Length: '16', Density: '150' }, qty: 1 }], review: { rating: 5, title: 'Truly glueless', body: 'Put it on in minutes and it stayed all day.', status: 'pending' } },
+  { number: 'JH-DEV-1004', customer: 0, daysAgo: 3, status: 'out_for_delivery', payment: 'paid', method: 'delivery', lines: [{ slug: 'wig-shampoo-conditioner-set', pick: { Size: '250ml' }, qty: 1 }, { slug: 'edge-control-gel', pick: { Size: '60ml' }, qty: 2 }] },
+  { number: 'JH-DEV-1005', customer: 1, daysAgo: 1, status: 'placed', payment: 'paid', method: 'delivery', lines: [{ slug: 'straight-13x4-frontal-wig', pick: { Texture: 'straight', Lace: '13x4-frontal', Length: '20', Density: '150' }, qty: 1 }] },
+  { number: 'JH-DEV-1006', customer: 2, daysAgo: 0, status: 'pending_payment', payment: 'pending', method: 'delivery', lines: [{ slug: 'colour-pop-straight-wig', pick: { Texture: 'straight', Lace: '13x4-frontal', Length: '20', Colour: 'burgundy', Density: '150' }, qty: 1 }] },
   { number: 'JH-DEV-1007', customer: 0, daysAgo: 30, status: 'cancelled', payment: 'failed', method: 'pickup', lines: [{ slug: 'deep-wave-5x5-closure-wig', pick: { Texture: 'deep-wave', Lace: '5x5-closure', Length: '18', Density: '150' }, qty: 1 }] },
 ];
 
@@ -440,7 +454,7 @@ async function seedOrdersAndReviews(db: Db, customerIds: string[], log: SeedLogg
       lines.push({ product: product!, variant, l });
     }
     const subtotal = lines.reduce((s, x) => s + x.variant.price * x.l.qty, 0);
-    const fee = { same_day: naira(3500), next_day: naira(2500), nationwide: naira(6500), pickup: 0 }[o.method];
+    const fee = { delivery: naira(3500), pickup: 0 }[o.method];
     const when = new Date(Date.now() - o.daysAgo * 86_400_000);
     const paid = o.payment === 'paid';
 
@@ -457,7 +471,7 @@ async function seedOrdersAndReviews(db: Db, customerIds: string[], log: SeedLogg
           subtotalMinor: subtotal,
           deliveryFeeMinor: fee,
           totalMinor: subtotal + fee,
-          deliveryAddressSnapshot: { recipientName: customer.name, phoneE164: customer.phone, line1: '12 Admiralty Way', city: customer.city, state: customer.state, country: 'NG' },
+          deliveryAddressSnapshot: { recipientName: customer.name, phoneE164: customer.phone, line1: '12 Admiralty Way', city: customer.city, state: customer.state, country: 'NG', ...(o.method === 'delivery' ? { deliveryMinDays: 1, deliveryMaxDays: 2 } : {}) },
           deliveryMethod: o.method,
           termsAcceptedAt: when,
           reservationExpiresAt: o.status === 'pending_payment' ? new Date(Date.now() + 30 * 60_000) : null,

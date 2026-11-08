@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Bike, Package, Store, Truck } from "lucide-react";
+import { Store, Truck } from "lucide-react";
 import { SelectField, TextField } from "@/components/ui";
 import { getDeliveryQuote, isDeliveryUnavailable } from "@/lib/api/pricing";
 import type { DeliveryMethod } from "@/lib/api/types";
@@ -12,9 +12,7 @@ import { useCartStore } from "@/lib/stores/cart";
 import { RadioCards } from "./RadioCards";
 
 const METHOD_COPY: Record<DeliveryMethod, { title: string; note: string; icon: React.ReactNode }> = {
-  same_day: { title: "Same-day delivery", note: "Order before the cut-off", icon: <Bike size={20} strokeWidth={1.9} /> },
-  next_day: { title: "Next-day delivery", note: "Arrives tomorrow", icon: <Truck size={20} /> },
-  nationwide: { title: "Nationwide delivery", note: "Via our courier partners", icon: <Package size={20} /> },
+  delivery: { title: "Delivery", note: "", icon: <Truck size={20} /> },
   pickup: { title: "Pick up at our showroom", note: "Collect when it's ready", icon: <Store size={20} /> },
 };
 
@@ -52,7 +50,7 @@ export function DeliveryStep({ details, errors, method, methodError, onChange, o
   const options = (data?.options ?? []).map((o) => ({
     value: o.method,
     title: METHOD_COPY[o.method].title,
-    note: !o.available ? (o.reason === "CUTOFF_PASSED" ? "Today's cut-off has passed" : "Not available for this address") : [o.estimate ? formatEstimate(o.estimate) : null, METHOD_COPY[o.method].note].filter(Boolean).join(" · "),
+    note: !o.available ? "Not available for this address" : [o.estimate ? formatEstimate(o.estimate) : null, METHOD_COPY[o.method].note].filter(Boolean).join(" · "),
     aside: o.available ? (o.feeMinor === 0 ? "Free" : formatNaira(o.feeMinor)) : undefined,
     disabled: !o.available,
     icon: METHOD_COPY[o.method].icon,
@@ -86,7 +84,7 @@ export function DeliveryStep({ details, errors, method, methodError, onChange, o
         ) : !data && !isError ? (
           <p className="text-body-sm text-muted">Checking delivery options…</p>
         ) : options.some((o) => !o.disabled) ? (
-          <RadioCards legend="Delivery speed" name="delivery" options={options} value={method} onChange={onMethod} />
+          <RadioCards legend="Delivery method" name="delivery" options={options} value={method} onChange={onMethod} />
         ) : (
           <p role="alert" className="rounded-lg bg-warning-bg p-3 text-body-sm">We don&apos;t deliver to {details.state} yet. Message us on WhatsApp and we&apos;ll help.</p>
         )}

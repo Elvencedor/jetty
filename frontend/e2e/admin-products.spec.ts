@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { choose } from "./dropdown";
 
 const PRODUCT = "00000000-0000-4000-8000-000000002001";
 
@@ -140,16 +141,15 @@ test("when someone else changed the product, the save says so, keeps the edit, a
   await expect(d.getByLabel("Title")).not.toHaveValue("My edit");
 });
 
-test("stock adjusts in place and is written to the ledger as one change", async ({ page }) => {
+test("stock adjusts in the row and is written to the ledger as one change", async ({ page }) => {
   await owner(page, `/admin/products?product=${PRODUCT}&tab=variants`);
   const d = drawer(page);
-  // The first length is open already; open its second row (13×4 HD, sold out).
-  await d.getByRole("button", { name: /13×4 HD · Natural 1B SKU BS-12-13X4-HD/ }).click();
-  const stock = d.getByRole("group", { name: "In stock" });
-  await expect(stock.getByRole("status")).toHaveText("0");
-  await stock.getByRole("button", { name: "One more" }).click();
-  await stock.getByRole("button", { name: "One more" }).click();
-  await expect(stock.getByRole("status")).toHaveText("2");
+  // Variants are grouped by Length and the first length is open; its second row is 13×4 HD, sold out.
+  const stock = d.getByRole("group", { name: "Stock for 13×4 HD · Natural 1B" });
+  await expect(stock.getByRole("textbox")).toHaveValue("0");
+  await stock.getByRole("button", { name: /One more/ }).click();
+  await stock.getByRole("button", { name: /One more/ }).click();
+  await expect(stock.getByRole("textbox")).toHaveValue("2");
   const [write] = await Promise.all([
     page.waitForRequest((r) => r.url().includes("/admin/inventory/") && r.method() === "PATCH"),
     // Nothing is sent until the taps stop.
@@ -157,10 +157,106 @@ test("stock adjusts in place and is written to the ledger as one change", async 
   expect(write.postDataJSON()).toMatchObject({ mode: "adjust", quantity: 2, reason: "correction" });
 });
 
+test("variants group by any option, filter and search, and the action bar stays pinned", async ({ page }) => {
+  await owner(page, `/admin/products?product=${PRODUCT}&tab=variants`);
+  const d = drawer(page);
+  await expect(d.getByRole("button", { name: "Save", exact: true })).toBeVisible();
+  const bar = d.getByRole("button", { name: "Delete product" });
+  // The action bar is pinned to the bottom of the screen: its buttons end one padding (12px) above the bottom edge.
+  const bottom = page.viewportSize()!.height - 12;
+  const pinned = () => expect.poll(async () => { const box = await bar.boundingBox(); return box ? Math.round(box.y + box.height) : null; }).toBe(bottom);
+  await pinned();
+
+  // Grouped by the first option (Length) to begin with; switch to Lace.
+  await expect(d.getByRole("region", { name: '12"' })).toBeVisible();
+  await choose(d.getByLabel("Group by"), "Lace");
+  await expect(d.getByRole("region", { name: "4×4 closure" })).toBeVisible();
+  await expect(d.getByRole("region", { name: '12"' })).toHaveCount(0);
+
+  // Searching narrows to the matching variant and says how many are shown.
+  await d.getByRole("searchbox", { name: "Search variants" }).fill("13X4");
+  await expect(d.getByText(/Showing 2 of 4/)).toBeVisible();
+  await d.getByRole("button", { name: "Clear filters" }).click();
+  await expect(d.getByText(/Showing/)).toHaveCount(0);
+
+  // The bar is the modal's, not the content's: it has not moved however the content changed.
+  await pinned();
+});
+
+test("adding an option opens its form at the top of the options, picks values, and adds them", async ({ page }) => {
+  await owner(page, `/admin/products?product=${PRODUCT}&tab=variants`);
+  const d = drawer(page);
+  const options = d.getByRole("complementary", { name: "Options" });
+  // The button is the first thing under the explanation, above the option cards.
+  const add = options.getByRole("button", { name: "+ Add another option" });
+  const lengthCard = options.getByRole("region", { name: "Length" });
+  // Compared by their order in the page, not by pixels: the modal slides in, so positions measured one after the other can disagree.
+  const lengthHandle = await lengthCard.elementHandle();
+  expect(await add.evaluate((el, other) => Boolean(el.compareDocumentPosition(other!) & Node.DOCUMENT_POSITION_FOLLOWING), lengthHandle)).toBe(true);
+  await add.click();
+  await expect(options.getByText("Add another option", { exact: true })).toBeVisible();
+  await options.getByRole("button", { name: "Density", exact: true }).click();
+  await options.getByRole("button", { name: "150%" }).click();
+  await options.getByRole("button", { name: "180%" }).click();
+  await expect(options.getByRole("status")).toContainText("2 values × 4 current variants = 8 variants");
+  await options.getByRole("button", { name: "Add option", exact: true }).click();
+  await expect(options.getByRole("region", { name: "Density" })).toBeVisible();
+  await expect(d.getByText("You have changes to options or variants")).toBeVisible();
+});
+
+test("promotions can be attached to a product from existing ones, taken off again, or created on the spot", async ({ page }) => {
+  await owner(page, `/admin/products?product=${PRODUCT}&tab=merch`);
+  const d = drawer(page);
+  const promos = d.getByRole("region", { name: "Promotions" });
+  const onProduct = promos.getByRole("list", { name: "Promotions on this product" });
+
+  // The one that names this product (and another) is listed, can be taken off, and says why it applies.
+  await expect(onProduct.getByRole("listitem").filter({ hasText: "Bone Straight sale" })).toContainText("Chosen for this product");
+  await expect(onProduct.getByRole("listitem").filter({ hasText: "Bone Straight sale" })).toContainText("15% off");
+  // Editing happens on the Promotions page: the row links there, and has no edit controls of its own.
+  await expect(onProduct.getByRole("link", { name: /View in Promotions.*Bone Straight sale/ })).toHaveAttribute("href", /\/admin\/promotions\//);
+  // Promotions for every product show too, with no way to take one product off them.
+  await expect(onProduct.getByRole("listitem").filter({ hasText: "BOGO · Bob wigs" })).toContainText("Applies to every product");
+  await expect(onProduct.getByRole("listitem").filter({ hasText: "BOGO · Bob wigs" }).getByRole("button")).toHaveCount(0);
+
+  await onProduct.getByRole("button", { name: "Remove Bone Straight sale from this product" }).click();
+  await expect(d.getByRole("status").filter({ hasText: "Taken off Bone Straight sale" })).toBeVisible();
+  await expect(onProduct.getByText("Bone Straight sale")).toHaveCount(0);
+
+  // Drafts are written in Promotions: this one (a draft for another product) is neither listed nor offered here.
+  await expect(onProduct.getByText("Bonnet offer")).toHaveCount(0);
+  await promos.getByLabel("Add an existing promotion").click();
+  await expect(page.getByRole("option", { name: /Bonnet offer/ })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  // It is now something that can be attached again, along with the others limited to chosen products.
+  await choose(promos.getByLabel("Add an existing promotion"), /Bone Straight sale/);
+  await promos.getByRole("button", { name: "Attach", exact: true }).click();
+  await expect(d.getByRole("status").filter({ hasText: "Bone Straight sale now applies to this product" })).toBeVisible();
+  await expect(onProduct.getByRole("listitem").filter({ hasText: "Bone Straight sale" })).toBeVisible();
+
+  // Make a new one for this product only.
+  await promos.getByRole("button", { name: "+ Create a promotion for this product" }).click();
+  await expect(promos.getByRole("button", { name: "Save as draft" })).toHaveCount(0);
+  await promos.getByRole("button", { name: "Create and switch on" }).click();
+  await expect(promos.getByText("Give it a name your team will recognise").or(promos.getByText("Enter a percentage from 1 to 90"))).toBeVisible();
+  await promos.getByLabel("Name", { exact: true }).fill("Launch week");
+  await promos.getByLabel("Percent off (%)").fill("20");
+  await promos.getByRole("button", { name: "Create and switch on" }).click();
+  await expect(d.getByRole("status").filter({ hasText: "Launch week is on for this product" })).toBeVisible();
+  const launch = onProduct.getByRole("listitem").filter({ hasText: "Launch week" });
+  await expect(launch).toContainText("20% off");
+  await expect(launch).toContainText("Chosen for this product");
+  // It is the only product on it, so it cannot be removed from here.
+  await expect(launch).toContainText("Only product on it");
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+});
+
 test("a product with no options shows one price and SKU form, and the nav keeps a restricted role out", async ({ page }) => {
   await owner(page, "/admin/products?product=00000000-0000-4000-8000-000000002002&tab=variants");
   const d = drawer(page);
   await expect(d.getByRole("region", { name: "Price and SKU" })).toBeVisible();
   await expect(d.getByRole("textbox", { name: "SKU" })).toHaveValue("BONNET-1");
-  await expect(d.getByRole("button", { name: "+ Add another option (e.g. Parting, Hair origin)" })).toBeVisible();
+  await expect(d.getByRole("button", { name: "+ Add options like Length or Colour" })).toBeVisible();
 });

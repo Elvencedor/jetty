@@ -7,7 +7,7 @@ import type { DeliveryMethod, PaymentMethod, Quote } from "@/lib/api/types";
 import type { DeliveryDetails } from "@/lib/checkout/validation";
 import { formatEstimate, formatNaira, formatPhone, normaliseNigerianPhone } from "@/lib/format";
 
-const DELIVERY_LABEL: Record<DeliveryMethod, string> = { same_day: "Same-day delivery", next_day: "Next-day delivery", nationwide: "Nationwide delivery", pickup: "Showroom pickup" };
+const DELIVERY_LABEL: Record<DeliveryMethod, string> = { delivery: "Delivery", pickup: "Showroom pickup" };
 const PAYMENT_LABEL: Record<PaymentMethod, string> = { card: "Card", bank_transfer: "Bank transfer" };
 
 type Props = {

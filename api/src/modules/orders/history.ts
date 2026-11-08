@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, lt, or, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import { deliveries, orderItems, orderStatusEvents, orders, productMedia, products, reviews } from '../../db/schema/index.js';
-import { estimateFor } from '../delivery/zones.js';
+import { estimateFor, promisedDays } from '../delivery/zones.js';
 import { decodeCursor, encodeCursor } from '../../lib/cursor.js';
 import { notFound } from '../../lib/errors.js';
 
@@ -107,7 +107,7 @@ export async function getCustomerOrder(db: Db, customerId: string, orderId: stri
     contact: { phone: order.phoneE164, email: order.email },
     deliveryMethod: order.deliveryMethod,
     deliveryAddress: order.deliveryAddressSnapshot,
-    estimate: estimateFor(order.deliveryMethod, order.placedAt ?? order.createdAt),
+    estimate: estimateFor(order.deliveryMethod, order.placedAt ?? order.createdAt, promisedDays(order.deliveryAddressSnapshot)),
     /** Rider details, only while the order is out for delivery. */
     rider: delivery && (delivery.riderName || delivery.riderPhoneE164) ? { name: delivery.riderName, phone: delivery.riderPhoneE164, carrier: delivery.carrier, trackingReference: delivery.trackingReference } : null,
     items: items.map((i) => ({

@@ -1,10 +1,11 @@
 import type { DeliveryZone, PaymentMethodKey, StoreSettings, ZoneInput } from "@/lib/api/admin-settings";
 import { formatPhone } from "@/lib/format";
+import { minorToAmountText } from "./amount";
 import { parseNairaToMinor, riderPhoneToE164 } from "./orders";
 
 export const SETTINGS_SECTIONS = [
   { key: "store", label: "Store details", note: "Name, contact, showroom" },
-  { key: "delivery", label: "Delivery & pickup", note: "Zones, prices, cutoffs" },
+  { key: "delivery", label: "Delivery & pickup", note: "Zones, prices, delivery times" },
   { key: "payments", label: "Payments", note: "Methods and payment holds" },
   { key: "policies", label: "Returns & policies", note: "Return window" },
 ] as const;
@@ -88,18 +89,21 @@ export const returnWindowLabel = (days: number) => (days === 0 ? "No returns" : 
 
 // ------------------------------------------------------------------ zones
 
-export type ZoneForm = { name: string; state: string; areas: string; sameDayFee: string; nextDayFee: string; nationwideFee: string; cutoff: string; pickupEnabled: boolean };
-export type ZoneErrors = Partial<Record<"name" | "state" | "sameDayFee" | "nextDayFee" | "nationwideFee", string>>;
+export type ZoneForm = { name: string; scope: "state" | "nationwide"; state: string; states: string[]; areas: string; deliveryFee: string; minDays: string; maxDays: string; pickupEnabled: boolean };
+export type ZoneErrors = Partial<Record<"name" | "state" | "states" | "deliveryFee" | "minDays" | "maxDays", string>>;
 
-export const CUTOFFS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"] as const;
-export const cutoffLabel = (hhmm: string) => {
-  const hour = Number(hhmm.slice(0, 2));
-  return `${hour > 12 ? hour - 12 : hour}:${hhmm.slice(3)} ${hour >= 12 ? "pm" : "am"}`;
-};
+/** The longest a delivery time can be set to. */
+export const MAX_DELIVERY_DAYS = 60;
 
-const feeText = (minor: number | null) => (minor === null ? "" : String(minor / 100));
-export const emptyZone = (): ZoneForm => ({ name: "", state: "", areas: "", sameDayFee: "", nextDayFee: "", nationwideFee: "", cutoff: "", pickupEnabled: false });
-export const zoneToForm = (z: DeliveryZone): ZoneForm => ({ name: z.name, state: z.state, areas: z.areas.join("\n"), sameDayFee: feeText(z.sameDayFeeMinor), nextDayFee: feeText(z.nextDayFeeMinor), nationwideFee: feeText(z.nationwideFeeMinor), cutoff: z.sameDayCutoffLocal ?? "", pickupEnabled: z.pickupEnabled });
+const feeText = (minor: number | null) => (minor === null ? "" : minorToAmountText(minor));
+export const emptyZone = (): ZoneForm => ({ name: "", scope: "state", state: "", states: [], areas: "", deliveryFee: "", minDays: "1", maxDays: "3", pickupEnabled: false });
+export const zoneToForm = (z: DeliveryZone): ZoneForm => ({ name: z.name, scope: z.scope, state: z.state ?? "", states: [...z.states], areas: z.areas.join("\n"), deliveryFee: feeText(z.deliveryFeeMinor), minDays: String(z.deliveryMinDays), maxDays: String(z.deliveryMaxDays), pickupEnabled: z.pickupEnabled });
+
+/** "2 to 4 days", "Next day", "Same day" or "3 days": how long delivery takes, as the owner set it. */
+export function deliveryDaysLabel(min: number, max: number): string {
+  if (min === max) return min === 0 ? "Same day" : min === 1 ? "Next day" : `${min} days`;
+  return `${min} to ${max} days`;
+}
 
 /** Areas typed one per line or separated by commas. */
 export const parseAreas = (text: string) => {
@@ -107,16 +111,28 @@ export const parseAreas = (text: string) => {
   return text.split(/[\n,]/).map((a) => a.trim()).filter((a) => a && !seen.has(a.toLowerCase()) && seen.add(a.toLowerCase()));
 };
 
-/** A blank fee means "not offered"; zero means free. */
+/** A blank fee means "delivery is not offered"; zero means free. */
 const feeMinor = (text: string): number | null | "bad" => (text.trim() === "" ? null : (parseNairaToMinor(text) ?? "bad"));
+
+/** Whole days between 0 and the limit, or undefined when the text is not that. */
+const wholeDays = (text: string): number | undefined => {
+  const t = text.trim();
+  if (!/^\d{1,2}$/.test(t)) return undefined;
+  const n = Number(t);
+  return n <= MAX_DELIVERY_DAYS ? n : undefined;
+};
 
 export function validateZone(f: ZoneForm): ZoneErrors {
   const errors: ZoneErrors = {};
   if (!f.name.trim()) errors.name = "Name the zone, like Lagos Mainland";
-  if (!f.state.trim()) errors.state = "Enter the state";
-  for (const [key, text] of [["sameDayFee", f.sameDayFee], ["nextDayFee", f.nextDayFee], ["nationwideFee", f.nationwideFee]] as const) {
-    if (feeMinor(text) === "bad") errors[key] = "Enter an amount like 3,500, or leave blank to not offer it";
-  }
+  if (f.scope === "state" && !f.state.trim()) errors.state = "Choose the state";
+  if (f.scope === "nationwide" && f.states.length === 0) errors.states = "Pick at least one state";
+  if (feeMinor(f.deliveryFee) === "bad") errors.deliveryFee = "Enter an amount like 3,500, or leave blank for pickup only";
+  const min = wholeDays(f.minDays);
+  const max = wholeDays(f.maxDays);
+  if (min === undefined) errors.minDays = `A whole number of days, 0 to ${MAX_DELIVERY_DAYS}`;
+  if (max === undefined) errors.maxDays = `A whole number of days, 0 to ${MAX_DELIVERY_DAYS}`;
+  else if (min !== undefined && max < min) errors.maxDays = "Can't be shorter than the fastest time";
   return errors;
 }
 
@@ -124,23 +140,28 @@ export function zoneToInput(f: ZoneForm, id?: string): ZoneInput {
   return {
     ...(id ? { id } : {}),
     name: f.name.trim(),
-    state: f.state.trim(),
-    areas: parseAreas(f.areas),
-    sameDayFeeMinor: feeMinor(f.sameDayFee) as number | null,
-    nextDayFeeMinor: feeMinor(f.nextDayFee) as number | null,
-    nationwideFeeMinor: feeMinor(f.nationwideFee) as number | null,
-    sameDayCutoffLocal: f.cutoff || null,
+    scope: f.scope,
+    state: f.scope === "state" ? f.state.trim() : null,
+    states: f.scope === "nationwide" ? f.states : [],
+    areas: f.scope === "state" ? parseAreas(f.areas) : [],
+    deliveryFeeMinor: feeMinor(f.deliveryFee) as number | null,
+    deliveryMinDays: wholeDays(f.minDays) ?? 1,
+    deliveryMaxDays: wholeDays(f.maxDays) ?? 3,
     pickupEnabled: f.pickupEnabled,
   };
+}
+
+/** Where a zone delivers, for its card: "Lagos · whole state", "Rivers · Port Harcourt" or "Nationwide · 5 states". */
+export function zoneCoverage(z: DeliveryZone): string {
+  if (z.scope === "nationwide") return `Nationwide · ${z.states.length} ${z.states.length === 1 ? "state" : "states"}`;
+  return `${z.state ?? ""}${z.areas.length ? ` · ${z.areas.join(", ")}` : " · whole state"}`;
 }
 
 /** The options a zone offers, for its card. */
 export function zoneOptions(z: DeliveryZone, format: (minor: number) => string): { name: string; note: string; price: string }[] {
   const price = (m: number) => (m === 0 ? "Free" : format(m));
   return [
-    ...(z.sameDayFeeMinor !== null ? [{ name: "Same-day", note: z.sameDayCutoffLocal ? `Order before ${cutoffLabel(z.sameDayCutoffLocal)}` : "Same day", price: price(z.sameDayFeeMinor) }] : []),
-    ...(z.nextDayFeeMinor !== null ? [{ name: "Next day", note: "Arrives the next day", price: price(z.nextDayFeeMinor) }] : []),
-    ...(z.nationwideFeeMinor !== null ? [{ name: "Nationwide", note: "Courier delivery", price: price(z.nationwideFeeMinor) }] : []),
+    ...(z.deliveryFeeMinor !== null ? [{ name: "Delivery", note: deliveryDaysLabel(z.deliveryMinDays, z.deliveryMaxDays), price: price(z.deliveryFeeMinor) }] : []),
     ...(z.pickupEnabled ? [{ name: "Pickup", note: "From the showroom", price: "Free" }] : []),
   ];
 }

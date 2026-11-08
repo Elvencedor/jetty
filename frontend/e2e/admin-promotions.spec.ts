@@ -38,22 +38,24 @@ test("the page shows what is running, a calendar, and switches promotions on and
   expect(results.violations).toEqual([]);
 });
 
-test("a promotion is built in four steps, read back in words, previewed, and scheduled", async ({ page }) => {
+test("a promotion is built on one page: pick a kind, then fill in only what it needs, read back in words, previewed, and scheduled", async ({ page }) => {
   await signIn(page, "/admin/promotions/new");
-  const steps = page.getByRole("list", { name: "Steps" });
-  await expect(steps.getByRole("button", { name: /1 Type/ })).toHaveAttribute("aria-current", "step");
-  await expect(page.getByRole("heading", { level: 2, name: "Type" })).toBeFocused();
-  await expect(page.getByRole("radio", { name: /Percentage off/ })).toHaveAttribute("aria-checked", "true");
-  await page.getByRole("button", { name: "Next" }).click();
+  // Nothing is chosen to begin with, and nothing below the kinds is shown until one is.
+  await expect(page.getByRole("radio", { checked: true })).toHaveCount(0);
+  await expect(page.getByText("Choose a kind of promotion above to continue.")).toBeVisible();
+  await expect(page.getByLabel("Name", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save as draft" })).toHaveCount(0);
 
-  await expect(page.getByRole("heading", { level: 2, name: "Rule" })).toBeFocused();
+  await page.getByRole("radio", { name: /Percentage off/ }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Set up the percentage off" })).toBeFocused();
+  await expect(page.getByRole("heading", { level: 2, name: "Who can get it, and limits" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "When it runs" })).toBeVisible();
   await page.getByLabel("Name", { exact: true }).fill("Flash sale: frontals");
   await page.getByLabel("Percent off").fill("95");
-  await page.getByRole("button", { name: "Next" }).click();
-  await page.getByRole("button", { name: "Next" }).click();
   await page.getByRole("button", { name: "Save as draft" }).click();
   await expect(page.getByText("Enter a percentage from 1 to 90")).toBeVisible();
-  await expect(steps.getByRole("button", { name: /2 Rule/ })).toHaveAttribute("aria-current", "step");
+  // A mistake takes you to the part of the page it is in.
+  await expect(page.getByRole("heading", { level: 2, name: "Set up the percentage off" })).toBeFocused();
 
   await page.getByLabel("Percent off").fill("15");
   await choose(page.getByLabel("Which products"), "chosen collections");
@@ -71,9 +73,7 @@ test("a promotion is built in four steps, read back in words, previewed, and sch
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
 
-  await page.getByRole("button", { name: "Next" }).click();
   await page.getByLabel("Minimum spend (₦)").fill("50,000");
-  await page.getByRole("button", { name: "Next" }).click();
   await expect(page.getByRole("button", { name: "Start now" })).toBeVisible();
   await page.getByLabel(/^Starts/).fill("2099-01-05T00:00");
   await page.getByLabel(/^Ends/).fill("2099-01-04T00:00");
@@ -89,7 +89,7 @@ test("a promotion is built in four steps, read back in words, previewed, and sch
 
 test("a discount can be for chosen products and a free delivery for chosen zones, read back in words", async ({ page }) => {
   await signIn(page, "/admin/promotions/new");
-  await page.getByRole("button", { name: "Next" }).click();
+  await page.getByRole("radio", { name: /Percentage off/ }).click();
   await page.getByLabel("Name", { exact: true }).fill("Frontal week");
   await choose(page.getByLabel("Which products"), "chosen products");
   await page.getByRole("button", { name: "Add Bone Straight HD Frontal" }).click();
@@ -100,13 +100,10 @@ test("a discount can be for chosen products and a free delivery for chosen zones
   await page.getByRole("complementary", { name: "Preview" }).getByText("10% off on Bone Straight HD Frontal").waitFor();
 
   // Free delivery has zones instead of products.
-  await page.getByRole("button", { name: /1 Type/ }).click();
+  await page.getByRole("button", { name: "Change type" }).click();
   await page.getByRole("radio", { name: /Free delivery/ }).click();
-  await page.getByRole("button", { name: /2 Rule/ }).click();
   await expect(page.getByRole("status").filter({ hasText: "Delivery is free on the order." })).toBeVisible();
   await page.getByRole("button", { name: "Only some zones" }).click();
-  await page.getByRole("button", { name: "Next" }).click();
-  await page.getByRole("button", { name: /2 Rule/ }).click();
   await page.getByRole("button", { name: "Abuja" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Delivery is free to Abuja." })).toBeVisible();
   await expect(page.getByRole("complementary", { name: "Preview" }).getByText("Free delivery to Abuja")).toBeVisible();
@@ -115,7 +112,6 @@ test("a discount can be for chosen products and a free delivery for chosen zones
 test("a free gift is chosen product then variant, read back in words, and previewed as free", async ({ page }) => {
   await signIn(page, "/admin/promotions/new");
   await page.getByRole("radio", { name: /Free gift/ }).click();
-  await page.getByRole("button", { name: "Next" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Free bonnet");
   await page.getByRole("button", { name: "Choose Bone Straight HD Frontal" }).click();
   await page.getByRole("button", { name: /^Give this/ }).first().click();
@@ -127,8 +123,6 @@ test("a free gift is chosen product then variant, read back in words, and previe
   await expect(preview.getByText(/Free gift: Bone Straight HD Frontal/)).toBeVisible();
   await expect(preview.getByText("Free", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Next" }).click();
-  await page.getByRole("button", { name: "Next" }).click();
   await page.getByRole("button", { name: "Save as draft" }).click();
   await expect(page).toHaveURL(/\/admin\/promotions$/);
   await expect(page.getByRole("region", { name: "All promotions" }).getByText("Free bonnet")).toBeVisible();
@@ -138,11 +132,10 @@ test("a live, redeemed promotion warns that edits apply at once, keeps its type,
   await signIn(page, `/admin/promotions/${BOGO}`);
   await expect(page.getByRole("heading", { level: 1, name: "BOGO · Bob wigs" })).toBeVisible();
   await expect(page.getByText("Changes apply to new baskets immediately.")).toBeVisible();
-  await page.getByRole("button", { name: /1 Type/ }).click();
-  await expect(page.getByRole("radio", { name: /Percentage off/ })).toBeDisabled();
-  await expect(page.getByText(/has been used, so its type can't change/)).toBeVisible();
+  // Used promotions keep their kind: it is shown, with no way to change it.
+  await expect(page.getByRole("button", { name: "Change type" })).toHaveCount(0);
+  await expect(page.getByText(/Used already, so the kind can't change/)).toBeVisible();
 
-  await page.getByRole("button", { name: /2 Rule/ }).click();
   await page.getByLabel("How many free").fill("2");
   await expect(page.getByRole("status").filter({ hasText: "Buy 1 from all products, get 2 free" })).toBeVisible();
   await page.getByRole("button", { name: "Save changes" }).click();

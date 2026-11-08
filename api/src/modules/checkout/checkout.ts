@@ -98,9 +98,9 @@ export async function checkout(
   const zone = await resolveZone(db, input.deliveryAddress);
   if (!zone) throw unprocessable('DELIVERY_UNAVAILABLE', 'We do not deliver to this location yet.');
   const option = deliveryOptions(zone, now).find((o) => o.method === input.deliveryMethod);
-  if (!option || !option.available) {
+  if (!option) {
     throw unprocessable('DELIVERY_METHOD_UNAVAILABLE', 'That delivery method is not available for this location right now.', [
-      { method: input.deliveryMethod, reason: option?.reason ?? 'NOT_OFFERED' },
+      { method: input.deliveryMethod, reason: 'NOT_OFFERED' },
     ]);
   }
 
@@ -166,7 +166,8 @@ export async function checkout(
           deliveryFeeMinor,
           taxMinor,
           totalMinor,
-          deliveryAddressSnapshot: { ...input.deliveryAddress, zoneId: zone.id, zoneName: zone.name },
+          // The zone's promised duration is kept with the order, so a later change to the zone never moves this order's window.
+          deliveryAddressSnapshot: { ...input.deliveryAddress, zoneId: zone.id, zoneName: zone.name, ...(option.method === 'delivery' ? { deliveryMinDays: zone.deliveryMinDays, deliveryMaxDays: zone.deliveryMaxDays } : {}) },
           deliveryMethod: input.deliveryMethod,
           appliedPromotions,
           termsAcceptedAt: now,

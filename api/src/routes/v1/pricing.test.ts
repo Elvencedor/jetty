@@ -57,12 +57,17 @@ describe('pricing and delivery quotes', { skip: !TEST_DATABASE_URL && 'TEST_DATA
 
     const [zone] = await t.db
       .insert(deliveryZones)
-      .values({ name: 'Lagos Mainland & Island', state: 'Lagos', sameDayCutoffLocal: '23:59', sameDayFeeMinor: 300000, nextDayFeeMinor: 200000, pickupEnabled: true })
+      .values({ name: 'Lagos Mainland & Island', state: 'Lagos', deliveryFeeMinor: 300000, deliveryMinDays: 1, deliveryMaxDays: 2, pickupEnabled: true })
       .returning();
     lagosZone = zone!.id;
-    await t.db.insert(deliveryZones).values({ name: 'Lagos Island', state: 'Lagos', areas: ['Lekki', 'Victoria Island'], nextDayFeeMinor: 250000 });
-    await t.db.insert(deliveryZones).values({ name: 'Abuja', state: 'FCT', nationwideFeeMinor: 600000 });
-    await t.db.insert(deliveryZones).values({ name: 'Inactive', state: 'Oyo', nextDayFeeMinor: 1, active: false });
+    await t.db.insert(deliveryZones).values({ name: 'Lagos Island', state: 'Lagos', areas: ['Lekki', 'Victoria Island'], deliveryFeeMinor: 250000 });
+    await t.db.insert(deliveryZones).values({ name: 'Abuja', state: 'FCT', deliveryFeeMinor: 600000, deliveryMinDays: 2, deliveryMaxDays: 4 });
+    await t.db.insert(deliveryZones).values({ name: 'Inactive', state: 'Oyo', deliveryFeeMinor: 1, active: false });
+    // A nationwide zone covers the listed states. Lagos and the FCT also have zones of their own, and Rivers has one for
+    // Port Harcourt only: in each case the state zone must win where it applies.
+    await t.db.insert(deliveryZones).values({ name: 'Nationwide', scope: 'nationwide', state: null, states: ['Kaduna', 'Enugu', 'FCT', 'Lagos', 'Rivers'], deliveryFeeMinor: 700000, deliveryMinDays: 2, deliveryMaxDays: 4 });
+    await t.db.insert(deliveryZones).values({ name: 'Port Harcourt', state: 'Rivers', areas: ['Port Harcourt'], deliveryFeeMinor: 450000 });
+    await t.db.insert(deliveryZones).values({ name: 'Old nationwide', scope: 'nationwide', state: null, states: ['Kwara'], deliveryFeeMinor: 1, active: false });
 
     const promo = async (name: string, kind: 'percentage' | 'fixed_amount' | 'buy_x_get_y' | 'free_delivery', configuration: object, extra: Partial<typeof promotions.$inferInsert> = {}) =>
       (await t.db.insert(promotions).values({ name, kind, configuration, status: 'active', ...extra }).returning())[0]!;
@@ -171,19 +176,19 @@ describe('pricing and delivery quotes', { skip: !TEST_DATABASE_URL && 'TEST_DATA
     const { status, body } = await post('/api/v1/pricing/quote', {
       items: [{ variantId: v.scarce, quantity: 1 }],
       deliveryAddress: { state: 'lagos', area: 'Ikeja' },
-      deliveryMethod: 'next_day',
+      deliveryMethod: 'delivery',
     });
     assert.equal(status, 200);
     assert.equal(body.delivery.zoneName, 'Lagos Mainland & Island');
-    assert.equal(body.deliveryFeeMinor, 200000);
-    assert.equal(body.totalMinor, body.subtotalMinor - body.discountMinor + 200000);
+    assert.equal(body.deliveryFeeMinor, 300000);
+    assert.equal(body.totalMinor, body.subtotalMinor - body.discountMinor + 300000);
   });
 
   it('prefers the zone that lists the destination area over the state-wide zone', async () => {
     const { body } = await post('/api/v1/pricing/quote', {
       items: [{ variantId: v.scarce, quantity: 1 }],
       deliveryAddress: { state: 'Lagos', area: ' lekki ' },
-      deliveryMethod: 'next_day',
+      deliveryMethod: 'delivery',
     });
     assert.equal(body.delivery.zoneName, 'Lagos Island');
     assert.equal(body.deliveryFeeMinor, 250000);
@@ -194,7 +199,7 @@ describe('pricing and delivery quotes', { skip: !TEST_DATABASE_URL && 'TEST_DATA
       items: [{ variantId: v.wig, quantity: 3 }],
       promotionCodes: ['FREESHIP'],
       deliveryAddress: { state: 'Lagos', area: 'Ikeja' },
-      deliveryMethod: 'same_day',
+      deliveryMethod: 'delivery',
     });
     assert.equal(big.body.deliveryFeeMinor, 0);
     assert.equal(big.body.delivery.baseFeeMinor, 300000);
@@ -204,21 +209,21 @@ describe('pricing and delivery quotes', { skip: !TEST_DATABASE_URL && 'TEST_DATA
       items: [{ variantId: v.scarce, quantity: 1 }],
       promotionCodes: ['FREESHIP'],
       deliveryAddress: { state: 'Lagos', area: 'Ikeja' },
-      deliveryMethod: 'same_day',
+      deliveryMethod: 'delivery',
     });
     assert.equal(small.body.deliveryFeeMinor, 300000);
   });
 
   it('422s unserviceable destinations and unoffered methods', async () => {
     const items = [{ variantId: v.scarce, quantity: 1 }];
-    const unknown = await post('/api/v1/pricing/quote', { items, deliveryAddress: { state: 'Kano' }, deliveryMethod: 'next_day' });
+    const unknown = await post('/api/v1/pricing/quote', { items, deliveryAddress: { state: 'Kano' }, deliveryMethod: 'delivery' });
     assert.equal(unknown.body.error.code, 'DELIVERY_UNAVAILABLE');
-    const inactive = await post('/api/v1/pricing/quote', { items, deliveryAddress: { state: 'Oyo' }, deliveryMethod: 'next_day' });
+    const inactive = await post('/api/v1/pricing/quote', { items, deliveryAddress: { state: 'Oyo' }, deliveryMethod: 'delivery' });
     assert.equal(inactive.body.error.code, 'DELIVERY_UNAVAILABLE');
-    const method = await post('/api/v1/pricing/quote', { items, deliveryAddress: { state: 'FCT' }, deliveryMethod: 'same_day' });
+    const method = await post('/api/v1/pricing/quote', { items, deliveryAddress: { state: 'FCT' }, deliveryMethod: 'pickup' });
     assert.equal(method.status, 422);
     assert.equal(method.body.error.code, 'DELIVERY_METHOD_UNAVAILABLE');
-    assert.equal((await post('/api/v1/pricing/quote', { items, deliveryMethod: 'next_day' })).status, 422);
+    assert.equal((await post('/api/v1/pricing/quote', { items, deliveryMethod: 'delivery' })).status, 422);
   });
 
   it('returns delivery options with fees, estimates and free-delivery pricing', async () => {
@@ -230,11 +235,42 @@ describe('pricing and delivery quotes', { skip: !TEST_DATABASE_URL && 'TEST_DATA
     assert.equal(status, 200);
     assert.equal(body.zone.id, lagosZone);
     const by = Object.fromEntries(body.options.map((o: Json) => [o.method, o]));
-    assert.deepEqual(Object.keys(by).sort(), ['next_day', 'pickup', 'same_day']);
-    assert.equal(by.same_day.baseFeeMinor, 300000);
-    assert.equal(by.same_day.feeMinor, 0);
+    assert.deepEqual(Object.keys(by).sort(), ['delivery', 'pickup']);
+    assert.equal(by.delivery.baseFeeMinor, 300000);
+    assert.equal(by.delivery.feeMinor, 0);
     assert.equal(by.pickup.estimate, null);
-    assert.match(by.next_day.estimate.earliestDate, /^\d{4}-\d{2}-\d{2}$/);
+    assert.match(by.delivery.estimate.earliestDate, /^\d{4}-\d{2}-\d{2}$/);
+    // The zone says 1 to 2 days, so the window is one day wide.
+    const day = 86_400_000;
+    assert.equal((Date.parse(by.delivery.estimate.latestDate) - Date.parse(by.delivery.estimate.earliestDate)) / day, 1);
+  });
+
+  it('prices a state from the nationwide zone that lists it', async () => {
+    const quoted = (address: Json) => post('/api/v1/delivery/quotes', { items: [{ variantId: v.scarce, quantity: 1 }], deliveryAddress: address });
+    const kaduna = await quoted({ state: 'Kaduna' });
+    assert.equal(kaduna.status, 200);
+    assert.equal(kaduna.body.zone.name, 'Nationwide');
+    assert.equal(kaduna.body.zone.scope, 'nationwide');
+    const delivery = kaduna.body.options.find((o: Json) => o.method === 'delivery');
+    assert.equal(delivery.baseFeeMinor, 700000);
+    assert.equal((Date.parse(delivery.estimate.latestDate) - Date.parse(delivery.estimate.earliestDate)) / 86_400_000, 2, 'the nationwide zone says 2 to 4 days');
+    // The checkout quote uses the same zone.
+    const checkout = await post('/api/v1/pricing/quote', { items: [{ variantId: v.scarce, quantity: 1 }], deliveryAddress: { state: 'enugu' }, deliveryMethod: 'delivery' });
+    assert.equal(checkout.body.deliveryFeeMinor, 700000);
+  });
+
+  it('a state zone always beats the nationwide zone for its own state', async () => {
+    const quoted = async (address: Json) => (await post('/api/v1/delivery/quotes', { items: [{ variantId: v.scarce, quantity: 1 }], deliveryAddress: address })).body.zone.name;
+    assert.equal(await quoted({ state: 'FCT' }), 'Abuja', 'FCT is listed in the nationwide zone but has its own');
+    assert.equal(await quoted({ state: 'Lagos', area: 'Ikeja' }), 'Lagos Mainland & Island');
+    assert.equal(await quoted({ state: 'Rivers', area: 'Port Harcourt' }), 'Port Harcourt', 'the area zone wins in its area');
+    assert.equal(await quoted({ state: 'Rivers', area: 'Bonny' }), 'Nationwide', 'other areas of the state fall back to the nationwide zone');
+    assert.equal(await quoted({ state: 'Rivers' }), 'Nationwide');
+  });
+
+  it('does not serve states from a retired nationwide zone', async () => {
+    const res = await post('/api/v1/delivery/quotes', { items: [{ variantId: v.scarce, quantity: 1 }], deliveryAddress: { state: 'Kwara' } });
+    assert.equal(res.body.error.code, 'DELIVERY_UNAVAILABLE');
   });
 
   it('delivery quotes validate the cart and destination', async () => {

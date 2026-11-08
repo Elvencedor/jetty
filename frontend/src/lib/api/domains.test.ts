@@ -88,7 +88,7 @@ describe("pricing and checkout", () => {
       promotionCodes: [],
       contact: { phone: "+2348031234567" },
       deliveryAddress: { recipientName: "Ada", addressLine1: "1 St", city: "Lagos", state: "Lagos", countryCode: "NG" },
-      deliveryMethod: "next_day",
+      deliveryMethod: "delivery",
       paymentMethod: "card",
       termsAccepted: true,
     };

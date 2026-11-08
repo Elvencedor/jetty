@@ -34,7 +34,7 @@ describe('order and quote contract for the storefront', { skip: !TEST_DATABASE_U
   const place = async (over: Json = {}, headers: Record<string, string> = {}) => {
     const res = await api.inject({
       method: 'POST', url: '/api/v1/checkout',
-      payload: { items: [{ variantId: variant, quantity: 2 }], promotionCodes: [], contact: { phone: phone() }, deliveryAddress: { recipientName: 'Ada Obi', addressLine1: '1 St', city: 'Lagos', state: 'Lagos', countryCode: 'NG' }, deliveryMethod: 'next_day', paymentMethod: 'card', termsAccepted: true, ...over },
+      payload: { items: [{ variantId: variant, quantity: 2 }], promotionCodes: [], contact: { phone: phone() }, deliveryAddress: { recipientName: 'Ada Obi', addressLine1: '1 St', city: 'Lagos', state: 'Lagos', countryCode: 'NG' }, deliveryMethod: 'delivery', paymentMethod: 'card', termsAccepted: true, ...over },
       headers: { 'idempotency-key': KEY(`oc-${++n}`), ...headers },
     });
     assert.equal(res.statusCode, 201, JSON.stringify(res.result));
@@ -61,7 +61,7 @@ describe('order and quote contract for the storefront', { skip: !TEST_DATABASE_U
       variants: [{ sku: 'OC-1', pick: { Length: '14', Colour: 'black' }, price: 100000, compareAt: 125000, stock: 50 }],
     });
     variant = product.variantIds['OC-1']!;
-    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', nextDayFeeMinor: 150000, pickupEnabled: true });
+    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', deliveryFeeMinor: 150000, deliveryMinDays: 1, deliveryMaxDays: 3, pickupEnabled: true });
   });
   after(async () => {
     await api?.stop();
@@ -89,7 +89,7 @@ describe('order and quote contract for the storefront', { skip: !TEST_DATABASE_U
     });
 
     it('also come back on the checkout response, and on an idempotent replay of it', async () => {
-      const payload = { items: [{ variantId: variant, quantity: 1 }], promotionCodes: [], contact: { phone: phone() }, deliveryAddress: { recipientName: 'Ada Obi', addressLine1: '1 St', city: 'Lagos', state: 'Lagos', countryCode: 'NG' }, deliveryMethod: 'next_day', paymentMethod: 'card', termsAccepted: true };
+      const payload = { items: [{ variantId: variant, quantity: 1 }], promotionCodes: [], contact: { phone: phone() }, deliveryAddress: { recipientName: 'Ada Obi', addressLine1: '1 St', city: 'Lagos', state: 'Lagos', countryCode: 'NG' }, deliveryMethod: 'delivery', paymentMethod: 'card', termsAccepted: true };
       const send = () => api.inject({ method: 'POST', url: '/api/v1/checkout', payload, headers: { 'idempotency-key': KEY('replay-lines') } });
       const [first, replay] = [await send(), await send()];
       for (const res of [first, replay]) {
@@ -107,8 +107,9 @@ describe('order and quote contract for the storefront', { skip: !TEST_DATABASE_U
       const { res, body } = await place({ items: [{ variantId: variant, quantity: 3 }] });
       const cookie = /jh_checkout=([^;]+)/.exec(String(res.headers['set-cookie']))![1];
       const status = (await api.inject({ url: `/api/v1/checkout/${body.orderId}/status`, headers: { cookie: `jh_checkout=${cookie}` } })).result as Json;
-      assert.equal(status.deliveryMethod, 'next_day');
-      assert.deepEqual(status.estimate, { earliestDate: lagosDate(1), latestDate: lagosDate(1) });
+      assert.equal(status.deliveryMethod, 'delivery');
+      // The zone promised 1 to 3 days when the order was placed.
+      assert.deepEqual(status.estimate, { earliestDate: lagosDate(1), latestDate: lagosDate(3) });
       assert.equal(status.itemCount, 3);
       assert.equal(status.recipientFirstName, 'Ada');
       assert.ok(!JSON.stringify(status).includes('+234') && !JSON.stringify(status).includes('1 St'));

@@ -1,6 +1,6 @@
 /**
  * Info pages every shop needs, written from policies the design already states (7-day returns, unworn with the lace
- * uncut, same-day Lagos delivery, 2-4 days elsewhere, the cap measurements). Plain statements only: nothing here
+ * uncut, the cap measurements). Plain statements only: nothing here
  * promises a fee, a deadline or a legal position the owner has not set.
  *
  * Terms and privacy are legal text, so they are seeded as **drafts**: they stay unpublished until the owner has
@@ -37,8 +37,7 @@ If an item arrives damaged or is not what you ordered, message us as soon as you
     status: 'published',
     markdown: `## How delivery works
 
-- **Lagos:** same-day delivery for orders placed before the daily cut-off, otherwise next day.
-- **Other states:** usually 2 to 4 working days.
+- **Delivery:** the fee and how long it takes depend on your state, and are shown at checkout.
 - **Showroom pickup:** collect your order from us when it is ready.
 
 The delivery options, fees and estimated dates for your address are shown at checkout before you pay.

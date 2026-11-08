@@ -49,7 +49,7 @@ describe('storefront content, suggestions, reviews and bank transfer', { skip: !
     await addProduct('silky-bob', 'Silky Straight Bob');
     await addProduct('body-wave', 'Body Wave Frontal', { featured: true });
     await addProduct('hidden-draft', 'Silky Draft', { status: 'draft' });
-    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', nextDayFeeMinor: 150000 });
+    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', deliveryFeeMinor: 150000 });
   });
   after(async () => {
     await api?.stop();
@@ -107,7 +107,7 @@ describe('storefront content, suggestions, reviews and bank transfer', { skip: !
         .insert(orders)
         .values({
           orderNumber: `JH-T-${++n}`, customerId, phoneE164: '+2348000000000', subtotalMinor: 100000, totalMinor: 100000,
-          deliveryAddressSnapshot: {}, deliveryMethod: 'next_day', termsAcceptedAt: new Date(), status: 'delivered', paymentStatus: 'paid', ...over,
+          deliveryAddressSnapshot: {}, deliveryMethod: 'delivery', termsAcceptedAt: new Date(), status: 'delivered', paymentStatus: 'paid', ...over,
         })
         .returning();
       const [item] = await t.db
@@ -178,7 +178,7 @@ describe('storefront content, suggestions, reviews and bank transfer', { skip: !
         promotionCodes: [],
         contact: { phone },
         deliveryAddress: { recipientName: 'Buyer', addressLine1: '1 Street', city: 'Lagos', state: 'Lagos', countryCode: 'NG' },
-        deliveryMethod: 'next_day',
+        deliveryMethod: 'delivery',
         paymentMethod: 'bank_transfer',
         termsAccepted: true,
       };

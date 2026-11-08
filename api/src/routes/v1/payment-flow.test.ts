@@ -50,7 +50,7 @@ describe('payment confirmation, retry and webhook', { skip: !TEST_DATABASE_URL &
     promotionCodes: ['WELCOME'],
     contact: { email: 'buyer@example.com', phone: '+2348012345678' },
     deliveryAddress: address,
-    deliveryMethod: 'next_day',
+    deliveryMethod: 'delivery',
     paymentMethod: 'card',
     termsAccepted: true,
     ...over,
@@ -113,7 +113,7 @@ describe('payment confirmation, retry and webhook', { skip: !TEST_DATABASE_URL &
 
     await variant('wig', 100000, 1000);
     await variant('limited', 100000, 1000);
-    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', nextDayFeeMinor: 150000 });
+    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', deliveryFeeMinor: 150000 });
     const [promo] = await t.db.insert(promotions).values({ name: 'Welcome', kind: 'fixed_amount', configuration: { version: 1, amountMinor: 20000 }, status: 'active' }).returning();
     welcomeId = promo!.id;
     const [code] = await t.db.insert(promotionCodes).values({ promotionId: promo!.id, code: 'WELCOME' }).returning();
@@ -300,7 +300,7 @@ describe('payment confirmation, retry and webhook', { skip: !TEST_DATABASE_URL &
         promotionCodes: ['RACE'],
         contact: { email: 'race@example.com', phone: '+2348012345678' },
         deliveryAddress: address,
-        deliveryMethod: 'next_day',
+        deliveryMethod: 'delivery',
         paymentMethod: 'card',
       };
       const results = await Promise.allSettled(Array.from({ length: 8 }, () => checkout(t.db, provider, input, { emailDomain: 'noemail.test' })));
@@ -340,7 +340,7 @@ describe('payment confirmation, retry and webhook', { skip: !TEST_DATABASE_URL &
         promotionCodes: ['ONCEEACH'],
         contact: { email: 'member@example.com', phone: '+2348012345678' },
         deliveryAddress: address,
-        deliveryMethod: 'next_day',
+        deliveryMethod: 'delivery',
         paymentMethod: 'card',
       };
       const result = await checkout(t.db, provider, input, { customerId: customer!.id, emailDomain: 'noemail.test' });

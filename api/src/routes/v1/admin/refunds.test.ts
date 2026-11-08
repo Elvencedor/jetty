@@ -28,7 +28,7 @@ describe('admin refunds and double-payment handling', { skip: !TEST_DATABASE_URL
     const phone = `+23485${String(60_000_000 + ++phones)}`;
     const res = await api.inject({
       method: 'POST', url: '/api/v1/checkout',
-      payload: { items: [{ variantId, quantity: 1 }], promotionCodes: [], contact: { phone, ...(email ? { email } : {}) }, deliveryAddress: { recipientName: 'Ada', addressLine1: '1 St', city: 'Lagos', state: 'Lagos', countryCode: 'NG' }, deliveryMethod: 'next_day', paymentMethod, termsAccepted: true },
+      payload: { items: [{ variantId, quantity: 1 }], promotionCodes: [], contact: { phone, ...(email ? { email } : {}) }, deliveryAddress: { recipientName: 'Ada', addressLine1: '1 St', city: 'Lagos', state: 'Lagos', countryCode: 'NG' }, deliveryMethod: 'delivery', paymentMethod, termsAccepted: true },
       headers: { 'idempotency-key': unique() },
     });
     assert.equal(res.statusCode, 201, JSON.stringify(res.result));
@@ -53,7 +53,7 @@ describe('admin refunds and double-payment handling', { skip: !TEST_DATABASE_URL
     const [v] = await t.db.insert(productVariants).values({ productId: p!.id, sku: 'RF-1', optionSignature: {}, priceMinor: 100000 }).returning();
     await t.db.insert(inventory).values({ variantId: v!.id, onHandQuantity: 500 });
     variantId = v!.id;
-    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', nextDayFeeMinor: 150000 });
+    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', deliveryFeeMinor: 150000 });
   });
   after(async () => {
     await api?.stop();

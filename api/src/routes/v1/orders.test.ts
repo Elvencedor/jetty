@@ -42,7 +42,7 @@ describe('order history, tracking, optional email and rate limits', { skip: (!TE
     promotionCodes: [],
     contact: { phone },
     deliveryAddress: { recipientName: 'Buyer', addressLine1: '12 Example Street', city: 'Lagos', state: 'Lagos', countryCode: 'NG' },
-    deliveryMethod: 'next_day',
+    deliveryMethod: 'delivery',
     paymentMethod: 'card',
     termsAccepted: true,
     ...over,
@@ -77,7 +77,7 @@ describe('order history, tracking, optional email and rate limits', { skip: (!TE
     const [pv] = await t.db.insert(productVariants).values({ productId: p!.id, sku: 'orders-wig', optionSignature: { length: '20' }, priceMinor: 100000 }).returning();
     await t.db.insert(inventory).values({ variantId: pv!.id, onHandQuantity: 500 });
     variantId = pv!.id;
-    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', nextDayFeeMinor: 150000 });
+    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', deliveryFeeMinor: 150000 });
   });
   after(async () => {
     await api?.stop();

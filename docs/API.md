@@ -104,6 +104,19 @@ another request has already updated the cart.
 | `POST /me/data-erasure` | Submit erasure request; preserve legally required financial/order records | P1 |
 | `POST /products/{productId}/stock-notifications` | Subscribe by email/phone for a selected unavailable variant | P1 |
 
+### Promotions on a product
+
+`GET /admin/products/{id}/promotions` lists the promotions that matter to a product (live, scheduled, switched-off and
+draft ones; not ended ones, and not free delivery, which has no product scope). Each has `relation`: `attached` (it names the
+product), `collection` (it reaches it through a collection), `all` (it applies to every product), `excluded` (the product is a
+named exception) or `available` (it is limited to chosen products or collections and does not include this one yet), and
+`removable` (the product can be taken off from the product side). `PUT /admin/products/{id}/promotions/{promotionId}` adds the
+product to a promotion limited to chosen products or collections (and lifts a named exception); a promotion for every product is
+refused with `422`, because adding one product would narrow it to that one, and an ended one with `409 PROMOTION_ENDED`.
+`DELETE` takes the product off a promotion that names it; it is refused with `409 PROMOTION_WOULD_WIDEN` when that would leave
+the promotion with nothing chosen, which means every product. Reading needs `promotions:read`, changing needs `promotions:write`,
+and each change is audited (`promotion.attach_product`, `promotion.detach_product`).
+
 ### Customer authentication (email and password)
 
 `POST /auth/register` (`email` and `password` of 8-128 characters required,
@@ -186,7 +199,7 @@ offending `variantId`s.
 
 | Method and path | Purpose / contract | Phase |
 |---|---|---|
-| `POST /delivery/quotes` | Resolve zone, method, price, ETA and same-day eligibility from destination and cart | P0 |
+| `POST /delivery/quotes` | Resolve zone, method, price and ETA from destination and cart | P0 |
 | `POST /checkout` | Accept client-submitted lines/contact/delivery/coupon/consent; recalculate; atomically create `pending_payment` order snapshot, payment attempt, and stock reservations; initialize Paystack; return order/payment references and Paystack action; set a guest checkout access-token cookie where needed | P0 |
 | `POST /checkout/{orderId}/payment-attempts` | Retry Paystack initialization only after the previous attempt is definitively failed/expired and while the order reservation remains valid; creates a new payment reference; idempotent | P0 |
 | `GET /checkout/{orderId}/status` | Return minimal payment/order status to owning customer or guest presenting the short-lived checkout access-token cookie | P0 |
@@ -201,12 +214,18 @@ Delivery fees are admin-configured per zone (`delivery_zones`), not computed
 from distance or a carrier. A zone matches on `state`; a zone that lists the
 destination `area` wins over a state-wide zone. `POST /delivery/quotes` takes
 `items`, optional `promotionCodes`, and `deliveryAddress`, and returns the
-resolved `zone` plus an `options` entry per configured method (`same_day`,
-`next_day`, `nationwide`, `pickup`) with `available` (`reason: "CUTOFF_PASSED"`
-after the zone's local same-day cutoff), `baseFeeMinor`, `feeMinor` (after any
-free-delivery promotion), and a local-date `estimate`. A destination with no
-active zone returns `422 DELIVERY_UNAVAILABLE`; a method the zone does not
-offer returns `422 DELIVERY_METHOD_UNAVAILABLE`.
+resolved `zone` (`id`, `name`, `scope`, `state`) plus an `options` entry per
+method the zone offers: `delivery` (the zone's one price and duration) and
+`pickup`. Each has `available`, `baseFeeMinor`, `feeMinor` (after any
+free-delivery promotion) and a local-date `estimate` (for `delivery`, the zone's
+`deliveryMinDays` to `deliveryMaxDays` counted from today in the zone's time zone).
+
+The zone is chosen most specific first: a state zone that lists the destination
+area, then the state-wide zone for the state, then the nationwide zone whose
+`states` include it. A state with a zone of its own is never priced by a
+nationwide zone. A destination with no active zone returns
+`422 DELIVERY_UNAVAILABLE`; a method the zone does not offer returns
+`422 DELIVERY_METHOD_UNAVAILABLE`.
 
 The client cart is not persisted by the API. At checkout submission, the API
 revalidates the cart and creates a durable `pending_payment` order snapshot
@@ -303,7 +322,7 @@ be regressed by a late failure event.
     "landmark": "Near the junction",
     "riderNote": "Call on arrival"
   },
-  "deliveryMethod": "same_day",
+  "deliveryMethod": "delivery",
   "paymentMethod": "card",
   "termsAccepted": true
 }
@@ -628,7 +647,7 @@ best seller, ties to the cheaper), `soldCount`, and `details` as exactly `{ deta
 `hero` (`cards` with `tag`, `headline`, `subheadline`, `tone`, `ctaLabel`, `ctaUrl`, `imageUrl`, `endsAt`), `flash`
 (`headline`, `code`, `endsAt`, `promotionId`; only while its promotion is live and has an end), `products` (`title` and
 `tabs` `featured`, `deal`, `care` of product cards), `length` (`items` with `lengths` in inches), `tiles` (up to three),
-`trust` (icons, titles, captions; returns and same-day entries appear only when configured). `quiz` and `ugc` are
+`trust` (icons, titles, captions; the returns entry appears only when configured). `quiz` and `ugc` are
 reserved and render nothing yet. Content types for admins: `announcement`, `banner`, `story`, `tile`, `flash`,
 `featured_products`, `page`, and `home_layout` (a singleton, slug `home`, `{ sections: [{ type, enabled }] }`; listed
 blocks show in that order, unlisted or disabled blocks are hidden, and with no layout every block shows in canonical order).

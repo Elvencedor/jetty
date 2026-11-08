@@ -15,7 +15,7 @@ import { cn } from "@/lib/cn";
 import { formatNaira } from "@/lib/format";
 import { useCartStore } from "@/lib/stores/cart";
 import { useIsSaved, useWishlistStore } from "@/lib/stores/wishlist";
-import { DeliveryEstimate, soonest, useDeliveryOptions } from "./DeliveryEstimate";
+import { DeliveryEstimate } from "./DeliveryEstimate";
 import { Gallery } from "./Gallery";
 import { OptionPicker } from "./OptionPicker";
 
@@ -73,8 +73,6 @@ export function ProductView({ product, children }: Props) {
   const range = priceRange(product.variants);
   const lineTotal = quantity === 1 ? unit : line?.lineTotalMinor;
 
-  const delivery = useDeliveryOptions(variant?.id, state);
-  const sameDay = delivery.data?.options.some((o) => o.method === "same_day" && o.available && o.estimate?.earliestDate === soonest(delivery.data?.options ?? [])?.estimate?.earliestDate);
   const salePct = unit !== undefined && compareAt && compareAt > unit ? Math.round(((compareAt - unit) * 100) / compareAt) : null;
   const cover = product.media.find((m) => m.variantId === variant?.id) ?? product.media[0] ?? null;
   const category = product.categories[0];
@@ -141,11 +139,10 @@ export function ProductView({ product, children }: Props) {
       </div>
 
       <div className="relative -mt-8 flex flex-col gap-4 rounded-t-[32px] bg-surface px-4 pb-8 pt-[22px] lg:col-start-2 lg:row-start-2 lg:mt-0 lg:rounded-none lg:px-0 lg:pt-0">
-        {salePct || quote?.promotions.applied.length || sameDay ? (
+        {salePct || quote?.promotions.applied.length ? (
           <div className="flex flex-wrap gap-1.5">
             {salePct ? <Badge kind="sale" className="px-2.5 py-1 text-caption">−{salePct}% today</Badge> : null}
             {quote?.promotions.applied.map((p) => <Badge key={p.promotionId} kind="eligible" className="px-2.5 py-1 text-caption">{p.name}</Badge>)}
-            {sameDay ? <Badge kind="eligible" className="px-2.5 py-1 text-caption">Same-day {state}</Badge> : null}
           </div>
         ) : null}
 

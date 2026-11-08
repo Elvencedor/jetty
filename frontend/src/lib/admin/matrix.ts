@@ -239,6 +239,25 @@ export function addOption(draft: MatrixDraft, name: string, first: { label: stri
   return { ok: true, draft: next };
 }
 
+/**
+ * A new option with all its values at once. The first value is added with the option (every variant you have already gets
+ * it); each further value then creates one variant for every mix of the other options, like adding it by hand would.
+ */
+export function addOptionWithValues(draft: MatrixDraft, name: string, labels: readonly string[], skuBase: string): Edit {
+  const [first, ...rest] = labels;
+  if (first === undefined) return { ok: false, reason: "Add at least one value." };
+  // Checked up front: adding the values one at a time would only find out after doing the work.
+  if (labels.length * Math.max(draft.variants.length, 1) > MAX_VARIANTS) {
+    return { ok: false, reason: `That would take this product past ${MAX_VARIANTS.toLocaleString("en-NG")} variants, the most one product can have.` };
+  }
+  let result = addOption(draft, name, { label: first });
+  for (const label of rest) {
+    if (!result.ok) break;
+    result = addValue(result.draft, name.trim(), { label, deltaMinor: 0 }, skuBase);
+  }
+  return result;
+}
+
 // ------------------------------------------------------------------------------------------------ variants
 
 export type VariantFilters = { values: Record<string, string>; lowOnly: boolean };
@@ -249,6 +268,31 @@ export function filterVariants(draft: MatrixDraft, filters: VariantFilters): Var
 }
 
 export type VariantGroup = { value: ValueDraft; all: VariantDraft[]; shown: VariantDraft[]; units: number; low: number };
+
+export type VariantBucket = { key: string; label: string; all: VariantDraft[]; shown: VariantDraft[]; units: number; low: number };
+
+/**
+ * Variants gathered under the values of any one option (or all in one bucket when `by` is null), each with its counts.
+ * `shown` are the ones that pass the filters and the search (a SKU or part of the name); `all` and the counts ignore them,
+ * so a group's header always tells the whole story.
+ */
+export function bucketVariants(draft: MatrixDraft, by: string | null, filters: VariantFilters & { search?: string }): VariantBucket[] {
+  const term = (filters.search ?? "").trim().toLowerCase();
+  const passing = new Set(
+    filterVariants(draft, filters).filter((v) => !term || v.sku.toLowerCase().includes(term) || variantName(draft, v).toLowerCase().includes(term)),
+  );
+  const make = (key: string, label: string, all: VariantDraft[]): VariantBucket => ({
+    key,
+    label,
+    all,
+    shown: all.filter((v) => passing.has(v)),
+    units: all.reduce((n, v) => n + v.onHand, 0),
+    low: all.filter((v) => stockLevel(v) !== "ok").length,
+  });
+  const option = by ? draft.options.find((o) => o.name === by) : undefined;
+  if (!option) return [make("all", "All variants", draft.variants)];
+  return option.values.map((value) => make(value.key, value.label, draft.variants.filter((v) => v.values[option.name] === value.key)));
+}
 
 /** Variants grouped under the first option's values (Length), each group with its counts. */
 export function groupVariants(draft: MatrixDraft, filters: VariantFilters): VariantGroup[] {

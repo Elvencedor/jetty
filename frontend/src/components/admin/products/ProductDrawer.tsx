@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button, Media, Segmented, Skeleton } from "@/components/ui";
 import { adminErrorMessage, isStaleRecord } from "@/lib/admin/concurrency";
@@ -11,7 +12,7 @@ import { useUrlState } from "@/lib/admin/useUrlState";
 import { deleteAdminProduct, getAdminProduct, listAdminCategories, putMatrix, setAdminProductStatus, updateAdminProduct, type AdminProductDetail, type Versioned } from "@/lib/api/admin-catalog";
 import { toast } from "@/lib/stores/toast";
 import { ConfirmDialog } from "../ConfirmDialog";
-import { SideDrawer } from "../SideDrawer";
+import { FullScreenModal } from "../FullScreenModal";
 import { BasicsTab } from "./BasicsTab";
 import { MediaTab } from "./MediaTab";
 import { MerchTab } from "./MerchTab";
@@ -20,23 +21,23 @@ import { VariantsTab } from "./VariantsTab";
 const TABS = [{ value: "basics", label: "Basics" }, { value: "variants", label: "Variants" }, { value: "media", label: "Media" }, { value: "merch", label: "Merchandising" }] as const;
 type Tab = (typeof TABS)[number]["value"];
 
-/** Loads a product and shows its editor in the drawer. */
+/** Loads a product and shows its editor in a full-screen modal. */
 export function ProductDrawer({ productId, onClose, canWrite }: { productId: string; onClose: () => void; canWrite: boolean }) {
   const detail = useQuery({ queryKey: adminKeys.detail("products", productId), queryFn: ({ signal }) => getAdminProduct(productId, { signal }), staleTime: 0 });
   const categories = useQuery({ queryKey: ["admin", "categories"], queryFn: ({ signal }) => listAdminCategories({ signal }), staleTime: 5 * 60_000 });
 
   if (!detail.data) {
     return (
-      <SideDrawer open onClose={onClose} title="Edit product" compactTitle>
+      <FullScreenModal open onClose={onClose} title="Edit product">
         {detail.isError ? (
           <div role="alert" className="m-4 flex items-center justify-between gap-3 rounded-lg bg-danger-bg p-3 text-danger">
             <span>{adminErrorMessage(detail.error)}</span>
             <Button size="sm" variant="outline" onClick={() => detail.refetch()}>Retry</Button>
           </div>
         ) : (
-          <div className="flex flex-col gap-3 p-4"><Skeleton className="h-14" /><Skeleton className="h-9" /><Skeleton className="h-48" /></div>
+          <div className="mx-auto flex max-w-2xl flex-col gap-3 p-4"><Skeleton className="h-14" /><Skeleton className="h-9" /><Skeleton className="h-48" /></div>
         )}
-      </SideDrawer>
+      </FullScreenModal>
     );
   }
   return <ProductEditor initial={detail.data} categories={categories.data ?? []} onClose={onClose} canWrite={canWrite} reload={() => detail.refetch()} />;
@@ -131,46 +132,64 @@ function ProductEditor({ initial, categories, onClose, canWrite, reload }: Props
     setProblem(null);
   }
 
-  return (
-    <SideDrawer open onClose={onClose} title="Edit product" compactTitle dirty={dirty}>
-      <div className="flex items-center gap-3 border-b border-line-soft p-4">
-        <Media image={cover?.url ? { url: cover.url } : null} alt="" aspect="1 / 1" className="size-14 shrink-0 rounded-md" sizes="56px" />
+  // On a phone every pixel of the pinned top area is taken from the form, so it is one slim row and the tabs.
+  const toolbar = (
+    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-2 px-[clamp(16px,3vw,36px)] pb-2.5 pt-2.5 sm:gap-3 sm:pb-3 sm:pt-3">
+      <div className="flex items-center gap-3">
+        <Media image={cover?.url ? { url: cover.url } : null} alt="" aspect="1 / 1" className="size-10 shrink-0 rounded-md sm:size-14" sizes="56px" />
         <div className="flex min-w-0 flex-1 flex-col leading-[1.3]">
-          <span className="text-caption text-muted">{categoryName}</span>
-          <span className="truncate font-display text-heading-xs font-extrabold">{basics.title || product.title}</span>
+          <span className="hidden text-caption text-muted sm:block">{categoryName}</span>
+          <span className="truncate font-display text-body-lg font-extrabold sm:text-heading-xs">{basics.title || product.title}</span>
         </div>
-        {canWrite ? <Button variant="dark" loading={saving} disabled={!dirty} onClick={() => void save()}>Save</Button> : null}
+        {dirty ? <span role="status" className="shrink-0 rounded-pill bg-info-bg px-2.5 py-1 text-caption font-semibold text-info sm:px-3 sm:text-label">Unsaved<span className="hidden sm:inline"> changes</span></span> : null}
       </div>
+      <Segmented mode="tabs" label="Product sections" className="flex w-full sm:max-w-xl [&>button]:min-h-9 [&>button]:flex-1 [&>button]:justify-center [&>button]:px-2 [&>button]:font-bold sm:[&>button]:px-3.5" items={TABS.map((t) => ({ value: t.value, label: t.value === "merch" ? "Promote" : t.label, ...(t.value === "variants" ? { count: matrix.variants.length } : t.value === "media" ? { count: base.detail.media.length } : {}) }))} value={tab} onChange={(v) => setTab(v === "basics" ? null : v)} />
+    </div>
+  );
 
+  // The action bar is the modal's own, whatever the tab or its length. Delete is a small icon on a phone, away from Save.
+  const footer = canWrite ? (
+    <>
+      <Button variant="danger-soft" aria-label="Delete product" disabled={saving} iconLeft={<Trash2 aria-hidden="true" size={16} />} onClick={() => setDeleting("asking")}><span className="hidden sm:inline">Delete product</span></Button>
+      <span className="hidden flex-1 sm:block" />
+      <Button variant="outline" disabled={saving} className="max-sm:flex-1" onClick={onClose}>{dirty ? "Cancel" : "Done"}</Button>
+      <Button variant="dark" loading={saving} disabled={!dirty} className="max-sm:flex-[1.4]" onClick={() => void save()}>Save</Button>
+    </>
+  ) : (
+    <>
+      <span className="flex-1" />
+      <Button variant="outline" onClick={onClose}>Done</Button>
+    </>
+  );
+
+  return (
+    <FullScreenModal open onClose={onClose} title="Edit product" dirty={dirty} toolbar={toolbar} footer={footer}>
       {problem ? (
-        <div role="alert" className="m-4 mb-0 flex items-center justify-between gap-3 rounded-lg bg-danger-bg p-3 text-body-sm text-danger">
+        <div role="alert" className="mx-auto mt-4 flex w-full max-w-2xl items-center justify-between gap-3 rounded-lg bg-danger-bg p-3 text-body-sm text-danger">
           <span>{problem.message}</span>
           {problem.stale ? <Button size="sm" variant="outline" onClick={() => void reloadAndDiscard()}>Reload</Button> : null}
         </div>
       ) : null}
 
-      <div className="px-4 pt-3">
-        <Segmented mode="tabs" label="Product sections" className="flex w-full [&>button]:min-h-9 [&>button]:flex-1 [&>button]:justify-center [&>button]:font-bold" items={TABS.map((t) => ({ value: t.value, label: t.label }))} value={tab} onChange={(v) => setTab(v === "basics" ? null : v)} />
-      </div>
-
-      {tab === "basics" ? (
-        <BasicsTab basics={basics} originalStatus={base.basics.status} categories={categories} titleError={titleError} disabled={disabled} onChange={(patch) => setBasics((b) => ({ ...b, ...patch }))} />
-      ) : tab === "variants" ? (
-        <VariantsTab productId={product.id} title={basics.title || product.title} slug={product.slug} matrix={matrix} baseline={base.matrix} disabled={disabled} onMatrix={setMatrix} onBaseline={(m) => setBase((b) => ({ ...b, matrix: typeof m === "function" ? m(b.matrix) : m }))} />
-      ) : tab === "media" ? (
-        <MediaTab productId={product.id} media={base.detail.media} variants={matrix.variants} disabled={disabled} onSaved={refreshed} />
+      {tab === "variants" ? (
+        <div className="mx-auto w-full max-w-[1200px]">
+          <VariantsTab productId={product.id} title={basics.title || product.title} slug={product.slug} matrix={matrix} baseline={base.matrix} disabled={disabled} onMatrix={setMatrix} onBaseline={(m) => setBase((b) => ({ ...b, matrix: typeof m === "function" ? m(b.matrix) : m }))} />
+        </div>
       ) : (
-        <MerchTab basics={basics} disabled={disabled} onChange={(patch) => setBasics((b) => ({ ...b, ...patch }))} />
+        <div className="mx-auto w-full max-w-2xl">
+          {tab === "basics" ? (
+            <BasicsTab basics={basics} originalStatus={base.basics.status} categories={categories} titleError={titleError} disabled={disabled} onChange={(patch) => setBasics((b) => ({ ...b, ...patch }))} />
+          ) : tab === "media" ? (
+            <MediaTab productId={product.id} media={base.detail.media} variants={matrix.variants} disabled={disabled} onSaved={refreshed} />
+          ) : (
+            <MerchTab productId={product.id} productTitle={basics.title || product.title} basics={basics} disabled={disabled} onChange={(patch) => setBasics((b) => ({ ...b, ...patch }))} />
+          )}
+        </div>
       )}
 
-      {canWrite ? (
-        <div className="mt-2 border-t border-line-soft p-4">
-          <Button variant="danger-soft" disabled={saving} onClick={() => setDeleting("asking")}>Delete product</Button>
-        </div>
-      ) : null}
       <ConfirmDialog open={deleting !== null} title="Delete this product?" confirmLabel="Delete product" tone="danger" busy={deleting === "busy"} onCancel={() => setDeleting(null)} onConfirm={() => void remove()}>
         <p>&ldquo;{product.title}&rdquo; will be removed for good, along with its variants, stock, photos and reviews. Past orders keep their line items. This cannot be undone. To just hide it from the shop, archive it instead.</p>
       </ConfirmDialog>
-    </SideDrawer>
+    </FullScreenModal>
   );
 }

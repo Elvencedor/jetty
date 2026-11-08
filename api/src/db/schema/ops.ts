@@ -54,11 +54,26 @@ export const reviewMedia = pgTable(
 export const deliveryZones = pgTable('delivery_zones', {
   id: id(),
   name: text('name').notNull(),
-  state: text('state').notNull(),
+  /**
+   * What the zone covers. `state`: the one state named in `state`, or just the `areas` listed in it. `nationwide`: every
+   * state listed in `states`, unless a `state` zone of its own covers that state (the more specific zone always wins).
+   */
+  scope: text('scope').notNull().default('state'),
+  /** The state of a `state` zone; null for a `nationwide` zone. */
+  state: text('state'),
+  /** The states a `nationwide` zone covers; empty for a `state` zone. */
+  states: jsonb('states').notNull().default(sql`'[]'::jsonb`),
   areas: jsonb('areas').notNull().default(sql`'[]'::jsonb`),
   active: boolean('active').notNull().default(true),
-  sameDayCutoffLocal: text('same_day_cutoff_local'),
   timezone: text('timezone').notNull().default('Africa/Lagos'),
+  /** The one delivery price for the zone, in minor units. Null means the zone does not offer delivery (pickup only). */
+  deliveryFeeMinor: money('delivery_fee_minor'),
+  /** How long delivery takes, in whole days from the day the order is placed. */
+  deliveryMinDays: integer('delivery_min_days').notNull().default(1),
+  deliveryMaxDays: integer('delivery_max_days').notNull().default(3),
+  // Retired: the three tiered prices and the same-day cut-off were replaced by the columns above. Nothing reads or writes
+  // them any more; they stay until a later migration drops them (expand, migrate, contract).
+  sameDayCutoffLocal: text('same_day_cutoff_local'),
   sameDayFeeMinor: money('same_day_fee_minor'),
   nextDayFeeMinor: money('next_day_fee_minor'),
   nationwideFeeMinor: money('nationwide_fee_minor'),

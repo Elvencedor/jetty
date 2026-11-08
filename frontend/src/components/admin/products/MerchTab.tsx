@@ -1,14 +1,18 @@
 "use client";
 
 import { Dropdown } from "@/components/ui";
+import { permits } from "@/lib/admin/permissions";
+import { useAdminSession } from "@/lib/stores/session";
+import { ProductPromotions } from "./ProductPromotions";
 import type { Basics } from "@/lib/admin/productForm";
 
 const BADGES = [{ value: "", label: "Auto (sale / BOGO / new)" }, { value: "Featured", label: "Featured" }, { value: "Best seller", label: "Best seller" }];
 
-type Props = { basics: Basics; disabled: boolean; onChange: (patch: Partial<Basics>) => void };
+type Props = { productId: string; productTitle: string; basics: Basics; disabled: boolean; onChange: (patch: Partial<Basics>) => void };
 
-/** How the product is promoted: the homepage star and the badge on its cards. */
-export function MerchTab({ basics, disabled, onChange }: Props) {
+/** How the product is promoted: the homepage star, the badge on its cards, and the promotions attached to it. */
+export function MerchTab({ productId, productTitle, basics, disabled, onChange }: Props) {
+  const held = useAdminSession((s) => s.user?.permissions) ?? [];
   // A badge typed in some other way (an older entry) is kept and shown rather than silently dropped.
   const custom = basics.badge && !BADGES.some((b) => b.value === basics.badge) ? [{ value: basics.badge, label: `Custom: ${basics.badge}` }] : [];
   return (
@@ -24,6 +28,7 @@ export function MerchTab({ basics, disabled, onChange }: Props) {
         </Dropdown>
         <span className="text-caption font-normal text-muted">Auto shows sale percentages, &ldquo;New&rdquo; and &ldquo;Low stock&rdquo; by itself.</span>
       </label>
+      {permits(held, "promotions:read") ? <ProductPromotions productId={productId} productTitle={productTitle} canWrite={permits(held, "promotions:write") && !disabled} /> : null}
     </div>
   );
 }

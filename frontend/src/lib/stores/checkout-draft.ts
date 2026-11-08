@@ -22,7 +22,7 @@ type DraftState = {
   reset: () => void;
 };
 
-const METHODS: DeliveryMethod[] = ["same_day", "next_day", "nationwide", "pickup"];
+const METHODS: DeliveryMethod[] = ["delivery", "pickup"];
 const PAYMENTS: PaymentMethod[] = ["card", "bank_transfer"];
 
 export const useCheckoutDraft = create<DraftState>()(

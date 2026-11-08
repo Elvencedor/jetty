@@ -43,7 +43,7 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
     await t.db.insert(inventory).values({ variantId: v!.id, onHandQuantity: 50 });
     productId = p!.id;
     variantId = v!.id;
-    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', nextDayFeeMinor: 150000 });
+    await t.db.insert(deliveryZones).values({ name: 'Lagos', state: 'Lagos', deliveryFeeMinor: 150000 });
   });
   after(async () => {
     await api?.stop();
@@ -107,11 +107,11 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
       const reg = await api.inject({ method: 'POST', url: '/api/v1/auth/register', payload: { email: 'mgmt1@example.com', phone: '+2348077700001', password: 'correct horse battery' } });
       customerId = (reg.result as Json).customer.id;
       for (const [i, total] of [300000, 100000].entries()) {
-        const [o] = await t.db.insert(orders).values({ orderNumber: `JH-M-${i}`, customerId, phoneE164: '+2348077700001', subtotalMinor: total, totalMinor: total, deliveryAddressSnapshot: {}, deliveryMethod: 'next_day', termsAcceptedAt: new Date(), status: 'delivered', paymentStatus: 'paid', placedAt: new Date() }).returning();
+        const [o] = await t.db.insert(orders).values({ orderNumber: `JH-M-${i}`, customerId, phoneE164: '+2348077700001', subtotalMinor: total, totalMinor: total, deliveryAddressSnapshot: {}, deliveryMethod: 'delivery', termsAcceptedAt: new Date(), status: 'delivered', paymentStatus: 'paid', placedAt: new Date() }).returning();
         const [item] = await t.db.insert(orderItems).values({ orderId: o!.id, productId, variantId, skuSnapshot: 'MG-1', titleSnapshot: 'Mgmt Wig', quantity: 1, unitPriceMinor: total, lineTotalMinor: total }).returning();
         if (i === 0) itemId = item!.id;
       }
-      await t.db.insert(orders).values({ orderNumber: 'JH-M-X', customerId, phoneE164: '+2348077700001', subtotalMinor: 999, totalMinor: 999, deliveryAddressSnapshot: {}, deliveryMethod: 'next_day', termsAcceptedAt: new Date() });
+      await t.db.insert(orders).values({ orderNumber: 'JH-M-X', customerId, phoneE164: '+2348077700001', subtotalMinor: 999, totalMinor: 999, deliveryAddressSnapshot: {}, deliveryMethod: 'delivery', termsAcceptedAt: new Date() });
       await api.inject({ method: 'POST', url: '/api/v1/auth/register', payload: { email: 'mgmt2@example.com', phone: '+2348077700002', password: 'correct horse battery' } });
     });
 
@@ -138,7 +138,7 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
       assert.deepEqual([quiet.name, quiet.area, quiet.state], [null, null, null]);
       assert.equal((await call('GET', `/admin/customers/${quiet.id}`)).body.lastOrder, null);
 
-      await t.db.insert(orders).values({ orderNumber: 'JH-M-N', customerId: quiet.id, phoneE164: '+2348077700002', subtotalMinor: 5000, totalMinor: 5000, deliveryAddressSnapshot: { recipientName: 'Ada Okafor', addressLine1: '14 Admiralty Way', area: 'Lekki', city: 'Lagos', state: 'Lagos' }, deliveryMethod: 'next_day', termsAcceptedAt: new Date() });
+      await t.db.insert(orders).values({ orderNumber: 'JH-M-N', customerId: quiet.id, phoneE164: '+2348077700002', subtotalMinor: 5000, totalMinor: 5000, deliveryAddressSnapshot: { recipientName: 'Ada Okafor', addressLine1: '14 Admiralty Way', area: 'Lekki', city: 'Lagos', state: 'Lagos' }, deliveryMethod: 'delivery', termsAcceptedAt: new Date() });
       const named = (await call('GET', '/admin/customers?q=00002')).body.data[0];
       assert.deepEqual([named.name, named.area, named.state], ['Ada Okafor', 'Lekki', 'Lagos']);
       const detail = await call('GET', `/admin/customers/${quiet.id}`);
@@ -198,7 +198,7 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
         api.inject({
           method: 'POST',
           url: '/api/v1/checkout',
-          payload: { items: [{ variantId, quantity: 1 }], promotionCodes: [], contact: { phone: '+2348066600001' }, deliveryAddress: { recipientName: 'B', addressLine1: '1 St', city: 'Lagos', state: 'Lagos', countryCode: 'NG' }, deliveryMethod: 'next_day', paymentMethod, termsAccepted: true },
+          payload: { items: [{ variantId, quantity: 1 }], promotionCodes: [], contact: { phone: '+2348066600001' }, deliveryAddress: { recipientName: 'B', addressLine1: '1 St', city: 'Lagos', state: 'Lagos', countryCode: 'NG' }, deliveryMethod: 'delivery', paymentMethod, termsAccepted: true },
           headers: { 'idempotency-key': `settings-${paymentMethod}-${Math.random().toString(36).slice(2)}-abcdefgh-0123456789abcdefghijklmnopqrstuv` },
         });
       assert.equal((await call('PATCH', '/admin/settings/payments', { enabledMethods: [] })).status, 422, 'at least one method stays on');
@@ -211,20 +211,48 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
       assert.equal((await checkout('bank_transfer')).statusCode, 201);
     });
 
+    it('manages nationwide zones: pick the states, keep names canonical, and refuse overlaps and unknown states', async () => {
+      const patch = (zone: Json) => call('PATCH', '/admin/settings/delivery-zones', { zones: [zone] });
+      const made = await patch({ name: 'North', scope: 'nationwide', states: ['kano', ' Kaduna ', 'Katsina'], deliveryFeeMinor: 600000, deliveryMinDays: 2, deliveryMaxDays: 4 });
+      assert.equal(made.status, 200, JSON.stringify(made.body));
+      const north = made.body.zones.find((z: Json) => z.name === 'North');
+      assert.deepEqual([north.scope, north.state, north.areas], ['nationwide', null, []]);
+      assert.deepEqual(north.states, ['Kano', 'Kaduna', 'Katsina'], 'saved with the canonical spelling');
+
+      assert.equal((await patch({ name: 'Nobody', scope: 'nationwide', states: [] })).status, 422, 'a nationwide zone needs states');
+      assert.equal((await patch({ name: 'Mars', scope: 'nationwide', states: ['Atlantis'] })).status, 422, 'states must be real');
+      assert.equal((await patch({ name: 'Mars', scope: 'state', state: 'Atlantis' })).status, 422, 'a state zone must name a real state');
+      assert.equal((await patch({ name: 'Nostate', scope: 'state' })).status, 422, 'a state zone needs a state');
+      const overlap = await patch({ name: 'Overlap', scope: 'nationwide', states: ['Katsina', 'Benue'] });
+      assert.equal(overlap.status, 422, 'a state belongs to one nationwide zone');
+      assert.match(JSON.stringify(overlap.body), /Katsina/);
+
+      // A retired nationwide zone frees its states, and the same states can then be used by another zone.
+      assert.equal((await patch({ id: north.id, active: false })).status, 200);
+      assert.equal((await patch({ name: 'Overlap', scope: 'nationwide', states: ['Katsina', 'Benue'], deliveryFeeMinor: 500000 })).status, 200);
+
+      // Switching a nationwide zone to one state drops its list.
+      const one = await patch({ id: north.id, scope: 'state', state: 'kano' });
+      assert.equal(one.status, 200, JSON.stringify(one.body));
+      const switched = one.body.zones.find((z: Json) => z.id === north.id);
+      assert.deepEqual([switched.scope, switched.state, switched.states], ['state', 'Kano', []]);
+    });
+
     it('manages delivery zones: update, add, and retire without deleting', async () => {
       const zones = (await call('GET', '/admin/settings/delivery-zones')).body.zones;
-      const lagos = zones.find((z: Json) => z.state === 'Lagos' && z.nextDayFeeMinor === 150000);
+      const lagos = zones.find((z: Json) => z.state === 'Lagos' && z.deliveryFeeMinor === 150000);
       const res = await call('PATCH', '/admin/settings/delivery-zones', {
-        zones: [{ id: lagos.id, sameDayFeeMinor: 250000, sameDayCutoffLocal: '13:30' }, { name: 'Abuja', state: 'FCT', nextDayFeeMinor: 300000, areas: ['Garki', 'Wuse'] }],
+        zones: [{ id: lagos.id, deliveryFeeMinor: 250000, deliveryMinDays: 2, deliveryMaxDays: 5 }, { name: 'Abuja', state: 'FCT', deliveryFeeMinor: 300000, areas: ['Garki', 'Wuse'] }],
       });
       assert.equal(res.status, 200, JSON.stringify(res.body));
       const lagosAfter = res.body.zones.find((z: Json) => z.id === lagos.id);
-      assert.deepEqual([lagosAfter.sameDayFeeMinor, lagosAfter.sameDayCutoffLocal, lagosAfter.nextDayFeeMinor], [250000, '13:30', 150000]);
+      assert.deepEqual([lagosAfter.deliveryFeeMinor, lagosAfter.deliveryMinDays, lagosAfter.deliveryMaxDays], [250000, 2, 5]);
       const abuja = res.body.zones.find((z: Json) => z.state === 'FCT');
       assert.deepEqual(abuja.areas, ['Garki', 'Wuse']);
 
       assert.equal((await call('PATCH', '/admin/settings/delivery-zones', { zones: [{ name: 'No state' }] })).status, 422);
-      assert.equal((await call('PATCH', '/admin/settings/delivery-zones', { zones: [{ id: lagos.id, sameDayCutoffLocal: '25:00' }] })).status, 422);
+      assert.equal((await call('PATCH', '/admin/settings/delivery-zones', { zones: [{ id: lagos.id, deliveryMinDays: 5, deliveryMaxDays: 2 }] })).status, 422, 'the longest time cannot be shorter than the shortest');
+      assert.equal((await call('PATCH', '/admin/settings/delivery-zones', { zones: [{ id: lagos.id, sameDayCutoffLocal: '13:30' }] })).status, 422, 'the cut-off no longer exists');
       assert.equal((await call('PATCH', '/admin/settings/delivery-zones', { zones: [{ id: lagos.id, timezone: 'Mars/Base' }] })).status, 422);
       assert.equal((await call('PATCH', '/admin/settings/delivery-zones', { zones: [{ id: '00000000-0000-4000-8000-000000000000', active: false }] })).status, 404);
 
@@ -232,7 +260,10 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
       const quote = await api.inject({ method: 'POST', url: '/api/v1/delivery/quotes', payload: { items: [{ variantId, quantity: 1 }], deliveryAddress: { state: 'FCT', area: 'Garki' } } });
       assert.equal(quote.statusCode, 422, 'a retired zone stops serving');
       const q2 = await api.inject({ method: 'POST', url: '/api/v1/delivery/quotes', payload: { items: [{ variantId, quantity: 1 }], deliveryAddress: { state: 'Lagos' } } });
-      assert.ok(((q2.result as Json).options as Json[]).some((o) => o.method === 'same_day' && o.baseFeeMinor === 250000));
+      const offered = ((q2.result as Json).options as Json[]).find((o) => o.method === 'delivery');
+      assert.equal(offered?.baseFeeMinor, 250000);
+      // The storefront quote carries the duration the admin just saved: 2 to 5 days.
+      assert.equal((Date.parse(offered?.estimate.latestDate) - Date.parse(offered?.estimate.earliestDate)) / 86_400_000, 3);
     });
   });
 });
