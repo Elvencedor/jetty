@@ -75,7 +75,7 @@ export function ResetPassword() {
         <form onSubmit={reset} noValidate className="flex flex-col gap-4">
           <p className="text-body-sm text-ink-soft" aria-live="polite">If there&apos;s an account for that email, a code is on its way.</p>
           <TextField label="Code" inputMode="numeric" autoComplete="one-time-code" autoFocus value={code} error={errors.code} className="text-center tracking-[0.4em]" onChange={(e) => setCode(cleanCode(e.target.value))} />
-          <TextField label="New password" type="password" autoComplete="new-password" hint="At least 10 characters." value={password} error={errors.password} onChange={(e) => setPassword(e.target.value)} />
+          <TextField label="New password" type="password" autoComplete="new-password" hint="At least 8 characters." value={password} error={errors.password} onChange={(e) => setPassword(e.target.value)} />
           {errors.form ? <p role="alert" className="text-body-sm font-medium text-danger">{errors.form}</p> : null}
           <Button type="submit" size="lg" loading={busy}>Change password</Button>
           <Button variant="ghost-link" size="sm" disabled={cooldown.left > 0 || busy} onClick={() => void request()}>{cooldown.left > 0 ? `Resend in ${cooldown.left}s` : "Resend code"}</Button>

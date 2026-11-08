@@ -58,7 +58,7 @@ const phone = Joi.string()
   .pattern(/^\+[1-9]\d{7,14}$/)
   .messages({ 'string.pattern.base': 'phone must be in E.164 format, e.g. +2348012345678' });
 const email = Joi.string().trim().lowercase().email().max(254);
-const password = Joi.string().min(10).max(128).required();
+const password = Joi.string().min(8).max(128).required();
 const code = Joi.string().trim().pattern(/^\d{6}$/).required().messages({ 'string.pattern.base': 'code must be the 6-digit code you received' });
 
 // Same body whether or not the account exists, so these endpoints reveal nothing.

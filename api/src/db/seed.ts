@@ -101,7 +101,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const ownerEmail = process.env.SEED_OWNER_EMAIL;
   const ownerPassword = process.env.SEED_OWNER_PASSWORD;
   if ((ownerEmail || ownerPassword) && (!ownerEmail || !ownerPassword || ownerPassword.length < 8)) {
-    console.error('SEED_OWNER_EMAIL and SEED_OWNER_PASSWORD (min 12 chars) must be set together');
+    console.error('SEED_OWNER_EMAIL and SEED_OWNER_PASSWORD (min 8 chars) must be set together');
     process.exit(1);
   }
   const { db, close } = createDatabase(url, { max: 1 });

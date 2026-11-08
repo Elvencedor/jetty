@@ -3,7 +3,7 @@ import { cleanCode, emailError, normaliseEmail, passwordError, phoneError, safeN
 
 describe("field rules", () => {
   it("bounds passwords like the API", () => {
-    expect(passwordError("short")).toMatch(/at least 10/);
+    expect(passwordError("short")).toMatch(/at least 8/);
     expect(passwordError("long enough pw")).toBeUndefined();
     expect(passwordError("x".repeat(129))).toMatch(/at most 128/);
   });

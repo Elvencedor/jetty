@@ -1,7 +1,7 @@
 import { normaliseNigerianPhone } from "@/lib/format";
 
-/** Mirrors the API: passwords are 10–128 characters; codes are six digits. */
-export const PASSWORD_MIN = 10;
+/** Mirrors the API: passwords are 8–128 characters; codes are six digits. */
+export const PASSWORD_MIN = 8;
 export const PASSWORD_MAX = 128;
 export const CODE_LENGTH = 6;
 
