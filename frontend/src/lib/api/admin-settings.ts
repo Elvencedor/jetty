@@ -36,4 +36,5 @@ export const getSetting = <K extends SettingKey>(key: K, init: Init = {}) => api
 export const patchSetting = <K extends SettingKey>(key: K, patch: Partial<SettingsByKey[K]>) => apiFetch<SettingsByKey[K]>(`/admin/settings/${key}`, { method: "PATCH", body: patch, auth: "admin" });
 
 export const listZones = (init: Init = {}) => apiFetch<{ zones: DeliveryZone[] }>("/admin/settings/delivery-zones", { auth: "admin", ...init }).then((r) => r.zones);
+export const deleteZone = (id: string) => apiFetch<{ zones: DeliveryZone[] }>(`/admin/settings/delivery-zones/${id}`, { method: "DELETE", auth: "admin" }).then((r) => r.zones);
 export const saveZone = (zone: ZoneInput) => apiFetch<{ zones: DeliveryZone[] }>("/admin/settings/delivery-zones", { method: "PATCH", body: { zones: [zone] }, auth: "admin" }).then((r) => r.zones);

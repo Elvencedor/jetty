@@ -2,7 +2,7 @@ import type { ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
 import { createContent, getContent, listContent, updateContent, type ContentInput } from '../../../modules/admin/content.js';
 import { customerSegments, getAdminCustomer, listAdminCustomers, SEGMENTS, listAdminReviews, moderateReview, reviewSummary } from '../../../modules/admin/people.js';
-import { listZones, upsertZones, zoneSchema, type ZoneInput } from '../../../modules/admin/zones.js';
+import { deleteZone, listZones, upsertZones, zoneSchema, type ZoneInput } from '../../../modules/admin/zones.js';
 import { CONTENT_STATUSES, CONTENT_TYPES } from '../../../modules/content/content.js';
 import { getSetting, isSettingKey, SETTING_KEYS, SETTINGS, updateSetting } from '../../../modules/settings/settings.js';
 import { withUrl } from '../../../modules/media/urls.js';
@@ -167,6 +167,17 @@ export const adminManagementRoutes: ServerRoute[] = [
       if (key === 'delivery-zones') return h.response({ zones: await listZones(db(request)) }).header('Cache-Control', NO_STORE);
       if (!isSettingKey(key)) throw notFound('Unknown setting.');
       return h.response(await getSetting(db(request), key)).header('Cache-Control', NO_STORE);
+    },
+  },
+  {
+    method: 'DELETE',
+    path: '/admin/settings/delivery-zones/{id}',
+    options: { ...guard('settings:write'), description: 'Delete a delivery zone for good (switch it off to keep it); refused while a free-delivery promotion still uses it', tags: ['api', 'admin'], validate: { params: uuidParam('id') } },
+    handler: async (request, h) => {
+      const { id } = request.params as { id: string };
+      await audited(request, (tx) => deleteZone(tx, id), (before) => ({ action: 'settings.delivery_zone_delete', resourceType: 'settings', resourceId: id, before: { name: before.name, scope: before.scope, state: before.state, states: before.states, deliveryFeeMinor: before.deliveryFeeMinor }, after: null }));
+      void revalidateStorefront(request.server.app.env, request.server.app.logger, ['settings']);
+      return h.response({ zones: await listZones(db(request)) }).header('Cache-Control', NO_STORE);
     },
   },
   {

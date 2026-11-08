@@ -1,8 +1,8 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import Joi from 'joi';
 import type { Db } from '../../db/client.js';
 import { deliveryZones } from '../../db/schema/index.js';
-import { notFound, unprocessable } from '../../lib/errors.js';
+import { conflict, notFound, unprocessable } from '../../lib/errors.js';
 import { canonicalState } from '../delivery/states.js';
 
 const fee = Joi.number().integer().min(0).max(1_000_000_000).allow(null);
@@ -119,5 +119,28 @@ export async function upsertZones(db: Db, zones: ZoneInput[]) {
       }
     }
     return changes;
+  });
+}
+
+/**
+ * Deletes a zone for good. Past orders keep their zone name in their own address snapshot and nothing else reads a zone by
+ * id, so they are untouched. A free-delivery promotion that is limited to this zone would be left pointing at nothing (and so
+ * would never apply), which is refused: take the zone out of those promotions first.
+ */
+export async function deleteZone(db: Db, id: string) {
+  return db.transaction(async (tx) => {
+    const [before] = await tx.select().from(deliveryZones).where(eq(deliveryZones.id, id)).for('update');
+    if (!before) throw notFound(`Delivery zone ${id} does not exist.`);
+    const using = (await tx.execute(sql`
+      select p.name from promotions p
+      where p.kind = 'free_delivery' and p.status <> 'expired' and (p.ends_at is null or p.ends_at > now())
+        and p.configuration->'zoneIds' @> ${JSON.stringify([id])}::jsonb
+      order by p.name`)) as unknown as { name: string }[];
+    if (using.length) {
+      const names = using.map((p) => `"${p.name}"`).join(', ');
+      throw conflict('ZONE_IN_USE', `Free delivery promotions still use this zone: ${names}. Take it out of ${using.length === 1 ? 'that promotion' : 'those promotions'} first, or switch the zone off instead.`);
+    }
+    await tx.delete(deliveryZones).where(eq(deliveryZones.id, id));
+    return before;
   });
 }

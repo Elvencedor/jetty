@@ -9,6 +9,8 @@ export type Column<T> = {
   header: string;
   cell: (row: T) => ReactNode;
   align?: "right";
+  /** For a column with no visible title (row actions): the header is still there for assistive technology. */
+  hideHeader?: boolean;
   /** Extra classes for the column's cells (a width, for instance). */
   className?: string;
 };
@@ -33,6 +35,8 @@ type Props<T> = {
   /** Checkboxes for bulk actions. */
   selection?: Selection;
   skeletonRows?: number;
+  /** `roomy` gives rows more air for short lists with a few columns (zones, rates): taller rows, a taller header. */
+  spacing?: "default" | "roomy";
 };
 
 /**
@@ -40,7 +44,8 @@ type Props<T> = {
  * rows while loading and the failure shown inside the card with a Retry (never a blank page). It scrolls sideways
  * inside its card on narrow screens instead of squeezing the columns. Paging lives outside, in `TablePager`.
  */
-export function DataTable<T>({ caption, columns, rows, rowKey, loading, error, empty, onOpen, openLabel, selectedId, selection, skeletonRows = 6 }: Props<T>) {
+export function DataTable<T>({ caption, columns, rows, rowKey, loading, error, empty, onOpen, openLabel, selectedId, selection, skeletonRows = 6, spacing = "default" }: Props<T>) {
+  const roomy = spacing === "roomy";
   const allBox = useRef<HTMLInputElement>(null);
   const id = useId();
   const ids = (rows ?? []).map(rowKey);
@@ -96,7 +101,7 @@ export function DataTable<T>({ caption, columns, rows, rowKey, loading, error, e
                   <input ref={allBox} type="checkbox" aria-label={`Select all ${caption.toLowerCase()} on this page`} checked={ids.length > 0 && selectedCount === ids.length} onChange={toggleAll} className="size-[18px] accent-primary" />
                 </th>
               ) : null}
-              {columns.map((c) => <th key={c.key} scope="col" className={cn("px-4 py-2.5", c.align === "right" && "text-right", c.className)}>{c.header}</th>)}
+              {columns.map((c) => <th key={c.key} scope="col" className={cn("px-4", roomy ? "py-3.5 text-micro font-bold uppercase tracking-wide" : "py-2.5", c.align === "right" && "text-right", c.className)}>{c.hideHeader ? <span className="sr-only">{c.header}</span> : c.header}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -104,7 +109,7 @@ export function DataTable<T>({ caption, columns, rows, rowKey, loading, error, e
               ? Array.from({ length: skeletonRows }, (_, i) => (
                   <tr key={i} aria-hidden="true" className="border-b border-line-soft last:border-0">
                     {selection ? <td className="px-3 py-3"><Skeleton className="size-[18px]" /></td> : null}
-                    {columns.map((c) => <td key={c.key} className="px-4 py-3"><Skeleton className="h-4 w-full max-w-40" /></td>)}
+                    {columns.map((c) => <td key={c.key} className={cn("px-4", roomy ? "py-4" : "py-3")}><Skeleton className="h-4 w-full max-w-40" /></td>)}
                   </tr>
                 ))
               : rows.map((row) => {
@@ -122,7 +127,7 @@ export function DataTable<T>({ caption, columns, rows, rowKey, loading, error, e
                         </td>
                       ) : null}
                       {columns.map((c, i) => (
-                        <td key={c.key} className={cn("px-4 py-3 align-middle", c.align === "right" && "text-right", c.className)}>
+                        <td key={c.key} className={cn("px-4 align-middle", roomy ? "py-4" : "py-3", c.align === "right" && "text-right", c.className)}>
                           {i === 0 && onOpen ? (
                             <button type="button" onClick={() => onOpen(row)} aria-label={openLabel ? `Open ${openLabel(row)}` : undefined} className="text-left font-semibold text-ink underline-offset-2 hover:underline">{c.cell(row)}</button>
                           ) : c.cell(row)}

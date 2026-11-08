@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import type { Server } from '@hapi/hapi';
 import { eq } from 'drizzle-orm';
-import { adminAuditLog, deliveryZones, inventory, orderItems, orders, productVariants, products, reviews } from '../../../db/schema/index.js';
+import { adminAuditLog, deliveryZones, inventory, orderItems, orders, productVariants, products, promotions, reviews } from '../../../db/schema/index.js';
 import { createLogger } from '../../../lib/logger.js';
 import { STARTER_PAGES } from '../../../db/starter-pages.js';
 import { createServer } from '../../../server.js';
@@ -236,6 +236,31 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
       assert.equal(one.status, 200, JSON.stringify(one.body));
       const switched = one.body.zones.find((z: Json) => z.id === north.id);
       assert.deepEqual([switched.scope, switched.state, switched.states], ['state', 'Kano', []]);
+    });
+
+    it('deletes a zone for good, but not while a free delivery promotion still uses it', async () => {
+      const made = await call('PATCH', '/admin/settings/delivery-zones', { zones: [{ name: 'Ogun test', state: 'Ogun', deliveryFeeMinor: 400000 }] });
+      const zone = made.body.zones.find((z: Json) => z.name === 'Ogun test');
+      const address = { deliveryAddress: { state: 'Ogun' } };
+      const quote = () => api.inject({ method: 'POST', url: '/api/v1/delivery/quotes', payload: { items: [{ variantId, quantity: 1 }], ...address } });
+      assert.equal((await quote()).statusCode, 200, 'the zone serves Ogun');
+
+      const [promo] = await t.db.insert(promotions).values({ name: 'Free to Ogun', kind: 'free_delivery', status: 'active', configuration: { version: 1, zoneIds: [zone.id] }, scope: {} }).returning();
+      const refused = await call('DELETE', `/admin/settings/delivery-zones/${zone.id}`);
+      assert.equal(refused.status, 409);
+      assert.equal(refused.body.error.code, 'ZONE_IN_USE');
+      assert.match(refused.body.error.message, /Free to Ogun/);
+      assert.ok((await call('GET', '/admin/settings/delivery-zones')).body.zones.some((z: Json) => z.id === zone.id), 'nothing was deleted');
+
+      assert.equal((await call('DELETE', `/admin/settings/delivery-zones/${zone.id}`, undefined, support)).status, 403);
+      await t.db.delete(promotions).where(eq(promotions.id, promo!.id));
+      const deleted = await call('DELETE', `/admin/settings/delivery-zones/${zone.id}`);
+      assert.equal(deleted.status, 200, JSON.stringify(deleted.body));
+      assert.equal(deleted.body.zones.some((z: Json) => z.id === zone.id), false);
+      assert.equal((await quote()).statusCode, 422, 'Ogun is no longer served');
+      assert.equal((await call('DELETE', `/admin/settings/delivery-zones/${zone.id}`)).status, 404, 'it is gone');
+      const log = await t.db.select().from(adminAuditLog).where(eq(adminAuditLog.resourceId, zone.id));
+      assert.ok(log.some((l) => l.action === 'settings.delivery_zone_delete'));
     });
 
     it('manages delivery zones: update, add, and retire without deleting', async () => {

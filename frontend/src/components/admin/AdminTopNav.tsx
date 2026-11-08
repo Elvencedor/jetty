@@ -2,7 +2,6 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Link2, LogOut, Menu } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -12,6 +11,7 @@ import { activeNavKey, ordersNeedingAction, visibleNav } from "@/lib/admin/nav";
 import { permits } from "@/lib/admin/permissions";
 import { cn } from "@/lib/cn";
 import { useAdminSession } from "@/lib/stores/session";
+import { AdminBrand } from "./AdminBrand";
 import { SITE_URL } from "@/lib/site";
 
 const BADGE_REFRESH_MS = 60_000;
@@ -94,10 +94,7 @@ export function AdminTopNav() {
   return (
     <header className="border-b border-line bg-surface px-[clamp(16px,3vw,36px)] py-3">
       <div className="mx-auto flex max-w-admin flex-wrap items-center gap-x-3 gap-y-3 md:gap-x-5">
-        <Link href="/admin" className="flex items-center gap-2">
-          <Image src="/brand/jettys-hairs-transparent.png" alt="" width={712} height={754} className="h-10 w-auto" />
-          <span className="font-display text-heading-xs font-extrabold">jetty admin</span>
-        </Link>
+        <Link href="/admin" aria-label="Admin home" className="flex items-center"><AdminBrand /></Link>
 
         <button type="button" aria-expanded={menu} aria-controls="admin-nav" onClick={() => setMenuFor(menu ? null : pathname)} className="ml-auto inline-flex h-10 items-center gap-2 rounded-pill bg-surface-tint px-3 text-body-sm font-semibold md:hidden">
           <Menu aria-hidden="true" size={16} /> Menu
