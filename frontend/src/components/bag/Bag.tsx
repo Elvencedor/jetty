@@ -12,6 +12,7 @@ import { useQuote } from "@/lib/cart/useQuote";
 import { formatNaira } from "@/lib/format";
 import { useStoreHydrated } from "@/lib/stores/hydrated";
 import { useCartStore } from "@/lib/stores/cart";
+import { usePaymentSession } from "@/lib/stores/payment-session";
 import { BagLine, GiftLine } from "./BagLine";
 import { giftLines } from "@/lib/cart/model";
 import { CodeEntry } from "./CodeEntry";
@@ -95,7 +96,8 @@ export function Bag() {
                 <p role="status" className="sr-only">{quote && !busy ? `Total ${formatNaira(quote.totalMinor)}.${quote.discountMinor > 0 ? ` You're saving ${formatNaira(quote.discountMinor)}.` : ""}` : ""}</p>
 
                 <div className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 mx-auto max-w-xl">
-                  <div className="flex items-center justify-between gap-2.5 rounded-[34px] bg-surface-inverse py-2.5 pl-5 pr-2.5 text-on-inverse">
+                  {/* A faint light edge and shadow keep the bar distinct when it floats over the dark footer, which is nearly its own colour. */}
+                  <div className="flex items-center justify-between gap-2.5 rounded-[34px] border border-white/20 bg-surface-inverse py-2.5 pl-5 pr-2.5 text-on-inverse shadow-[0_0_0_2px_rgb(255_255_255/0.35),0_8px_24px_rgb(0_0_0/0.3)]">
                     <p className="flex flex-col leading-tight"><span className="text-caption text-on-inverse-muted">Total</span><span className="font-display text-heading-sm font-extrabold">{quote ? formatNaira(quote.totalMinor) : "…"}</span></p>
                     <Button href={ready ? "/checkout" : undefined} disabled={!ready} aria-disabled={!ready} size="lg" className="h-[52px] px-[22px] text-body" iconRight={<ArrowRight aria-hidden="true" size={18} strokeWidth={2.2} />}>Checkout</Button>
                   </div>
@@ -111,9 +113,19 @@ export function Bag() {
 
 /** An empty bag is an invitation, with a few picks so the next step is one tap away. */
 function EmptyBag() {
+  const stored = usePaymentSession((s) => s.payment);
+  // Only an order whose hold on the items is still running is "waiting"; an expired one is history.
+  const [now] = useState(() => Date.now());
+  const pending = stored && Date.parse(stored.reservationExpiresAt) > now ? stored : null;
   const picks = useQuery({ queryKey: ["bag-picks"], queryFn: ({ signal }) => getProducts({ sort: "bestSelling", limit: 4 }, { signal }), staleTime: 5 * 60_000 });
   return (
     <div className="flex flex-col gap-5">
+      {pending ? (
+        <section aria-label="Order waiting for payment" className="flex items-center justify-between gap-3 rounded-card bg-surface p-4">
+          <p className="flex min-w-0 flex-col leading-tight"><span className="font-bold">Order {pending.orderNumber} is waiting for payment</span><span className="text-body-sm text-muted">Your items are held for you.</span></p>
+          <Button href={`/order/${encodeURIComponent(pending.orderId)}/confirmed`} size="sm">View order</Button>
+        </section>
+      ) : null}
       <EmptyState className="bg-surface" title="Your bag is empty" action={<Button href="/shop">Shop wigs</Button>}>
         Add a wig you love and it will wait for you here.
       </EmptyState>

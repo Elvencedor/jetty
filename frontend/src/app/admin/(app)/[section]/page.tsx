@@ -13,6 +13,9 @@ export async function generateMetadata({ params }: PageProps<"/admin/[section]">
   return { title: SECTIONS.find((i) => i.key === section)?.label ?? "Admin" };
 }
 
+// Rendered only once the browser confirms an admin session (AdminGate), so there is nothing for Next to validate.
+export const instant = false;
+
 export default async function AdminSectionPage({ params }: PageProps<"/admin/[section]">) {
   const { section } = await params;
   const item = SECTIONS.find((i) => i.key === section);

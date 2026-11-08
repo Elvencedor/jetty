@@ -162,11 +162,11 @@ describe("InlineEditor", () => {
     await userEvent.clear(field);
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(screen.getByText("Enter a name")).toBeInTheDocument();
-    await userEvent.type(field, "Jetty's Hair");
+    await userEvent.type(field, "Jetty's Hairs");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByText("Someone else changed this. Reload to see their version.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(screen.queryByLabelText("Store name")).toBeNull());
-    expect(onSave).toHaveBeenLastCalledWith("Jetty's Hair");
+    expect(onSave).toHaveBeenLastCalledWith("Jetty's Hairs");
   });
 });

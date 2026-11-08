@@ -24,7 +24,7 @@ test("the index goes to Store details, the menu marks where you are, and the pag
   await expect(page).toHaveURL(/\/admin\/settings\/store$/);
   await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
   await expect(page.getByRole("link", { name: /^Store details/ })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByLabel("Store name")).toHaveValue("Jetty's Hair");
+  await expect(page.getByLabel("Store name")).toHaveValue("Jetty's Hairs");
   await expect(page.getByLabel("Support phone")).toHaveValue("0803 123 4567");
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
@@ -35,9 +35,9 @@ test("store details save only when changed, validate in place, and can be discar
   const save = page.getByRole("button", { name: "Save changes" });
   await expect(save).toBeDisabled();
 
-  await page.getByLabel("Store name").fill("Jetty's Hair Studio");
+  await page.getByLabel("Store name").fill("Jetty's Hairs Studio");
   await page.getByRole("button", { name: "Discard" }).click();
-  await expect(page.getByLabel("Store name")).toHaveValue("Jetty's Hair");
+  await expect(page.getByLabel("Store name")).toHaveValue("Jetty's Hairs");
 
   await page.getByLabel("Support email").fill("nope");
   await save.click();
@@ -134,7 +134,7 @@ test("a payout account is connected by checking the account name first, and show
   await expect(page.getByText(/No payout account yet/)).toBeVisible();
   await page.getByRole("button", { name: "Connect payout account" }).click();
   const drawer = page.getByRole("dialog", { name: "Connect payout account" });
-  await expect(drawer.getByLabel("Business name")).toHaveValue("Jetty's Hair");
+  await expect(drawer.getByLabel("Business name")).toHaveValue("Jetty's Hairs");
   const connect = drawer.getByRole("button", { name: "Connect account" });
   await expect(connect).toBeDisabled();
 

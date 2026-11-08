@@ -1,12 +1,13 @@
+import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
+import { SITE_NAME } from "@/lib/site";
 
-/** The brand mark: a pink "J" tile and the lower-case wordmark. */
-export function Wordmark({ className, textClassName }: { className?: string; textClassName?: string }) {
+/** The brand logo, linking home. `className` sizes the picture (the artwork is 712×754, so size it by height). */
+export function Wordmark({ className }: { className?: string }) {
   return (
-    <Link href="/" className={cn("flex shrink-0 items-center gap-2", className)}>
-      <span aria-hidden="true" className="flex size-9 items-center justify-center rounded-sm bg-primary font-display text-heading-xs font-extrabold text-on-primary">J</span>
-      <span className={cn("font-display text-heading-sm font-extrabold tracking-[-0.5px]", textClassName)}>jetty&rsquo;s hair</span>
+    <Link href="/" className="flex shrink-0 items-center">
+      <Image src="/brand/jettys-hairs-transparent.png" alt={SITE_NAME} width={712} height={754} priority className={cn("h-16 w-auto lg:h-20", className)} />
     </Link>
   );
 }

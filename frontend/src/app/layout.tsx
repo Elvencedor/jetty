@@ -29,7 +29,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#d61f69",
+  themeColor: "#FF0082",
   // Lets the sticky bars and tab bar use env(safe-area-inset-bottom) on notched phones.
   viewportFit: "cover",
 };

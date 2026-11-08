@@ -58,11 +58,11 @@ describe("content", () => {
   it("unwraps home, settings and pages", async () => {
     server.use(
       http.get(`${API}/storefront/home`, () => HttpResponse.json({ data: { announcements: [], sections: [] } })),
-      http.get(`${API}/storefront/settings`, () => HttpResponse.json({ data: { store: { name: "Jetty's Hair" } } })),
+      http.get(`${API}/storefront/settings`, () => HttpResponse.json({ data: { store: { name: "Jetty's Hairs" } } })),
       http.get(`${API}/content/pages/returns`, () => HttpResponse.json({ data: { title: "Returns" } })),
     );
     expect(await getHome()).toEqual({ announcements: [], sections: [] });
-    expect((await getStoreSettings()).store.name).toBe("Jetty's Hair");
+    expect((await getStoreSettings()).store.name).toBe("Jetty's Hairs");
     expect(await getPage("returns")).toMatchObject({ title: "Returns" });
   });
 });

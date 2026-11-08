@@ -3,7 +3,7 @@ import { cn } from "@/lib/cn";
 import { formatNaira } from "@/lib/format";
 
 /** The parts of a quote (or of a placed order) the summary needs. */
-export type SummaryData = Pick<Quote, "subtotalMinor" | "discountMinor" | "deliveryFeeMinor" | "taxMinor" | "totalMinor" | "delivery"> & { promotions: Pick<Quote["promotions"], "applied"> };
+export type SummaryData = Pick<Quote, "subtotalMinor" | "discountMinor" | "deliveryFeeMinor" | "taxMinor" | "totalMinor" | "delivery"> & Partial<Pick<Quote, "paymentFeeMinor" | "payableMinor">> & { promotions: Pick<Quote["promotions"], "applied"> };
 
 type Props = {
   quote: SummaryData;
@@ -25,9 +25,10 @@ export function PriceSummary({ quote, busy, deliveryNote = "Calculated at checko
         ))}
         <Row label="Delivery" value={quote.delivery ? (free ? "Free" : formatNaira(quote.deliveryFeeMinor)) : deliveryNote} />
         {quote.taxMinor > 0 ? <Row label="Tax" value={formatNaira(quote.taxMinor)} /> : null}
+        {quote.paymentFeeMinor ? <Row label="Payment fee (estimate)" value={formatNaira(quote.paymentFeeMinor)} /> : null}
         <div className="mt-1 flex items-baseline justify-between border-t border-line pt-2.5">
           <dt className="font-display text-body-lg font-extrabold">Total</dt>
-          <dd className="font-display text-heading-xs font-extrabold">{formatNaira(quote.totalMinor)}</dd>
+          <dd className="font-display text-heading-xs font-extrabold">{formatNaira(quote.payableMinor ?? quote.totalMinor)}</dd>
         </div>
       </dl>
       {quote.discountMinor > 0 ? <p className="mt-1 rounded-[14px] bg-success-bg px-3 py-2.5 text-center font-bold text-success">You&rsquo;re saving {formatNaira(quote.discountMinor)}</p> : null}

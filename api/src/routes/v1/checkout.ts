@@ -62,6 +62,7 @@ const paymentsOf = (request: Request) => {
 
 const checkoutOptions = (request: Request) => ({
   callbackUrl: request.server.app.env.PAYSTACK_CALLBACK_URL,
+  logger: request.server.app.logger,
   emailDomain: request.server.app.env.PAYSTACK_PLACEHOLDER_EMAIL_DOMAIN,
 });
 

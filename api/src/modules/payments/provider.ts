@@ -39,6 +39,7 @@ export type VerifiedTransaction =
       reference: string;
       /** Provider status: 'success', 'failed', 'abandoned', 'ongoing', 'pending', 'reversed', ... */
       status: string;
+      /** The amount that was requested for the order. Any fee the customer paid on top is not included. */
       amountMinor: number;
       currency: string;
       transactionId: string;

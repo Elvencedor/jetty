@@ -1,4 +1,4 @@
-# Jetty's Hair — Feature Inventory
+# Jetty's Hairs — Feature Inventory
 
 Every feature implied by the approved designs (Option A "Luxe editorial" and Option B "Pink pop" share the same feature set; only the visual layer differs).
 

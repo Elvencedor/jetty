@@ -34,7 +34,7 @@ export default function HomePage() {
   return (
     <div className="mx-auto w-full max-w-store">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA).replace(/</g, "\\u003c") }} />
-      <h1 className="sr-only">Jetty&rsquo;s Hair</h1>
+      <h1 className="sr-only">Jetty&rsquo;s Hairs</h1>
       <HomeTop />
       <div className="flex flex-col gap-7 px-4 pt-2 lg:pt-6">
         <Suspense

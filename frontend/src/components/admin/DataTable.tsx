@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type MouseEvent, type ReactNode } from "react";
 import { Button, Skeleton } from "@/components/ui";
 import { cn } from "@/lib/cn";
 
@@ -25,7 +25,7 @@ type Props<T> = {
   error?: { message: string; onRetry: () => void } | undefined;
   /** Shown instead of the table body when there are no rows. */
   empty?: ReactNode;
-  /** Makes the first cell a button that opens the row (usually its drawer). */
+  /** Makes the first cell a button that opens the row (usually its drawer); clicking anywhere else on the row opens it too. */
   onOpen?: (row: T) => void;
   openLabel?: (row: T) => string;
   /** The row whose drawer is open, highlighted. */
@@ -66,6 +66,14 @@ export function DataTable<T>({ caption, columns, rows, rowKey, loading, error, e
     selection.onChange(next);
   };
 
+  // The whole row is a target, but controls inside it keep their own behaviour and selecting text is not a click.
+  // (The first cell's button is the keyboard and screen-reader way in; it handles its own click.)
+  const openFromRow = (e: MouseEvent<HTMLTableRowElement>, row: T) => {
+    if ((e.target as HTMLElement).closest("button, a, input, label, select, textarea")) return;
+    if (window.getSelection()?.toString()) return;
+    onOpen?.(row);
+  };
+
   if (error) {
     return (
       <div role="alert" className="flex items-center justify-between gap-3 rounded-card border border-line bg-surface p-5 text-body-sm">
@@ -102,7 +110,12 @@ export function DataTable<T>({ caption, columns, rows, rowKey, loading, error, e
               : rows.map((row) => {
                   const rowId = rowKey(row);
                   return (
-                    <tr key={rowId} aria-selected={selectedId === rowId || undefined} className={cn("border-b border-line-soft last:border-0", selectedId === rowId && "bg-surface-tint")}>
+                    <tr
+                      key={rowId}
+                      aria-selected={selectedId === rowId || undefined}
+                      onClick={onOpen ? (e) => openFromRow(e, row) : undefined}
+                      className={cn("border-b border-line-soft last:border-0", onOpen && "cursor-pointer hover:bg-surface-tint", selectedId === rowId && "bg-surface-tint")}
+                    >
                       {selection ? (
                         <td className="w-11 px-3 py-3">
                           <input type="checkbox" id={`${id}-${rowId}`} aria-label={`Select ${openLabel?.(row) ?? rowId}`} checked={selection.ids.has(rowId)} onChange={() => toggle(rowId)} className="size-[18px] accent-primary" />

@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: PageProps<"/shop/[[...collect
   const scope = slug ? await resolveScope(slug).catch(() => null) : null;
   const name = scope?.name ?? "All wigs";
   // Filters, sorting and layout change what is shown but not what the page is: they all point at the plain listing.
-  return { title: name, description: `Shop ${name.toLowerCase()} at Jetty's Hair.`, alternates: { canonical: scope ? `/shop/${scope.slug}` : "/shop" } };
+  return { title: name, description: `Shop ${name.toLowerCase()} at Jetty's Hairs.`, alternates: { canonical: scope ? `/shop/${scope.slug}` : "/shop" } };
 }
 
 function Fallback() {

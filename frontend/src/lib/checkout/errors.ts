@@ -35,12 +35,14 @@ export function interpretCheckoutError(err: unknown): CheckoutFailure {
     case "PAYMENT_INITIALIZATION_FAILED":
     case "PAYMENT_INITIALIZATION_PENDING":
       return { kind: "payment-start", message: "We couldn't start your payment. Your items are still held for you, so you can try again.", orderId: orderIdFrom(err.details) };
+    case "PAYOUT_ACCOUNT_NOT_CONFIGURED":
+      return { kind: "other", message: "We can't take payments at the moment. Please try again later." };
     case "IDEMPOTENCY_IN_PROGRESS":
       return { kind: "busy", message: "We're already placing this order. Give it a moment." };
     case "VALIDATION_FAILED": {
       const fields: Record<string, string> = {};
       for (const d of err.details ?? []) {
-        const { field, message } = d as { field?: string; message?: string };
+        const { field, message } = (d ?? {}) as { field?: string; message?: string };
         if (field && message) fields[field] = message;
       }
       return { kind: "fields", message: "Please check the details you entered.", fields };

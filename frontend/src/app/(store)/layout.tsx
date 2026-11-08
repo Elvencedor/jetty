@@ -4,6 +4,7 @@ import { AnnouncementBar } from "@/components/shell/AnnouncementBar";
 import { ConsentNotice } from "@/components/shell/ConsentNotice";
 import { BottomTabBar } from "@/components/shell/BottomTabBar";
 import { Footer } from "@/components/shell/Footer";
+import { NavTracker } from "@/components/shell/NavTracker";
 import { Header } from "@/components/shell/Header";
 import { getHomeCached, getSettingsCached } from "@/lib/catalog/data";
 import { reportError } from "@/lib/monitoring";
@@ -29,11 +30,15 @@ export default function StoreLayout({ children }: LayoutProps<"/">) {
         <Announcements />
       </Suspense>
       <Header />
-      <main id="main" className="flex flex-1 flex-col">
+      <Suspense fallback={null}>
+        <NavTracker />
+      </Suspense>
+      {/* Under the header, so a first-time visitor sees it without scrolling; it leaves once a choice is made. */}
+      <ConsentNotice />
+      {/* At least a screen tall, so a page with little on it never pulls the footer up into view. */}
+      <main id="main" className="flex min-h-screen-safe flex-1 flex-col">
         {children}
       </main>
-      {/* Below the content, so it never pushes down what is already on screen. */}
-      <ConsentNotice />
       <Suspense fallback={<div className="mx-4 mt-5 h-64 rounded-card bg-surface-inverse" />}>
         <StoreFooter />
       </Suspense>

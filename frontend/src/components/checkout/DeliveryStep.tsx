@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Bike, Package, Store, Truck } from "lucide-react";
 import { SelectField, TextField } from "@/components/ui";
-import { getDeliveryQuote } from "@/lib/api/pricing";
+import { getDeliveryQuote, isDeliveryUnavailable } from "@/lib/api/pricing";
 import type { DeliveryMethod } from "@/lib/api/types";
 import { validateField, type DeliveryDetails, type DeliveryErrors } from "@/lib/checkout/validation";
 import { formatEstimate, formatNaira } from "@/lib/format";
@@ -34,7 +34,7 @@ export function DeliveryStep({ details, errors, method, methodError, onChange, o
   const codes = useCartStore((s) => s.promotionCodes);
   const stateOk = !validateField("state", details.state);
 
-  const { data, isFetching, isError } = useQuery({
+  const { data, error, isFetching, isError } = useQuery({
     queryKey: ["delivery-options", details.state, lines, codes],
     queryFn: ({ signal }) => getDeliveryQuote({ items: lines.map(({ variantId, quantity }) => ({ variantId, quantity })), promotionCodes: codes, deliveryAddress: { state: details.state, ...(details.city.trim() ? { city: details.city.trim() } : {}), ...(details.area.trim() ? { area: details.area.trim() } : {}) } }, { signal }),
     enabled: stateOk && lines.length > 0,
@@ -81,14 +81,14 @@ export function DeliveryStep({ details, errors, method, methodError, onChange, o
       <div aria-live="polite" aria-busy={isFetching}>
         {!stateOk ? (
           <p className="text-body-sm text-muted">Choose your state to see delivery options.</p>
-        ) : isError ? (
+        ) : isError && !isDeliveryUnavailable(error) ? (
           <p role="alert" className="text-body-sm text-danger">We couldn&apos;t load delivery options. Check your connection and try again.</p>
-        ) : !data ? (
+        ) : !data && !isError ? (
           <p className="text-body-sm text-muted">Checking delivery options…</p>
         ) : options.some((o) => !o.disabled) ? (
           <RadioCards legend="Delivery speed" name="delivery" options={options} value={method} onChange={onMethod} />
         ) : (
-          <p role="alert" className="rounded-lg bg-warning-bg p-3 text-body-sm">We don&apos;t deliver to this area yet. Message us on WhatsApp and we&apos;ll help.</p>
+          <p role="alert" className="rounded-lg bg-warning-bg p-3 text-body-sm">We don&apos;t deliver to {details.state} yet. Message us on WhatsApp and we&apos;ll help.</p>
         )}
         {methodError ? <p role="alert" className="mt-2 text-caption font-medium text-danger">{methodError}</p> : null}
       </div>

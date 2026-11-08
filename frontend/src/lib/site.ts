@@ -6,5 +6,5 @@ export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3
 
 export const absoluteUrl = (path: string) => `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 
-export const SITE_NAME = "Jetty's Hair";
+export const SITE_NAME = "Jetty's Hairs";
 export const SITE_DESCRIPTION = "Premium wigs and hair care, delivered across Nigeria.";

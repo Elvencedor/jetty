@@ -1,6 +1,7 @@
 import { loadEnv } from '../config/env.js';
 import { createDatabase } from '../db/client.js';
 import { createLogger } from '../lib/logger.js';
+import { PaystackProvider } from '../modules/payments/paystack.js';
 import { createSenders } from '../modules/notifications/providers.js';
 import { oldestPendingSeconds, processOutbox } from '../modules/notifications/process.js';
 import { runMaintenance } from './maintenance.js';
@@ -17,13 +18,16 @@ async function main(): Promise<void> {
   if (!env.DATABASE_URL) throw new Error('DATABASE_URL is required for the worker');
   const database = createDatabase(env.DATABASE_URL, { max: 3 });
   const senders = createSenders(env, logger);
+  // Without a Paystack key the worker still runs; it just cannot reconcile payments.
+  const payments = env.PAYSTACK_SECRET_KEY ? new PaystackProvider({ secretKey: env.PAYSTACK_SECRET_KEY, baseUrl: env.PAYSTACK_BASE_URL }) : undefined;
+  if (!payments) logger.warn('PAYSTACK_SECRET_KEY is not set: pending payments will not be reconciled');
 
   let stopping = false;
   let running: Promise<unknown> = Promise.resolve();
   let sending: Promise<unknown> = Promise.resolve();
   const tick = () => {
     if (stopping) return;
-    running = runMaintenance(database.db, logger).catch((err: unknown) =>
+    running = runMaintenance(database.db, logger, new Date(), payments).catch((err: unknown) =>
       logger.error('maintenance pass crashed', { err: err instanceof Error ? err.message : String(err) }),
     );
   };

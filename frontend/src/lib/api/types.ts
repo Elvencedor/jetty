@@ -176,6 +176,10 @@ export type Quote = {
   deliveryFeeMinor: number;
   taxMinor: number;
   totalMinor: number;
+  /** Estimated card fee paid to Paystack on top of the total; 0 until a payment method is chosen. */
+  paymentFeeMinor?: number;
+  /** What the customer will be charged: the total plus the fee. */
+  payableMinor?: number;
   quoteId: string;
   quoteExpiresAt: string;
 };

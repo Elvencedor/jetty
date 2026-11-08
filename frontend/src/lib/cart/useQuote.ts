@@ -3,7 +3,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { getQuote } from "@/lib/api/pricing";
-import type { DeliveryMethod } from "@/lib/api/types";
+import type { DeliveryMethod, PaymentMethod } from "@/lib/api/types";
 import { useDebounced } from "@/components/shell/useDebounced";
 import { useCartStore } from "@/lib/stores/cart";
 import { useCustomerSession } from "@/lib/stores/session";
@@ -16,17 +16,17 @@ const QUOTE_DEBOUNCE_MS = 300;
  * three times asks once), the last answer stays on screen while the next one loads, and an answer is re-asked when
  * it expires or the shopper signs in or out (account-only offers).
  */
-export type QuoteOptions = { deliveryAddress?: { state: string }; deliveryMethod?: DeliveryMethod };
+export type QuoteOptions = { deliveryAddress?: { state: string }; deliveryMethod?: DeliveryMethod; paymentMethod?: PaymentMethod };
 
 export function useQuote(options: QuoteOptions = {}) {
   const lines = useCartStore((s) => s.lines);
   const codes = useCartStore((s) => s.promotionCodes);
   const customer = useCustomerSession((s) => s.status);
-  const { deliveryAddress, deliveryMethod } = options;
+  const { deliveryAddress, deliveryMethod, paymentMethod } = options;
   const state = deliveryAddress?.state;
   const request = useMemo(
-    () => ({ items: lines.map(({ variantId, quantity }) => ({ variantId, quantity })), promotionCodes: codes, ...(state && deliveryMethod ? { deliveryAddress: { state }, deliveryMethod } : {}) }),
-    [lines, codes, state, deliveryMethod],
+    () => ({ items: lines.map(({ variantId, quantity }) => ({ variantId, quantity })), promotionCodes: codes, ...(state && deliveryMethod ? { deliveryAddress: { state }, deliveryMethod } : {}), ...(paymentMethod ? { paymentMethod } : {}) }),
+    [lines, codes, state, deliveryMethod, paymentMethod],
   );
   const settled = useDebounced(request, QUOTE_DEBOUNCE_MS);
 

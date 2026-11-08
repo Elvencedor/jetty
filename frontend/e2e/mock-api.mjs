@@ -49,7 +49,7 @@ const home = {
     { type: "trust", items: [{ icon: "lock", title: "Secure pay", caption: "Card or transfer" }, { icon: "return", title: "7-day returns", caption: "No stress" }] },
   ],
 };
-const settings = { store: { name: "Jetty's Hair", contactEmail: "hello@example.com", contactPhone: "+2348000000000", whatsappNumber: "+2348000000000", showroomAddress: "Lekki, Lagos", showroomHours: "Mon–Sat 10–6" }, policies: { returnWindowDays: 7, podMaxOrderMinor: null }, payments: { enabledMethods: ["card", "bank_transfer"], cardHoldMinutes: 30, transferHoldMinutes: 120 } };
+const settings = { store: { name: "Jetty's Hairs", contactEmail: "hello@example.com", contactPhone: "+2348000000000", whatsappNumber: "+2348000000000", showroomAddress: "Lekki, Lagos", showroomHours: "Mon–Sat 10–6" }, policies: { returnWindowDays: 7, podMaxOrderMinor: null }, payments: { enabledMethods: ["card", "bank_transfer"], cardHoldMinutes: 30, transferHoldMinutes: 120 } };
 
 function listing(url, onlyOffer) {
   const q = url.searchParams.get("q")?.toLowerCase();
@@ -189,7 +189,7 @@ const BANKS = [{ name: "Access Bank", code: "044" }, { name: "GTBank", code: "05
 const ACCOUNTS = { "0123456789": "JETTY HAIR LTD" };
 function seedAdminSettings() {
   payout = null;
-  adminSettings.store = { name: "Jetty's Hair", contactEmail: "hello@example.com", contactPhone: "+2348031234567", whatsappNumber: "+2348031234567", showroomAddress: "Lekki Phase 1, Lagos", showroomHours: "Mon–Sat, 9am–7pm" };
+  adminSettings.store = { name: "Jetty's Hairs", contactEmail: "hello@example.com", contactPhone: "+2348031234567", whatsappNumber: "+2348031234567", showroomAddress: "Lekki Phase 1, Lagos", showroomHours: "Mon–Sat, 9am–7pm" };
   adminSettings.policies = { returnWindowDays: 7, podMaxOrderMinor: null };
   adminSettings.payments = { enabledMethods: ["card", "bank_transfer"], cardHoldMinutes: 30, transferHoldMinutes: 120 };
   const zone = (n, over) => ({ id: id(700 + n), timezone: "Africa/Lagos", sameDayCutoffLocal: null, sameDayFeeMinor: null, nextDayFeeMinor: null, nationwideFeeMinor: null, pickupEnabled: false, active: true, areas: [], ...over });

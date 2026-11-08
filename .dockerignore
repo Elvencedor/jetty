@@ -1,0 +1,14 @@
+**/node_modules
+**/.next
+**/dist
+**/.env
+**/.env.*
+!**/.env.example
+**/test-results
+**/playwright-report
+.git
+.history
+.vscode
+deploy
+docs
+frontend/public/mock-media

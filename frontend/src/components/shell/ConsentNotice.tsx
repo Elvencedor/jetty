@@ -8,8 +8,9 @@ import { useConsent } from "@/lib/stores/consent";
 
 /**
  * A short, in-page notice asking whether anonymous usage analytics may be recorded. It never covers the page and
- * never blocks it: it sits in the flow at the end of the content (appearing there never moves anything already on
- * screen), shows both answers with equal weight, and goes away once one is chosen. Nothing is recorded until "Allow"
+ * never blocks it: it sits in the flow just under the header, where a first-time visitor sees it without scrolling
+ * (the page moves down by its height once, when it appears), shows both answers with equal weight, and goes away once
+ * one is chosen. Nothing is recorded until "Allow"
  * is pressed, and the footer's "Privacy choices" brings it back.
  */
 export function ConsentNotice() {
@@ -18,7 +19,7 @@ export function ConsentNotice() {
   const choose = useConsent((s) => s.choose);
   if (!hydrated || analytics !== "unset") return null;
   return (
-    <section aria-label="Privacy choice" className="mt-8 bg-surface-tint px-4 py-3">
+    <section aria-label="Privacy choice" className="bg-surface-tint px-4 py-3">
       <div className="mx-auto flex max-w-store flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-label text-ink-soft">
           We keep your bag on this device so the shop works. May we also count visits, anonymously, to improve it? See our{" "}

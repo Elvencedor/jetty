@@ -1,6 +1,6 @@
-# Jetty's Hair — Infrastructure proposal
+# Jetty's Hairs — Infrastructure proposal
 
-**Status:** Proposed reference deployment  
+**Status:** Proposed reference deployment (the chosen deployment target is a Hostinger VPS: see [HOSTINGER.md](./HOSTINGER.md))  
 **Web hosting:** Vercel (storefront and admin)  
 **Application/data hosting:** Railway (API, background worker, PostgreSQL)  
 **Supporting services:** Cloudflare (DNS/CDN/WAF and R2 object storage)

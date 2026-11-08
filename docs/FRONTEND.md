@@ -1,4 +1,4 @@
-# Jetty's Hair — Frontend implementation plan
+# Jetty's Hairs — Frontend implementation plan
 
 **Status:** Proposed plan  
 **Scope:** the Next.js app in [`frontend/`](../frontend): customer storefront and the `/admin` portal  

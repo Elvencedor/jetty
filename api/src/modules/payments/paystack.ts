@@ -15,7 +15,35 @@ import {
 
 type Envelope = { status?: boolean; message?: string; data?: unknown; meta?: { next?: string | null } };
 type PaystackBank = { name?: string; code?: string; active?: boolean; is_deleted?: boolean };
-type Options = { secretKey: string; baseUrl: string; timeoutMs?: number; fetch?: typeof fetch };
+type Options = { secretKey: string; baseUrl: string; timeoutMs?: number; fetch?: typeof fetch; /** Pause between tries when the connection could not be made; tests set it to 0. */ retryDelayMs?: number };
+
+/** Errors that mean the request never left this machine (name lookup failed, nothing listening), so sending it again cannot duplicate anything. */
+const NOT_SENT = new Set(['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED']);
+const causeCode = (err: unknown): string | undefined => {
+  const code = (err as { cause?: { code?: unknown } } | null)?.cause?.code;
+  return typeof code === 'string' ? code : undefined;
+};
+
+/**
+ * Tries again when the connection could not even be made, which on a flaky resolver (a name that fails to look up now
+ * and then) is the usual reason a payment start "did not complete". Anything that may have reached Paystack, such as a
+ * timeout, is not retried here: the caller reconciles those by reference.
+ */
+function retryWhenNotSent(send: typeof fetch, delayMs: number): typeof fetch {
+  return async (input, init) => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await send(input, init);
+      } catch (err) {
+        const code = causeCode(err);
+        if (attempt >= 2 || !code || !NOT_SENT.has(code)) throw err;
+        await new Promise((r) => setTimeout(r, delayMs * (attempt + 1)));
+      }
+    }
+  };
+}
+
+const describe = (err: unknown) => `${err instanceof Error ? `${err.name}: ${err.message}` : 'error'}${causeCode(err) ? ` [${causeCode(err)}]` : ''}`;
 
 /** Paystack Initialize Transaction. The secret key never leaves this class. */
 export class PaystackProvider implements PaymentProvider {
@@ -24,7 +52,7 @@ export class PaystackProvider implements PaymentProvider {
   private readonly fetchImpl: typeof fetch;
 
   constructor(private readonly options: Options) {
-    this.fetchImpl = options.fetch ?? fetch;
+    this.fetchImpl = retryWhenNotSent(options.fetch ?? fetch, options.retryDelayMs ?? 300);
     this.mode = options.secretKey.startsWith('sk_live_') ? 'live' : 'test';
   }
 
@@ -46,8 +74,8 @@ export class PaystackProvider implements PaymentProvider {
         }),
         signal: AbortSignal.timeout(this.options.timeoutMs ?? 10_000),
       });
-    } catch {
-      throw new PaymentIndeterminateError('Paystack did not respond');
+    } catch (err) {
+      throw new PaymentIndeterminateError(`Paystack did not respond (${describe(err)})`);
     }
 
     if (res.status >= 500 || res.status === 429) throw new PaymentIndeterminateError(`Paystack responded ${res.status}`);
@@ -61,7 +89,8 @@ export class PaystackProvider implements PaymentProvider {
       return { reference: data.reference, accessCode: data.access_code, authorizationUrl: data.authorization_url };
     }
     if (res.ok) throw new PaymentIndeterminateError('Unexpected Paystack response');
-    throw new PaymentRejectedError(`Paystack rejected the request (${res.status})`);
+    const said = typeof (body as { message?: unknown } | null)?.message === 'string' ? (body as { message: string }).message : undefined;
+    throw new PaymentRejectedError(`Paystack rejected the request (${res.status})`, said);
   }
 
   async verify(reference: string): Promise<VerifiedTransaction> {
@@ -80,17 +109,20 @@ export class PaystackProvider implements PaymentProvider {
 
     const body = (await res.json().catch(() => null)) as {
       status?: boolean;
-      data?: { reference?: string; status?: string; amount?: number; currency?: string; id?: number | string; paid_at?: string | null };
+      data?: { reference?: string; status?: string; amount?: number; requested_amount?: number; currency?: string; id?: number | string; paid_at?: string | null };
     } | null;
     const d = body?.data;
     if (!body?.status || !d || typeof d.status !== 'string' || !Number.isInteger(d.amount) || typeof d.currency !== 'string' || d.id === undefined || !d.reference) {
       throw new PaymentIndeterminateError('Unexpected Paystack response');
     }
+    // Fees are passed to the customer, so Paystack's `amount` is the order total plus its fee. `requested_amount` is
+    // what we asked it to charge, and that is what must equal the order's amount.
+    const requested = Number.isInteger(d.requested_amount) && (d.requested_amount as number) > 0 ? (d.requested_amount as number) : (d.amount as number);
     return {
       found: true,
       reference: d.reference,
       status: d.status,
-      amountMinor: d.amount as number,
+      amountMinor: requested,
       currency: d.currency,
       transactionId: String(d.id),
       paidAt: d.paid_at ? new Date(d.paid_at) : null,

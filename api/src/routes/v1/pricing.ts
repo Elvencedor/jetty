@@ -32,6 +32,7 @@ type Body = {
   promotionCodes: string[];
   deliveryAddress?: { state: string; area?: string };
   deliveryMethod?: DeliveryMethod;
+  paymentMethod?: 'card' | 'bank_transfer';
 };
 
 export const pricingRoutes: ServerRoute[] = [
@@ -50,6 +51,7 @@ export const pricingRoutes: ServerRoute[] = [
           promotionCodes,
           deliveryAddress,
           deliveryMethod: Joi.string().valid(...DELIVERY_METHODS),
+          paymentMethod: Joi.string().valid('card', 'bank_transfer'),
         }).and('deliveryAddress', 'deliveryMethod'),
       },
     },
@@ -60,6 +62,7 @@ export const pricingRoutes: ServerRoute[] = [
         promotionCodes: body.promotionCodes,
         ...(body.deliveryAddress ? { deliveryAddress: body.deliveryAddress } : {}),
         ...(body.deliveryMethod ? { deliveryMethod: body.deliveryMethod } : {}),
+        ...(body.paymentMethod ? { paymentMethod: body.paymentMethod } : {}),
         customerId: request.auth.credentials?.customerId,
       });
       return h.response(withLineImages(request.server.app.storage, result)).header('Cache-Control', NO_STORE);

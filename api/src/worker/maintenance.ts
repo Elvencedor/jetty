@@ -6,14 +6,16 @@ import { cleanupIdempotencyKeys } from '../lib/idempotency.js';
 import { cleanupChallenges, scrubStaleCodes } from '../modules/auth/challenges.js';
 import { queueLowStockAlert } from '../modules/inventory/low-stock.js';
 import { releaseExpiredReservations } from '../modules/inventory/reservations.js';
+import type { PaymentProvider } from '../modules/payments/provider.js';
+import { reconcilePendingPayments } from '../modules/payments/reconcile.js';
 import { cleanupAnalyticsEvents, cleanupOutbox, cleanupSessions } from './retention.js';
 
 /**
  * One maintenance pass. Each task is isolated so a failure in one never
  * blocks the others, and every task is idempotent and safe across replicas.
  */
-export async function runMaintenance(db: Db, logger: Logger, now: Date = new Date()) {
-  const result = { reservationsReleased: 0, idempotencyKeysRemoved: 0, authChallengesRemoved: 0, staleCodesScrubbed: 0, promotionsExpired: 0, lowStockListed: 0, sessionsRemoved: 0, messagesRemoved: 0, analyticsEventsRemoved: 0, failed: [] as string[] };
+export async function runMaintenance(db: Db, logger: Logger, now: Date = new Date(), payments?: PaymentProvider) {
+  const result = { reservationsReleased: 0, idempotencyKeysRemoved: 0, authChallengesRemoved: 0, staleCodesScrubbed: 0, promotionsExpired: 0, lowStockListed: 0, sessionsRemoved: 0, messagesRemoved: 0, analyticsEventsRemoved: 0, paymentsReconciled: 0, failed: [] as string[] };
   const tasks: [string, () => Promise<void>][] = [
     ['release-expired-reservations', async () => void (result.reservationsReleased = await releaseExpiredReservations(db, now))],
     ['cleanup-idempotency-keys', async () => void (result.idempotencyKeysRemoved = await cleanupIdempotencyKeys(db, now))],
@@ -23,6 +25,10 @@ export async function runMaintenance(db: Db, logger: Logger, now: Date = new Dat
     ['cleanup-notification-outbox', async () => void (result.messagesRemoved = await cleanupOutbox(db, now))],
     ['cleanup-analytics-events', async () => void (result.analyticsEventsRemoved = await cleanupAnalyticsEvents(db, now))],
     ['low-stock-alert', async () => void (result.lowStockListed = await queueLowStockAlert(db, now))],
+    // Settles payments whose webhook never arrived (a transfer that lands after the customer has left, a down tunnel).
+    ...(payments
+      ? [['reconcile-pending-payments', async () => void (result.paymentsReconciled = (await reconcilePendingPayments(db, payments, logger, now)).settled)] as [string, () => Promise<void>]]
+      : []),
     // The schedule is enforced at quote time regardless; this only keeps the stored status honest for reporting.
     [
       'expire-promotions',
@@ -40,6 +46,6 @@ export async function runMaintenance(db: Db, logger: Logger, now: Date = new Dat
       logger.error('maintenance task failed', { task: name, err: err instanceof Error ? err.message : String(err) });
     }
   }
-  if (result.reservationsReleased || result.idempotencyKeysRemoved || result.authChallengesRemoved || result.staleCodesScrubbed || result.promotionsExpired || result.lowStockListed || result.sessionsRemoved || result.messagesRemoved || result.analyticsEventsRemoved) logger.info('maintenance pass', result);
+  if (result.reservationsReleased || result.idempotencyKeysRemoved || result.authChallengesRemoved || result.staleCodesScrubbed || result.promotionsExpired || result.lowStockListed || result.sessionsRemoved || result.messagesRemoved || result.analyticsEventsRemoved || result.paymentsReconciled) logger.info('maintenance pass', result);
   return result;
 }

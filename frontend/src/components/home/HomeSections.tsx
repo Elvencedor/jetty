@@ -98,35 +98,38 @@ function Hero({ cards, now }: { cards: Hero[]; now: number }) {
   );
 }
 
-/** Bars that rise from short to tall, each a link to listings of those lengths. Light to dark, as designed. */
-const BAR = [
-  "bg-pink-150 text-ink",
-  "bg-pink-250 text-ink",
-  "bg-pink-450 text-ink",
-  "bg-primary text-on-primary",
-  "bg-surface-inverse text-on-inverse",
-];
-
-function LengthBars({ section }: { section: Extract<HomeSection, { type: "length" }> }) {
-  const last = Math.max(section.items.length - 1, 1);
+/** The label already carries its inch mark (`10–14"`), so it is shown as given. */
+function LengthCards({ section }: { section: Extract<HomeSection, { type: "length" }> }) {
+  const count = section.items.length;
   return (
-    <section aria-label={section.title} className="flex flex-col gap-3">
-      <h2 className="font-display text-heading-md font-extrabold tracking-[-0.5px]">{section.title}</h2>
-      <ul className="flex h-[150px] items-end gap-2">
+    <Section title={section.title} href="/shop">
+      <ul className="-mx-4 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:mx-0 lg:grid lg:grid-cols-5 lg:overflow-visible lg:px-0">
         {section.items.map((item, i) => (
-          <li key={item.label} className="flex-1">
+          <li key={item.label} className="w-[148px] shrink-0 snap-start lg:w-auto">
             <Link
               href={`/shop?length=${item.lengths.join(",")}`}
-              style={{ height: 62 + Math.round((i / last) * 88) }}
-              className={cn("flex flex-col items-center justify-end rounded-b-xs rounded-t-md pb-2 text-center text-body-sm font-bold leading-[1.1]", BAR[Math.min(Math.round((i / last) * (BAR.length - 1)), BAR.length - 1)])}
+              aria-label={`${item.label} wigs, ${item.hint} length`}
+              className="group flex h-full flex-col gap-4 rounded-card border border-line bg-surface p-4 transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-primary hover:shadow-md focus-visible:border-primary"
             >
-              {item.label}&quot;
-              <span className="text-micro font-medium">{item.hint}</span>
+              {/* One segment per length band, filled up to this one: a longer wig fills more of the meter. */}
+              <span aria-hidden="true" className="flex gap-1">
+                {Array.from({ length: count }, (_, n) => (
+                  <span key={n} className={cn("h-1.5 flex-1 rounded-pill", n <= i ? "bg-primary" : "bg-pink-150")} />
+                ))}
+              </span>
+              <span className="flex flex-col gap-0.5">
+                <span className="font-display text-heading-sm font-extrabold leading-none tracking-[-0.5px]">{item.label}</span>
+                <span className="text-body-sm text-muted">{item.hint}</span>
+              </span>
+              <span className="mt-auto inline-flex items-center gap-1.5 text-body-sm font-bold text-primary-strong">
+                Shop
+                <ArrowRight aria-hidden="true" size={16} strokeWidth={2.2} className="transition-transform group-hover:translate-x-0.5" />
+              </span>
             </Link>
           </li>
         ))}
       </ul>
-    </section>
+    </Section>
   );
 }
 
@@ -139,7 +142,7 @@ function Tiles({ items }: { items: Extract<HomeSection, { type: "tiles" }>["item
         const tone = TILE_TONE[t.tone ?? DEFAULT_TILES[i % DEFAULT_TILES.length]!];
         return (
           <Link key={t.id} href={href} className={cn("relative flex flex-col justify-end overflow-hidden rounded-card p-4", tone.card, i === 0 ? "row-span-2 min-h-[250px]" : "min-h-[120px]")}>
-            {t.imageUrl ? <Media image={{ url: t.imageUrl }} alt={t.imageAlt ?? ""} aspect="auto" sizes="50vw" className="absolute inset-0 !h-full rounded-none opacity-50" /> : null}
+            {t.imageUrl ? <Media image={{ url: t.imageUrl }} alt={t.imageAlt ?? ""} aspect="auto" sizes="50vw" className="!absolute inset-0 !h-full rounded-none opacity-50" /> : null}
             <span className={cn("relative font-display font-extrabold leading-none", i === 0 ? "text-heading-sm" : "text-heading-xs")}>{t.title}</span>
             {t.subtitle ? <span className={cn("relative text-caption", tone.sub)}>{t.subtitle}</span> : null}
           </Link>
@@ -185,7 +188,7 @@ export function HomeSections({ sections, now }: { sections: HomeSection[]; now: 
               </Section>
             ) : null;
           case "length":
-            return section.items.length ? <LengthBars key={i} section={section} /> : null;
+            return section.items.length ? <LengthCards key={i} section={section} /> : null;
           case "tiles":
             return section.items.length ? <Tiles key={i} items={section.items} /> : null;
           case "trust":

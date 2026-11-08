@@ -23,6 +23,7 @@ import {
 } from '../../db/schema/index.js';
 import { createLogger } from '../../lib/logger.js';
 import { checkout, type CheckoutInput } from '../../modules/checkout/checkout.js';
+import { RECONCILE_MIN_AGE_MS, reconcilePendingPayments } from '../../modules/payments/reconcile.js';
 import { releaseExpiredReservations } from '../../modules/inventory/reservations.js';
 import { priceCart } from '../../modules/pricing/cart.js';
 import { createServer } from '../../server.js';
@@ -636,6 +637,58 @@ describe('payment confirmation, retry and webhook', { skip: !TEST_DATABASE_URL &
       const raw = JSON.stringify({ event: 'charge.success', data: { pad: 'x'.repeat(70 * 1024) } });
       const res = await hooks.inject({ method: 'POST', url: '/webhooks/paystack', payload: raw, headers: { 'x-paystack-signature': sign(raw) } });
       assert.equal(res.statusCode, 413);
+    });
+  });
+
+  describe('reconciling payments the webhook never reported', () => {
+    const logger = createLogger('error');
+    const age = (reference: string, ms = RECONCILE_MIN_AGE_MS + 60_000) =>
+      t.db.update(paymentAttempts).set({ createdAt: new Date(Date.now() - ms) }).where(eq(paymentAttempts.providerReference, reference));
+
+    it('settles a payment that succeeded at Paystack while nobody was told', async () => {
+      const placed = await place();
+      provider.set(placed.reference, { status: 'success' });
+      await age(placed.reference);
+      const result = await reconcilePendingPayments(t.db, provider, logger);
+      assert.ok(result.settled >= 1);
+      assert.deepEqual([(await order(placed.orderId)).status, (await order(placed.orderId)).paymentStatus], ['placed', 'paid']);
+      assert.equal((await attempt(placed.reference)).status, 'succeeded');
+      const again = await reconcilePendingPayments(t.db, provider, logger);
+      assert.equal(again.settled, 0, 'a second pass has nothing left to settle');
+      assert.equal((await t.db.select().from(orderStatusEvents).where(eq(orderStatusEvents.orderId, placed.orderId))).filter((e) => e.toStatus === 'placed').length, 1);
+    });
+
+    it('leaves a fresh attempt alone so the webhook and the return can settle it first', async () => {
+      const placed = await place();
+      provider.set(placed.reference, { status: 'success' });
+      const before = provider.verifyCalls;
+      await reconcilePendingPayments(t.db, provider, logger);
+      assert.equal((await order(placed.orderId)).paymentStatus, 'pending');
+      assert.equal(provider.verifyCalls, before, 'Paystack was not even asked');
+    });
+
+    it('marks a failed or reversed payment failed and keeps an unpaid one waiting', async () => {
+      const failed = await place();
+      const waiting = await place();
+      provider.set(failed.reference, { status: 'failed' });
+      await age(failed.reference);
+      await age(waiting.reference);
+      await reconcilePendingPayments(t.db, provider, logger);
+      assert.equal((await attempt(failed.reference)).status, 'failed');
+      assert.equal((await attempt(waiting.reference)).status, 'pending');
+    });
+
+    it('stops quietly when Paystack is unreachable and picks the work up on the next pass', async () => {
+      const placed = await place();
+      provider.set(placed.reference, { status: 'success' });
+      await age(placed.reference);
+      provider.verifyDown = true;
+      const down = await reconcilePendingPayments(t.db, provider, logger);
+      assert.ok(down.errors >= 1);
+      assert.equal((await attempt(placed.reference)).status, 'pending');
+      provider.verifyDown = false;
+      await reconcilePendingPayments(t.db, provider, logger);
+      assert.equal((await attempt(placed.reference)).status, 'succeeded');
     });
   });
 });

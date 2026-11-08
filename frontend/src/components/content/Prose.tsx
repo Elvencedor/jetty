@@ -1,5 +1,6 @@
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/cn";
 
 /**
@@ -15,6 +16,7 @@ export function Prose({ children, className }: { children: string; className?: s
       )}
     >
       <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeSanitize]}
         skipHtml
         components={{
