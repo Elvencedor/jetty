@@ -106,7 +106,7 @@ another request has already updated the cart.
 
 ### Customer authentication (email and password)
 
-`POST /auth/register` (`email` and `password` of 10-128 characters required,
+`POST /auth/register` (`email` and `password` of 8-128 characters required,
 optional E.164 `phone`) and `POST /auth/login` (`email` plus `password`)
 return `{ accessToken, tokenType: "Bearer",
 expiresIn, customer }` and set the `jh_refresh` cookie (`Secure`, `HttpOnly`,

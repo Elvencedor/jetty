@@ -34,7 +34,7 @@ export function RegisterForm({ onDone }: { onDone: () => void }) {
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
       <TextField label="Email" type="email" autoComplete="email" value={email} error={errors.email} onChange={(e) => setEmail(e.target.value)} />
-      <TextField label="Password" type="password" autoComplete="new-password" value={password} error={errors.password} hint="At least 10 characters." onChange={(e) => setPassword(e.target.value)} />
+      <TextField label="Password" type="password" autoComplete="new-password" value={password} error={errors.password} hint="At least 8 characters." onChange={(e) => setPassword(e.target.value)} />
       {errors.form ? <p role="alert" className="text-body-sm font-medium text-danger">{errors.form}</p> : null}
       <Button type="submit" size="lg" loading={busy}>Create account</Button>
     </form>
