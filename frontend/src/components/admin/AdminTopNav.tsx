@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { LogOut, Menu } from "lucide-react";
+import { Check, Link2, LogOut, Menu } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -12,6 +12,7 @@ import { activeNavKey, ordersNeedingAction, visibleNav } from "@/lib/admin/nav";
 import { permits } from "@/lib/admin/permissions";
 import { cn } from "@/lib/cn";
 import { useAdminSession } from "@/lib/stores/session";
+import { SITE_URL } from "@/lib/site";
 
 const BADGE_REFRESH_MS = 60_000;
 
@@ -32,6 +33,7 @@ export function AdminTopNav() {
   const menu = menuFor === pathname;
   const [account, setAccount] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
   const held = admin?.permissions ?? [];
   const items = visibleNav(held);
   const active = activeNavKey(pathname);
@@ -67,6 +69,22 @@ export function AdminTopNav() {
     };
   }, [account]);
 
+  // The "Copied" confirmation clears itself after two seconds.
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(t);
+  }, [copied]);
+
+  async function copyStoreLink() {
+    try {
+      await navigator.clipboard.writeText(SITE_URL);
+      setCopied(true);
+    } catch {
+      // Clipboard blocked (insecure origin or denied permission): nothing to report.
+    }
+  }
+
   async function signOut() {
     await adminLogout();
     queryClient.removeQueries({ queryKey: adminKeys.all });
@@ -75,13 +93,13 @@ export function AdminTopNav() {
 
   return (
     <header className="border-b border-line bg-surface px-[clamp(16px,3vw,36px)] py-3">
-      <div className="mx-auto flex max-w-admin flex-wrap items-center gap-x-5 gap-y-3">
+      <div className="mx-auto flex max-w-admin flex-wrap items-center gap-x-3 gap-y-3 md:gap-x-5">
         <Link href="/admin" className="flex items-center gap-2">
           <Image src="/brand/jettys-hairs-transparent.png" alt="" width={712} height={754} className="h-10 w-auto" />
           <span className="font-display text-heading-xs font-extrabold">jetty admin</span>
         </Link>
 
-        <button type="button" aria-expanded={menu} aria-controls="admin-nav" onClick={() => setMenuFor(menu ? null : pathname)} className="ml-auto inline-flex h-10 items-center gap-2 rounded-pill bg-surface-tint px-4 text-body-sm font-semibold md:hidden">
+        <button type="button" aria-expanded={menu} aria-controls="admin-nav" onClick={() => setMenuFor(menu ? null : pathname)} className="ml-auto inline-flex h-10 items-center gap-2 rounded-pill bg-surface-tint px-3 text-body-sm font-semibold md:hidden">
           <Menu aria-hidden="true" size={16} /> Menu
         </button>
 
@@ -102,6 +120,13 @@ export function AdminTopNav() {
             );
           })}
         </nav>
+
+        <button type="button" onClick={copyStoreLink} title={`Copy store link (${SITE_URL})`} className="inline-flex h-10 w-10 items-center justify-center gap-2 rounded-pill bg-surface-tint text-body-sm font-semibold hover:bg-pink-350 sm:w-auto sm:px-4">
+          {copied ? <Check aria-hidden="true" size={16} /> : <Link2 aria-hidden="true" size={16} />}
+          <span className="hidden sm:inline">{copied ? "Copied" : "Copy store link"}</span>
+          <span className="sr-only sm:hidden">Copy store link</span>
+          <span role="status" className="sr-only">{copied ? "Store link copied" : ""}</span>
+        </button>
 
         <div ref={accountRef} className="relative">
           <button type="button" aria-expanded={account} aria-haspopup="menu" onClick={() => setAccount((a) => !a)} className="flex size-10 items-center justify-center rounded-full bg-pink-350 text-label font-extrabold text-primary-deep">
