@@ -46,6 +46,27 @@ describe("ProductCard", () => {
     expect(screen.getByText("Was")).toBeInTheDocument();
   });
 
+  it("strikes the list price through when an automatic promotion lowers it", () => {
+    render(<ProductCard product={product({ badges: [{ kind: "sale", label: "15% off" }], price: { minAmountMinor: 18_000_000, maxAmountMinor: 24_000_000, compareAtMinor: null, saleMinAmountMinor: 15_300_000, currency: "NGN" } })} />);
+    expect(screen.getByText("15% off")).toBeInTheDocument();
+    expect(screen.getByText("From ₦153,000")).toBeInTheDocument();
+    expect(screen.getByText("₦180,000")).toBeInTheDocument();
+    expect(screen.getByText("Was")).toBeInTheDocument();
+  });
+
+  it("shows the promotion chip on the list and picks layouts too", () => {
+    const badges = [{ kind: "sale" as const, label: "₦5,000 off" }];
+    const { rerender } = render(<ProductCard product={product({ badges })} layout="list" />);
+    expect(screen.getByText("₦5,000 off")).toBeInTheDocument();
+    rerender(<ProductCard product={product({ badges })} layout="pick" />);
+    expect(screen.getByText("₦5,000 off")).toBeInTheDocument();
+  });
+
+  it("shows no chip when the API sends none, such as after a promotion's uses run out", () => {
+    render(<ProductCard product={product({ badges: [] })} />);
+    expect(screen.queryByText(/ off$/)).toBeNull();
+  });
+
   it("saves to the local wishlist from the heart without following the link", async () => {
     useWishlistStore.setState({ slugs: [] });
     render(<ProductCard product={product()} />);

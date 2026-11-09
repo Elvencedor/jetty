@@ -152,8 +152,14 @@ function ProductEditor({ initial, categories, onClose, canWrite, reload }: Props
     <>
       <Button variant="danger-soft" aria-label="Delete product" disabled={saving} iconLeft={<Trash2 aria-hidden="true" size={16} />} onClick={() => setDeleting("asking")}><span className="hidden sm:inline">Delete product</span></Button>
       <span className="hidden flex-1 sm:block" />
-      <Button variant="outline" disabled={saving} className="max-sm:flex-1" onClick={onClose}>{dirty ? "Cancel" : "Done"}</Button>
-      <Button variant="dark" loading={saving} disabled={!dirty} className="max-sm:flex-[1.4]" onClick={() => void save()}>Save</Button>
+      {dirty ? (
+        <>
+          <Button variant="outline" disabled={saving} className="max-sm:flex-1" onClick={onClose}>Cancel</Button>
+          <Button variant="dark" loading={saving} className="max-sm:flex-[1.4]" onClick={() => void save()}>Save</Button>
+        </>
+      ) : (
+        <Button variant="dark" className="max-sm:flex-1" onClick={onClose}>Done</Button>
+      )}
     </>
   ) : (
     <>

@@ -47,7 +47,7 @@ export function Gallery({ media, title, focusId }: Props) {
   const current = images[Math.min(index, images.length - 1)];
 
   return (
-    <section aria-label="Product images" className="relative h-[500px] bg-pink-300 lg:h-auto lg:aspect-[4/5] lg:overflow-hidden lg:rounded-xl">
+    <section aria-label="Product images" className="relative h-[min(500px,60dvh)] bg-pink-300 lg:h-auto lg:aspect-[4/5] lg:max-h-[calc(100dvh-22rem)] lg:w-full lg:overflow-hidden lg:rounded-xl">
       {images.length ? (
         <div
           id={stripId}
