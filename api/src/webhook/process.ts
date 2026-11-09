@@ -3,6 +3,7 @@ import type { Db } from '../db/client.js';
 import { paymentAttempts } from '../db/schema/index.js';
 import type { Logger } from '../lib/logger.js';
 import { PaymentIndeterminateError, type PaymentProvider } from '../modules/payments/provider.js';
+import { applyRefundEvent } from '../modules/payments/refund-events.js';
 import { settleTransaction } from '../modules/payments/settle.js';
 
 export type WebhookResult =
@@ -11,7 +12,18 @@ export type WebhookResult =
   /** Provider lookup failed; Paystack will redeliver, so nothing is recorded as handled. */
   | { status: 503 };
 
-type PaystackEvent = { event?: unknown; data?: { id?: unknown; reference?: unknown } };
+type PaystackEvent = {
+  event?: unknown;
+  data?: {
+    id?: unknown;
+    reference?: unknown;
+    refund_reference?: unknown;
+    transaction_reference?: unknown;
+    transaction?: { reference?: unknown } | null;
+    amount?: unknown;
+    deducted_amount?: unknown;
+  };
+};
 
 const TERMINAL = new Set(['succeeded', 'failed', 'expired']);
 
@@ -37,6 +49,23 @@ export async function handlePaystackEvent(db: Db, provider: PaymentProvider, raw
   if (!event) return { status: 400 };
   const reference = typeof parsed.data?.reference === 'string' ? parsed.data.reference : null;
   const transactionId = parsed.data?.id === undefined ? '' : String(parsed.data.id);
+
+  if (event.startsWith('refund.')) {
+    // Paystack's documented refund payloads differ by event: the charge is `transaction_reference` or a nested
+    // `transaction.reference`, and the amount is a numeric string (`amount`) or a number (`deducted_amount`).
+    const d = parsed.data ?? {};
+    const refundIds = [d.id, d.refund_reference].filter((v): v is string | number => typeof v === 'string' || typeof v === 'number').map(String);
+    const amount = Number(d.amount ?? d.deducted_amount);
+    const nested = d.transaction && typeof d.transaction.reference === 'string' ? d.transaction.reference : null;
+    const outcome = await applyRefundEvent(db, provider.name, {
+      event,
+      refundIds,
+      transactionReference: typeof d.transaction_reference === 'string' ? d.transaction_reference : nested,
+      amountMinor: Number.isInteger(amount) && amount > 0 ? amount : null,
+    });
+    if (outcome === 'unknown_refund') logger?.warn('webhook for unknown refund', { event, refundIds });
+    return { status: 200, outcome };
+  }
 
   if (!event.startsWith('charge.') || !reference) {
     logger?.info('webhook ignored', { event });

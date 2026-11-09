@@ -6,6 +6,7 @@ import {
   type InitializeResult,
   type PaymentProvider,
   type RefundInput,
+  type ProviderRefund,
   type RefundResult,
   type ResolvedAccount,
   type Subaccount,
@@ -156,6 +157,30 @@ export class PaystackProvider implements PaymentProvider {
     }
     if (res.ok) throw new PaymentIndeterminateError('Unexpected Paystack response');
     throw new PaymentRejectedError(`Paystack rejected the refund (${res.status}): ${String(body?.message ?? '').slice(0, 200)}`);
+  }
+
+  /** Paystack List Refunds, filtered to one charge. */
+  async listRefunds(reference: string): Promise<ProviderRefund[]> {
+    let res: Response;
+    try {
+      res = await this.fetchImpl(`${this.options.baseUrl}/refund?reference=${encodeURIComponent(reference)}`, {
+        headers: { Authorization: `Bearer ${this.options.secretKey}` },
+        signal: AbortSignal.timeout(this.options.timeoutMs ?? 10_000),
+      });
+    } catch {
+      throw new PaymentIndeterminateError('Paystack did not respond');
+    }
+    if (res.status === 404) return [];
+    if (!res.ok) throw new PaymentIndeterminateError(`Paystack responded ${res.status}`);
+    const body = (await res.json().catch(() => null)) as { status?: boolean; data?: unknown } | null;
+    if (!body?.status || !Array.isArray(body.data)) throw new PaymentIndeterminateError('Unexpected Paystack response');
+    const out: ProviderRefund[] = [];
+    for (const r of body.data as { id?: number | string; status?: string; amount?: number; transaction?: { reference?: unknown } | string | number | null }[]) {
+      // The `reference` filter is not something we can prove Paystack honours; never take another charge's refund.
+      if (r?.transaction && typeof r.transaction === 'object' && typeof r.transaction.reference === 'string' && r.transaction.reference !== reference) continue;
+      if (r?.id !== undefined && typeof r.status === 'string' && Number.isInteger(r.amount)) out.push({ reference: String(r.id), status: r.status, amountMinor: r.amount as number });
+    }
+    return out;
   }
 
   /** One Paystack call: the same timeout and error mapping everywhere. Rejections carry Paystack's own message for the admin. */

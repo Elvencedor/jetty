@@ -67,3 +67,17 @@ describe('PaystackProvider payouts', () => {
     await assert.rejects(paystack([{ body: { status: true, data: {} } }]).provider.saveSubaccount({ businessName: 'X Ltd', bankCode: '058', accountNumber: '0123456789', percentageCharge: 0 }), PaymentIndeterminateError);
   });
 });
+
+describe('PaystackProvider listRefunds', () => {
+  it('asks for one charge and returns well-formed refunds with Paystack\'s own statuses', async () => {
+    const { provider, seen } = paystack([{ body: { status: true, data: [{ id: 77, status: 'processed', amount: 5000 }, { id: 78, status: 'pending' }] } }]);
+    assert.deepEqual(await provider.listRefunds('ref 1'), [{ reference: '77', status: 'processed', amountMinor: 5000 }]);
+    assert.equal(seen[0]!.url, 'https://paystack.test/refund?reference=ref%201');
+  });
+
+  it('treats an unknown charge as having no refunds and an unreachable or odd answer as unknown', async () => {
+    assert.deepEqual(await paystack([{ status: 404, body: {} }]).provider.listRefunds('r'), []);
+    await assert.rejects(paystack([{ status: 503, body: {} }]).provider.listRefunds('r'), PaymentIndeterminateError);
+    await assert.rejects(paystack([{ body: { status: true, data: {} } }]).provider.listRefunds('r'), PaymentIndeterminateError);
+  });
+});
