@@ -62,6 +62,9 @@ export type RefundResult = {
   status: string;
 };
 
+/** A refund as the provider reports it. Paystack's refund id is the reference we keep; status is the provider's own word. */
+export type ProviderRefund = { reference: string; status: string; amountMinor: number };
+
 export type Bank = { name: string; code: string };
 export type ResolvedAccount = { accountName: string; accountNumber: string };
 
@@ -83,6 +86,8 @@ export interface PaymentProvider {
   verify(reference: string): Promise<VerifiedTransaction>;
   /** Throws PaymentRejectedError when refused outright, PaymentIndeterminateError when the outcome is unknown. */
   refund(input: RefundInput): Promise<RefundResult>;
+  /** Every refund the provider holds against a charge. Throws PaymentIndeterminateError when it cannot be asked. */
+  listRefunds(reference: string): Promise<ProviderRefund[]>;
   /** Nigerian banks that can receive a payout, by name. */
   listBanks(): Promise<Bank[]>;
   /** Looks up who owns an account number at a bank. Throws PaymentRejectedError when there is no such account. */

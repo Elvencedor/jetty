@@ -4,6 +4,7 @@ import {
   type Bank,
   type InitializeInput,
   type PaymentProvider,
+  type ProviderRefund,
   type RefundInput,
   type SubaccountInput,
   type VerifiedTransaction,
@@ -27,6 +28,9 @@ export class FakeProvider implements PaymentProvider {
   refundMode: 'ok' | 'reject' | 'timeout' = 'ok';
   refunds: RefundInput[] = [];
   transactions = new Map<string, Txn>();
+  /** What the provider reports per charge reference; tests set it to simulate Paystack finishing a refund. */
+  providerRefunds = new Map<string, ProviderRefund[]>();
+  listRefundsDown = false;
   private seq = 1000;
 
   reset() {
@@ -36,6 +40,8 @@ export class FakeProvider implements PaymentProvider {
     this.verifyCalls = 0;
     this.refundMode = 'ok';
     this.refunds = [];
+    this.providerRefunds = new Map();
+    this.listRefundsDown = false;
     this.subaccounts = [];
     this.subaccountMode = 'ok';
   }
@@ -61,6 +67,11 @@ export class FakeProvider implements PaymentProvider {
     if (this.refundMode === 'reject') throw new PaymentRejectedError('rejected');
     if (this.refundMode === 'timeout') throw new PaymentIndeterminateError('timeout');
     return { providerReference: `rf_${this.refunds.length}`, status: 'pending' };
+  }
+
+  async listRefunds(reference: string) {
+    if (this.listRefundsDown) throw new PaymentIndeterminateError('down');
+    return this.providerRefunds.get(reference) ?? [];
   }
 
   async listBanks() {

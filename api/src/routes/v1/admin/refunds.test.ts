@@ -7,6 +7,7 @@ import { createLogger } from '../../../lib/logger.js';
 import { createServer } from '../../../server.js';
 import { adminTestEnv, signInAdmin } from '../../../testing/admin.js';
 import { createTestDatabase, TEST_DATABASE_URL, type TestDatabase } from '../../../testing/database.js';
+import { reconcilePendingRefunds, REFUND_RECONCILE_MIN_AGE_MS } from '../../../modules/payments/reconcile-refunds.js';
 import { handlePaystackEvent } from '../../../webhook/process.js';
 import { FakeProvider } from '../../../testing/fake-provider.js';
 
@@ -195,5 +196,90 @@ describe('admin refunds and double-payment handling', { skip: !TEST_DATABASE_URL
     const unpaid = await place('card');
     assert.equal((await refund(unpaid.orderId, { reason: 'Never paid for' })).status, 409);
     assert.equal((await refund(o.orderId, { amountMinor: 5000, reason: 'Managers may refund' }, manager)).status, 201);
+  });
+
+  describe('provider refund status events', () => {
+    const send = (event: string, data: Json) => handlePaystackEvent(t.db, provider, Buffer.from(JSON.stringify({ event, data }))) as Promise<{ status: number; outcome: string }>;
+    const refundOf = async (orderId: string) => (await t.db.select().from(refunds).where(eq(refunds.orderId, orderId)))[0]!;
+
+    it('moves a refund to processed, ignores replays, and never lets a late event undo a final state', async () => {
+      provider.reset();
+      const o = await place('card');
+      await pay(o.reference);
+      assert.equal((await refund(o.orderId, { reason: 'Customer returned the wig' })).status, 201);
+      assert.equal((await send('refund.processing', { id: 'rf_1', transaction_reference: o.reference, amount: 250000 })).outcome, 'updated');
+      assert.equal((await refundOf(o.orderId)).status, 'processing');
+      assert.equal((await send('refund.processed', { id: 'rf_1', transaction_reference: o.reference, amount: 250000 })).outcome, 'updated');
+      assert.equal((await send('refund.processed', { id: 'rf_1' })).outcome, 'duplicate');
+      assert.equal((await send('refund.failed', { id: 'rf_1' })).outcome, 'duplicate');
+      assert.equal((await refundOf(o.orderId)).status, 'processed');
+      assert.equal((await orderRow(o.orderId)).paymentStatus, 'refunded');
+    });
+
+    it('on failure frees the amount, puts the order back as paid, and can be refunded again', async () => {
+      provider.reset();
+      const o = await place('card');
+      await pay(o.reference);
+      assert.equal((await refund(o.orderId, { reason: 'Customer returned the wig' })).status, 201);
+      assert.equal((await send('refund.failed', { id: 'rf_1', transaction_reference: o.reference, amount: 250000 })).outcome, 'updated');
+      assert.equal((await refundOf(o.orderId)).status, 'failed');
+      const order = await orderRow(o.orderId);
+      assert.deepEqual([order.paymentStatus, order.status === 'refunded'], ['paid', false]);
+      assert.equal((await refund(o.orderId, { reason: 'Trying the refund again' })).status, 201);
+    });
+
+    it('matches a refund whose provider reply was lost by its charge and amount, and ignores unknown refunds', async () => {
+      provider.reset();
+      provider.refundMode = 'timeout';
+      const o = await place('card');
+      await pay(o.reference);
+      assert.equal((await refund(o.orderId, { reason: 'Customer returned the wig' })).status, 502);
+      assert.equal((await send('refund.processed', { id: 'rf_999', transaction_reference: o.reference, amount: 250000 })).outcome, 'updated');
+      const row = await refundOf(o.orderId);
+      assert.deepEqual([row.status, row.providerReference], ['processed', 'rf_999']);
+      assert.equal((await send('refund.processed', { id: 'nope', transaction_reference: 'nope', amount: 1 })).outcome, 'unknown_refund');
+    });
+  });
+
+  describe('refund reconciliation (lost webhooks)', () => {
+    const logger = createLogger('error');
+    const later = () => new Date(Date.now() + REFUND_RECONCILE_MIN_AGE_MS + 60_000);
+    const refundOf = async (orderId: string) => (await t.db.select().from(refunds).where(eq(refunds.orderId, orderId)))[0]!;
+
+    it('finishes a refund the provider has completed, leaves young ones alone, and is safe to repeat', async () => {
+      provider.reset();
+      const o = await place('card');
+      await pay(o.reference);
+      assert.equal((await refund(o.orderId, { reason: 'Customer returned the wig' })).status, 201);
+      provider.providerRefunds.set(o.reference, [{ reference: 'rf_1', status: 'processed', amountMinor: 250000 }]);
+      assert.equal((await reconcilePendingRefunds(t.db, provider, logger)).updated, 0);
+      assert.equal((await refundOf(o.orderId)).status, 'pending');
+      assert.equal((await reconcilePendingRefunds(t.db, provider, logger, later())).updated, 1);
+      assert.equal((await refundOf(o.orderId)).status, 'processed');
+      assert.equal((await reconcilePendingRefunds(t.db, provider, logger, later())).updated, 0);
+    });
+
+    it('reverses the order when the provider reports a failure, and adopts a refund whose reply was lost', async () => {
+      provider.reset();
+      provider.refundMode = 'timeout';
+      const o = await place('card');
+      await pay(o.reference);
+      assert.equal((await refund(o.orderId, { reason: 'Customer returned the wig' })).status, 502);
+      provider.providerRefunds.set(o.reference, [{ reference: 'rf_77', status: 'failed', amountMinor: 250000 }]);
+      assert.equal((await reconcilePendingRefunds(t.db, provider, logger, later())).updated, 1);
+      const row = await refundOf(o.orderId);
+      assert.deepEqual([row.status, row.providerReference], ['failed', 'rf_77']);
+    });
+
+    it('stops quietly when the provider is down and keeps the refund pending', async () => {
+      provider.reset();
+      const o = await place('card');
+      await pay(o.reference);
+      assert.equal((await refund(o.orderId, { reason: 'Customer returned the wig' })).status, 201);
+      provider.listRefundsDown = true;
+      const down = await reconcilePendingRefunds(t.db, provider, logger, later());
+      assert.deepEqual([down.updated, down.errors], [0, 1]);
+      assert.equal((await refundOf(o.orderId)).status, 'pending');
+    });
   });
 });
