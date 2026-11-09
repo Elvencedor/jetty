@@ -55,7 +55,7 @@ export function ProductView({ product, children }: Props) {
   }, [product.id]);
   useEffect(() => () => clearTimeout(addedTimer.current), []);
 
-  // The shown price is the server's quote for this variant, so it agrees with the bag and checkout. A quick run of
+  // The shown price is the server's quote for this variant, so it agrees with the cart and checkout. A quick run of
   // changes asks once, and the number dims while the answer is on its way.
   const wanted = { variantId: variant?.id, quantity };
   const settled = useDebounced(wanted, QUOTE_DEBOUNCE_MS);
@@ -71,9 +71,14 @@ export function ProductView({ product, children }: Props) {
   const unit = line?.unitPriceMinor ?? variant?.price.amountMinor;
   const compareAt = line?.compareAtPriceMinor ?? variant?.compareAtPrice?.amountMinor ?? null;
   const range = priceRange(product.variants);
-  const lineTotal = quantity === 1 ? unit : line?.lineTotalMinor;
+  // Automatic promotions come back on the quote line. Show their effect per unit, so the discount is part of the price the customer sees here rather than a surprise in the cart.
+  const promoUnit = line && line.quantity > 0 ? Math.floor(line.discountMinor / line.quantity) : 0;
+  const listPrice = compareAt && unit !== undefined && compareAt > unit ? compareAt : unit;
+  const price = unit !== undefined ? Math.max(0, unit - promoUnit) : undefined;
+  const lineTotal = quantity === 1 ? price : line?.lineTotalMinor;
 
-  const salePct = unit !== undefined && compareAt && compareAt > unit ? Math.round(((compareAt - unit) * 100) / compareAt) : null;
+  const salePct = price !== undefined && listPrice && listPrice > price ? Math.max(1, Math.round(((listPrice - price) * 100) / listPrice)) : null;
+  const fixedOnly = promoUnit > 0 && !compareAt && !!quote?.promotions.applied.length && quote.promotions.applied.every((a) => a.kind === "fixed_amount");
   const cover = product.media.find((m) => m.variantId === variant?.id) ?? product.media[0] ?? null;
   const category = product.categories[0];
   const summary = product.options.map((o) => o.values.find((v) => v.id === selection[o.id])?.label).filter(Boolean).join(" · ");
@@ -87,7 +92,7 @@ export function ProductView({ product, children }: Props) {
     if (!variant || !buyable || added) return;
     add(variant.id, quantity);
     track("add_to_bag", { productId: product.id, variantId: variant.id, quantity });
-    // Confirm on the button, then return to the listing; the bag count in the header has gone up by the time they are there.
+    // Confirm on the button, then return to the listing; the cart count in the header has gone up by the time they are there.
     setAdded(true);
     clearTimeout(addedTimer.current);
     addedTimer.current = setTimeout(goBack, ADDED_MS);
@@ -128,9 +133,9 @@ export function ProductView({ product, children }: Props) {
 
       {/* Phones: back, share and save float over the photo and stay at the top of the screen while the page scrolls (zero height, so they take no room). Wide screens: share and save sit on the photo. */}
       <div className="pointer-events-none sticky top-3 z-30 h-0 lg:relative lg:top-auto lg:col-start-1 lg:row-start-2">
-        <div className="flex justify-between px-4 lg:justify-end">
+        <div className="flex justify-between px-4 lg:justify-end lg:px-5 lg:pt-5">
           <BackLink fallback="/shop" className="pointer-events-auto shadow-md lg:hidden" />
-          <div className="pointer-events-auto flex gap-2">{actions}</div>
+          <div className="pointer-events-auto flex gap-3">{actions}</div>
         </div>
       </div>
 
@@ -141,7 +146,7 @@ export function ProductView({ product, children }: Props) {
       <div className="relative -mt-8 flex flex-col gap-4 rounded-t-[32px] bg-surface px-4 pb-8 pt-[22px] lg:col-start-2 lg:row-start-2 lg:mt-0 lg:rounded-none lg:px-0 lg:pt-0">
         {salePct || quote?.promotions.applied.length ? (
           <div className="flex flex-wrap gap-1.5">
-            {salePct ? <Badge kind="sale" className="px-2.5 py-1 text-caption">−{salePct}% today</Badge> : null}
+            {salePct ? <Badge kind="sale" className="px-2.5 py-1 text-caption">{fixedOnly ? `${formatNaira(promoUnit)} off` : `−${salePct}% off`}</Badge> : null}
             {quote?.promotions.applied.map((p) => <Badge key={p.promotionId} kind="eligible" className="px-2.5 py-1 text-caption">{p.name}</Badge>)}
           </div>
         ) : null}
@@ -167,8 +172,9 @@ export function ProductView({ product, children }: Props) {
               <span className="font-display text-heading-xs font-extrabold text-muted">Sold out</span>
             ) : unit !== undefined ? (
               <>
-                {compareAt && compareAt > unit ? <s className="text-caption text-muted"><span className="sr-only">Was </span>{formatNaira(compareAt)}</s> : null}
-                <span className="font-display text-heading-sm font-extrabold">{formatNaira(unit)}</span>
+                {salePct && listPrice ? <s className="text-caption text-muted"><span className="sr-only">Was </span>{formatNaira(listPrice)}</s> : null}
+                <span className={cn("font-display text-heading-sm font-extrabold", !!salePct && "text-primary-strong")}>{formatNaira(price ?? unit)}</span>
+                {salePct ? <span className="text-caption font-bold text-primary-strong">{fixedOnly ? `Save ${formatNaira(promoUnit)}` : `Save ${salePct}%`}</span> : null}
               </>
             ) : range ? (
               <span className="font-display text-heading-sm font-extrabold">{range.min === range.max ? formatNaira(range.min) : `From ${formatNaira(range.min)}`}</span>
@@ -194,15 +200,15 @@ export function ProductView({ product, children }: Props) {
               </p>
               {unit !== undefined && buyable ? (
                 <p aria-hidden="true" className={cn("ml-auto flex shrink-0 flex-col items-end leading-tight transition-opacity", waiting && "opacity-50")}>
-                  {compareAt && compareAt > unit ? <s className="text-caption text-muted">{formatNaira(compareAt)}</s> : null}
-                  <span className="font-display text-heading-xs font-extrabold">{formatNaira(unit)}</span>
+                  {salePct && listPrice ? <s className="text-caption text-muted">{formatNaira(listPrice)}</s> : null}
+                  <span className="font-display text-heading-xs font-extrabold">{formatNaira(price ?? unit)}</span>
                 </p>
               ) : null}
             </div>
             <QuantityStepper value={quantity} onChange={(q) => setQuantity(Math.min(Math.max(q, 1), max))} max={buyable ? max : 1} disabled={!buyable} className="[&_button]:h-[52px]" />
             <Button size="lg" disabled={!buyable} onClick={onAdd} className="h-[54px] min-w-0 flex-1 lg:w-72 lg:flex-none">
-              <span role="status" className="sr-only">{added ? "Added to bag" : ""}</span>
-              {added ? <><Check aria-hidden="true" size={18} strokeWidth={2.4} /> Added to bag</> : !variant ? "Choose options" : !buyable ? "Sold out" : lineTotal !== undefined ? `Add to bag · ${formatNaira(lineTotal)}` : "Add to bag"}
+              <span role="status" className="sr-only">{added ? "Added to cart" : ""}</span>
+              {added ? <><Check aria-hidden="true" size={18} strokeWidth={2.4} /> Added to cart</> : !variant ? "Choose options" : !buyable ? "Sold out" : lineTotal !== undefined ? `Add to cart · ${formatNaira(lineTotal)}` : "Add to cart"}
             </Button>
           </div>
         </div>

@@ -9,7 +9,9 @@ import { WishlistButton } from "./WishlistButton";
 export type CardLayout = "grid" | "pick" | "list";
 
 export function priceLabel(price: Card["price"]): string {
-  return price.minAmountMinor === price.maxAmountMinor ? formatNaira(price.minAmountMinor) : `From ${formatNaira(price.minAmountMinor)}`;
+  // An automatic promotion lowers the price shown; the list price goes beside it, struck through.
+  const from = price.saleMinAmountMinor ?? price.minAmountMinor;
+  return price.minAmountMinor === price.maxAmountMinor ? formatNaira(from) : `From ${formatNaira(from)}`;
 }
 
 function Dots({ colours }: { colours: Card["colours"] }) {
@@ -34,8 +36,8 @@ function mainBadge(product: Card) {
 
 const Price = ({ price, stacked = false }: { price: Card["price"]; stacked?: boolean }) => (
   <span className={cn("flex leading-tight", stacked ? "flex-col" : "items-baseline gap-1.5")}>
-    <span className="font-display text-body-lg font-extrabold text-ink">{priceLabel(price)}</span>
-    {price.compareAtMinor ? <s className="text-caption text-muted"><span className="sr-only">Was </span>{formatNaira(price.compareAtMinor)}</s> : null}
+    <span className={cn("font-display text-body-lg font-extrabold", price.saleMinAmountMinor ? "text-primary-strong" : "text-ink")}>{priceLabel(price)}</span>
+    {price.saleMinAmountMinor || price.compareAtMinor ? <s className="text-caption text-muted"><span className="sr-only">Was </span>{formatNaira(price.compareAtMinor ?? price.minAmountMinor)}</s> : null}
   </span>
 );
 

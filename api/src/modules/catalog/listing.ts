@@ -2,6 +2,8 @@ import { sql, type SQL } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import { decodeCursor, encodeCursor } from '../../lib/cursor.js';
 import { escapeLike } from '../../lib/sql.js';
+import { loadPromotions } from '../pricing/load-promotions.js';
+import { applyPromotions } from '../pricing/promotions.js';
 
 export const PRODUCT_SORTS = ['recommended', 'bestSelling', 'newest', 'priceAsc', 'priceDesc', 'topRated'] as const;
 export type ProductSort = (typeof PRODUCT_SORTS)[number];
@@ -86,7 +88,7 @@ export type ProductCard = {
   lengthRange: { min: number; max: number } | null;
   featured: boolean;
   /** `compareAtMinor` is the struck-through "was" price of the cheapest variant, when that variant is on sale. */
-  price: { minAmountMinor: number; maxAmountMinor: number; compareAtMinor: number | null; currency: string };
+  price: { minAmountMinor: number; maxAmountMinor: number; compareAtMinor: number | null; /** The cheapest variant's price after automatic promotions, when one applies; the tile shows it with the list price struck through. */ saleMinAmountMinor: number | null; currency: string };
   inStock: boolean;
   onOffer: boolean;
   rating: { average: number; count: number };
@@ -242,6 +244,7 @@ function toCard(r: Record<string, unknown>): ProductCard {
       minAmountMinor: Number(r.min_price),
       maxAmountMinor: Number(r.max_price),
       compareAtMinor: null,
+      saleMinAmountMinor: null,
       currency: r.currency as string,
     },
     inStock: r.in_stock as boolean,
@@ -305,27 +308,57 @@ export async function decorateCards(db: Db, cards: ProductCard[]): Promise<Produ
          from product_options po join product_option_values pov on pov.option_id = po.id and pov.active
          where po.product_id = p.id and lower(po.name) = 'colour'
            and exists (select 1 from variant_option_values vov join product_variants v on v.id = vov.variant_id and v.active where vov.option_value_id = pov.id)) as colours,
-      (select min(pov.value_key::numeric) from product_options po join product_option_values pov on pov.option_id = po.id and pov.active
-         where po.product_id = p.id and lower(po.name) = 'length' and pov.value_key ~ '^[0-9]+([.][0-9]+)?$'
-           and exists (select 1 from variant_option_values vov join product_variants v on v.id = vov.variant_id and v.active where vov.option_value_id = pov.id)) as len_min,
-      (select max(pov.value_key::numeric) from product_options po join product_option_values pov on pov.option_id = po.id and pov.active
-         where po.product_id = p.id and lower(po.name) = 'length' and pov.value_key ~ '^[0-9]+([.][0-9]+)?$'
-           and exists (select 1 from variant_option_values vov join product_variants v on v.id = vov.variant_id and v.active where vov.option_value_id = pov.id)) as len_max,
-      (select case when v.compare_at_price_minor > v.price_minor then v.compare_at_price_minor end
-         from product_variants v where v.product_id = p.id and v.active order by v.price_minor asc, v.compare_at_price_minor desc nulls last limit 1) as compare_at,
+      ln.len_min, ln.len_max, cv.compare_at, cv.id as cheapest_variant_id,
+      (select coalesce(json_agg(pcl.collection_id), '[]'::json) from product_collections pcl where pcl.product_id = p.id) as collection_ids,
       (select max(round((v.compare_at_price_minor - v.price_minor) * 100.0 / v.compare_at_price_minor))::int
          from product_variants v where v.product_id = p.id and v.active and v.compare_at_price_minor > v.price_minor) as sale_pct,
       (select coalesce(bool_or(coalesce(i.on_hand_quantity - i.reserved_quantity, 0) between 1 and coalesce(i.low_stock_threshold, ${LOW_STOCK_DEFAULT})), false)
          from product_variants v left join inventory i on i.variant_id = v.id where v.product_id = p.id and v.active) as low_stock
-    from products p where p.id in (${list(cards.map((c) => c.id))})`)) as unknown as Record<string, unknown>[];
+    from products p
+    -- The cheapest buyable variant is looked up once, for both its was-price and the promotion check.
+    left join lateral (
+      select v.id, case when v.compare_at_price_minor > v.price_minor then v.compare_at_price_minor end as compare_at
+      from product_variants v where v.product_id = p.id and v.active order by v.price_minor asc, v.compare_at_price_minor desc nulls last limit 1
+    ) cv on true
+    -- Shortest and longest numeric length among buyable variants, in one pass over the option values.
+    left join lateral (
+      select min(pov.value_key::numeric) as len_min, max(pov.value_key::numeric) as len_max
+      from product_options po join product_option_values pov on pov.option_id = po.id and pov.active
+      where po.product_id = p.id and lower(po.name) = 'length' and pov.value_key ~ '^[0-9]+([.][0-9]+)?$'
+        and exists (select 1 from variant_option_values vov join product_variants v on v.id = vov.variant_id and v.active where vov.option_value_id = pov.id)
+    ) ln on true
+    where p.id in (${list(cards.map((c) => c.id))})`)) as unknown as Record<string, unknown>[];
   const byId = new Map(rows.map((r) => [r.id as string, r]));
   const cutoff = Date.now() - NEW_WINDOW_DAYS * 86_400_000;
+  // Automatic promotions, as a guest would get them: the same engine the cart uses, so the tile never disagrees with the quote.
+  const { promotions: automatic } = await loadPromotions(db, { codes: [], now: new Date() });
 
   return cards.map((card) => {
     const r = byId.get(card.id);
     if (!r) return card;
     const badges: Badge[] = [];
+    let promoLabel: string | null = null;
+    let salePriceMinor: number | null = null;
+
+    // One unit of the cheapest variant through the automatic promotions: if it earns a discount, say so with a chip
+    // and give the price after it, so the tile can strike the list price through like the product page does.
+    if (automatic.length > 0 && r.cheapest_variant_id && card.price.minAmountMinor > 0) {
+      const unit = card.price.minAmountMinor;
+      const engine = applyPromotions({
+        lines: [{ variantId: r.cheapest_variant_id as string, productId: card.id, collectionIds: (r.collection_ids as string[]) ?? [], quantity: 1, unitPriceMinor: unit }],
+        promotions: automatic,
+        currency: card.price.currency,
+      });
+      const discount = Math.min(unit, (engine.allocations[0] ?? []).reduce((sum, a) => sum + a.amountMinor, 0));
+      if (discount > 0) {
+        salePriceMinor = unit - discount;
+        const fixedOnly = engine.applied.length > 0 && engine.applied.every((a) => a.kind === 'fixed_amount');
+        promoLabel = fixedOnly ? `₦${Math.round(discount / 100).toLocaleString('en-NG')} off` : `${Math.max(1, Math.round((discount * 100) / unit))}% off`;
+      }
+    }
+
     if (card.badge) badges.push({ kind: 'custom', label: card.badge });
+    if (promoLabel) badges.push({ kind: 'sale', label: promoLabel });
     if (r.sale_pct) badges.push({ kind: 'sale', label: `-${r.sale_pct}%` });
     if (r.low_stock && card.inStock) badges.push({ kind: 'low_stock', label: 'Low stock' });
     if (new Date(r.pub as string).getTime() >= cutoff) badges.push({ kind: 'new', label: 'New' });
@@ -333,7 +366,7 @@ export async function decorateCards(db: Db, cards: ProductCard[]): Promise<Produ
     return {
       ...card,
       badges,
-      price: { ...card.price, compareAtMinor: r.compare_at === null || r.compare_at === undefined ? null : Number(r.compare_at) },
+      price: { ...card.price, compareAtMinor: r.compare_at === null || r.compare_at === undefined ? null : Number(r.compare_at), saleMinAmountMinor: salePriceMinor },
       colours: r.colours as ColourOption[],
       lengthRange: r.len_min === null ? null : { min: Number(r.len_min), max: Number(r.len_max) },
     };
