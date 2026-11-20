@@ -3,6 +3,7 @@ import Joi from 'joi';
 import { createContent, getContent, listContent, updateContent, type ContentInput } from '../../../modules/admin/content.js';
 import { customerSegments, getAdminCustomer, listAdminCustomers, SEGMENTS, listAdminReviews, moderateReview, reviewSummary } from '../../../modules/admin/people.js';
 import { deleteZone, listZones, upsertZones, zoneSchema, type ZoneInput } from '../../../modules/admin/zones.js';
+import { createPrepTime, deletePrepTime, listPrepTimes, prepTimeSchema, updatePrepTime, type PrepTimeInput } from '../../../modules/admin/prep-times.js';
 import { CONTENT_STATUSES, CONTENT_TYPES } from '../../../modules/content/content.js';
 import { getSetting, isSettingKey, SETTING_KEYS, SETTINGS, updateSetting } from '../../../modules/settings/settings.js';
 import { withUrl } from '../../../modules/media/urls.js';
@@ -167,6 +168,44 @@ export const adminManagementRoutes: ServerRoute[] = [
       if (key === 'delivery-zones') return h.response({ zones: await listZones(db(request)) }).header('Cache-Control', NO_STORE);
       if (!isSettingKey(key)) throw notFound('Unknown setting.');
       return h.response(await getSetting(db(request), key)).header('Cache-Control', NO_STORE);
+    },
+  },
+  {
+    method: 'GET',
+    path: '/admin/settings/prep-times',
+    options: { ...guard('settings:read'), description: 'Delivery prep times', tags: ['api', 'admin'] },
+    handler: async (request, h) => h.response({ prepTimes: await listPrepTimes(db(request)) }).header('Cache-Control', NO_STORE),
+  },
+  {
+    method: 'POST',
+    path: '/admin/settings/prep-times',
+    options: { ...guard('settings:write'), description: 'Create a delivery prep time', tags: ['api', 'admin'], validate: { payload: prepTimeSchema.min(1) } },
+    handler: async (request, h) => {
+      await audited(request, (tx) => createPrepTime(tx, request.payload as PrepTimeInput), ({ after }) => ({ action: 'settings.prep_time_create', resourceType: 'settings', resourceId: after.id, before: null, after }));
+      void revalidateStorefront(request.server.app.env, request.server.app.logger, ['settings']);
+      return h.response({ prepTimes: await listPrepTimes(db(request)) }).header('Cache-Control', NO_STORE);
+    },
+  },
+  {
+    method: 'PATCH',
+    path: '/admin/settings/prep-times/{id}',
+    options: { ...guard('settings:write'), description: 'Update a delivery prep time', tags: ['api', 'admin'], validate: { params: uuidParam('id'), payload: prepTimeSchema.min(1) } },
+    handler: async (request, h) => {
+      const { id } = request.params as { id: string };
+      await audited(request, (tx) => updatePrepTime(tx, id, request.payload as PrepTimeInput), ({ before, after }) => ({ action: 'settings.prep_time_update', resourceType: 'settings', resourceId: id, before, after }));
+      void revalidateStorefront(request.server.app.env, request.server.app.logger, ['settings']);
+      return h.response({ prepTimes: await listPrepTimes(db(request)) }).header('Cache-Control', NO_STORE);
+    },
+  },
+  {
+    method: 'DELETE',
+    path: '/admin/settings/prep-times/{id}',
+    options: { ...guard('settings:write'), description: 'Delete a delivery prep time', tags: ['api', 'admin'], validate: { params: uuidParam('id') } },
+    handler: async (request, h) => {
+      const { id } = request.params as { id: string };
+      await audited(request, (tx) => deletePrepTime(tx, id), (before) => ({ action: 'settings.prep_time_delete', resourceType: 'settings', resourceId: id, before, after: null }));
+      void revalidateStorefront(request.server.app.env, request.server.app.logger, ['settings']);
+      return h.response({ prepTimes: await listPrepTimes(db(request)) }).header('Cache-Control', NO_STORE);
     },
   },
   {

@@ -3,6 +3,7 @@ import Joi from 'joi';
 import type { Db } from '../../db/client.js';
 import { deliveryZones } from '../../db/schema/index.js';
 import { conflict, notFound, unprocessable } from '../../lib/errors.js';
+import { forgetZone } from './prep-times.js';
 import { canonicalState } from '../delivery/states.js';
 
 const fee = Joi.number().integer().min(0).max(1_000_000_000).allow(null);
@@ -141,6 +142,7 @@ export async function deleteZone(db: Db, id: string) {
       throw conflict('ZONE_IN_USE', `Free delivery promotions still use this zone: ${names}. Take it out of ${using.length === 1 ? 'that promotion' : 'those promotions'} first, or switch the zone off instead.`);
     }
     await tx.delete(deliveryZones).where(eq(deliveryZones.id, id));
+    await forgetZone(tx, id);
     return before;
   });
 }

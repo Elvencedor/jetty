@@ -118,9 +118,9 @@ describe('paymentEmail', () => {
 describe('estimateFor', () => {
   const placed = new Date('2026-10-17T22:30:00Z'); // 23:30 in Lagos, still the 17th
   it('counts transit days from the local order date', () => {
-    assert.deepEqual(estimateFor('same_day', placed), { earliestDate: '2026-10-17', latestDate: '2026-10-17' });
-    assert.deepEqual(estimateFor('next_day', placed), { earliestDate: '2026-10-18', latestDate: '2026-10-18' });
-    assert.deepEqual(estimateFor('nationwide', placed), { earliestDate: '2026-10-19', latestDate: '2026-10-21' });
+    assert.deepEqual(estimateFor('same_day', placed), { earliestDate: '2026-10-17', latestDate: '2026-10-17', minDays: 0, maxDays: 0, startsOn: null });
+    assert.deepEqual(estimateFor('next_day', placed), { earliestDate: '2026-10-18', latestDate: '2026-10-18', minDays: 1, maxDays: 1, startsOn: null });
+    assert.deepEqual(estimateFor('nationwide', placed), { earliestDate: '2026-10-19', latestDate: '2026-10-21', minDays: 2, maxDays: 4, startsOn: null });
   });
   it('rolls over to the next local date after midnight Lagos time', () => {
     assert.equal(estimateFor('same_day', new Date('2026-10-17T23:30:00Z'))!.earliestDate, '2026-10-18');

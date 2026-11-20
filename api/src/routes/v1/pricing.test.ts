@@ -67,6 +67,8 @@ describe('pricing and delivery quotes', { skip: !TEST_DATABASE_URL && 'TEST_DATA
     // Port Harcourt only: in each case the state zone must win where it applies.
     await t.db.insert(deliveryZones).values({ name: 'Nationwide', scope: 'nationwide', state: null, states: ['Kaduna', 'Enugu', 'FCT', 'Lagos', 'Rivers'], deliveryFeeMinor: 700000, deliveryMinDays: 2, deliveryMaxDays: 4 });
     await t.db.insert(deliveryZones).values({ name: 'Port Harcourt', state: 'Rivers', areas: ['Port Harcourt'], deliveryFeeMinor: 450000 });
+    await t.db.insert(deliveryZones).values({ name: 'Ibadan North', state: 'Ogun', areas: ['Abeokuta'], deliveryFeeMinor: 200000 });
+    await t.db.insert(deliveryZones).values({ name: 'Ogun Far', state: 'Ogun', areas: ['Ijebu'], deliveryFeeMinor: 500000 });
     await t.db.insert(deliveryZones).values({ name: 'Old nationwide', scope: 'nationwide', state: null, states: ['Kwara'], deliveryFeeMinor: 1, active: false });
 
     const promo = async (name: string, kind: 'percentage' | 'fixed_amount' | 'buy_x_get_y' | 'free_delivery', configuration: object, extra: Partial<typeof promotions.$inferInsert> = {}) =>
@@ -264,8 +266,23 @@ describe('pricing and delivery quotes', { skip: !TEST_DATABASE_URL && 'TEST_DATA
     assert.equal(await quoted({ state: 'FCT' }), 'Abuja', 'FCT is listed in the nationwide zone but has its own');
     assert.equal(await quoted({ state: 'Lagos', area: 'Ikeja' }), 'Lagos Mainland & Island');
     assert.equal(await quoted({ state: 'Rivers', area: 'Port Harcourt' }), 'Port Harcourt', 'the area zone wins in its area');
-    assert.equal(await quoted({ state: 'Rivers', area: 'Bonny' }), 'Nationwide', 'other areas of the state fall back to the nationwide zone');
-    assert.equal(await quoted({ state: 'Rivers' }), 'Nationwide');
+    assert.equal(await quoted({ state: 'RIVERS', area: '  port   HARCOURT ' }), 'Port Harcourt', 'state and area match regardless of case and spacing');
+    assert.equal(await quoted({ state: 'Kaduna' }), 'Nationwide', 'a state with no zone of its own is priced nationwide');
+    assert.equal(await quoted({ state: 'Rivers', area: 'Bonny' }), 'Nationwide', 'an area none of the state zones list falls back to the nationwide zone');
+    const noArea = await post('/api/v1/delivery/quotes', { items: [{ variantId: v.scarce, quantity: 1 }], deliveryAddress: { state: 'Rivers' } });
+    assert.equal(noArea.body.zone, null, 'with no area given the area is required');
+    assert.equal(noArea.body.deliveryRange.minFeeMinor, 450000);
+  });
+
+  it('shows a price range and the areas when a state has only area zones and no area is chosen', async () => {
+    const quoted = (address: Json) => post('/api/v1/delivery/quotes', { items: [{ variantId: v.scarce, quantity: 1 }], deliveryAddress: address });
+    const res = await quoted({ state: 'Ogun' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.zone, null);
+    assert.deepEqual(res.body.deliveryRange, { minFeeMinor: 200000, maxFeeMinor: 500000 });
+    assert.deepEqual(res.body.areaPrices.map((z: Json) => [z.zoneName, z.feeMinor, z.areas]), [['Ibadan North', 200000, ['Abeokuta']], ['Ogun Far', 500000, ['Ijebu']]]);
+    assert.equal((await quoted({ state: 'Ogun', area: 'Nowhere' })).body.deliveryRange.maxFeeMinor, 500000, 'no nationwide zone covers Ogun, so an unlisted area still shows the range');
+    assert.equal((await quoted({ state: 'Ogun', area: 'Ijebu' })).body.zone.name, 'Ogun Far');
   });
 
   it('does not serve states from a retired nationwide zone', async () => {

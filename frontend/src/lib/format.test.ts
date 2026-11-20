@@ -99,8 +99,10 @@ describe("Lagos time", () => {
     expect(formatDay("2026-10-20", now)).toBe("Today");
     expect(formatDay("2026-10-21", now)).toBe("Tomorrow");
     expect(formatDay("2026-10-24", now)).toBe("Sat 24 Oct");
-    expect(formatEstimate({ earliestDate: "2026-10-21", latestDate: "2026-10-21" }, now)).toBe("Tomorrow");
-    expect(formatEstimate({ earliestDate: "2026-10-22", latestDate: "2026-10-24" }, now)).toBe("Thu 22 Oct – Sat 24 Oct");
+    expect(formatEstimate({ minDays: 1, maxDays: 1 })).toBe("1 day");
+    expect(formatEstimate({ minDays: 0, maxDays: 0 })).toBe("Same day");
+    expect(formatEstimate({ minDays: 2, maxDays: 4 })).toBe("2 to 4 days");
+    expect(formatEstimate({ minDays: 2, maxDays: 4, startsOn: "2026-10-27" })).toBe("2 to 4 days from Tue 27 Oct");
   });
 });
 

@@ -6,6 +6,7 @@ import { parseNairaToMinor, riderPhoneToE164 } from "./orders";
 export const SETTINGS_SECTIONS = [
   { key: "store", label: "Store details", note: "Name, contact, showroom" },
   { key: "delivery", label: "Delivery & pickup", note: "Zones, prices, delivery times" },
+  { key: "prep", label: "Prep time", note: "Hold back deliveries while you prepare" },
   { key: "payments", label: "Payments", note: "Methods and payment holds" },
   { key: "policies", label: "Returns & policies", note: "Return window" },
 ] as const;

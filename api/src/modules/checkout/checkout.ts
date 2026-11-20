@@ -15,6 +15,7 @@ import {
 } from '../../db/schema/index.js';
 import { conflict, unprocessable } from '../../lib/errors.js';
 import { deliveryOptions, resolveZone, type DeliveryMethod } from '../delivery/zones.js';
+import { prepForZone } from '../delivery/prep.js';
 import { InsufficientStockError, reserveStockInTx } from '../inventory/reservations.js';
 import { priceCart, type CartItem } from '../pricing/cart.js';
 import { normaliseCode } from '../pricing/load-promotions.js';
@@ -97,7 +98,8 @@ export async function checkout(
 
   const zone = await resolveZone(db, input.deliveryAddress);
   if (!zone) throw unprocessable('DELIVERY_UNAVAILABLE', 'We do not deliver to this location yet.');
-  const option = deliveryOptions(zone, now).find((o) => o.method === input.deliveryMethod);
+  const prep = await prepForZone(db, now, zone);
+  const option = deliveryOptions(zone, now, prep).find((o) => o.method === input.deliveryMethod);
   if (!option) {
     throw unprocessable('DELIVERY_METHOD_UNAVAILABLE', 'That delivery method is not available for this location right now.', [
       { method: input.deliveryMethod, reason: 'NOT_OFFERED' },
@@ -167,7 +169,7 @@ export async function checkout(
           taxMinor,
           totalMinor,
           // The zone's promised duration is kept with the order, so a later change to the zone never moves this order's window.
-          deliveryAddressSnapshot: { ...input.deliveryAddress, zoneId: zone.id, zoneName: zone.name, ...(option.method === 'delivery' ? { deliveryMinDays: zone.deliveryMinDays, deliveryMaxDays: zone.deliveryMaxDays } : {}) },
+          deliveryAddressSnapshot: { ...input.deliveryAddress, zoneId: zone.id, zoneName: zone.name, ...(option.method === 'delivery' ? { deliveryMinDays: zone.deliveryMinDays, deliveryMaxDays: zone.deliveryMaxDays, ...(prep ? { deliveryStartsOn: prep.startsOn } : {}) } : {}) },
           deliveryMethod: input.deliveryMethod,
           appliedPromotions,
           termsAcceptedAt: now,

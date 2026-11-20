@@ -81,7 +81,7 @@ export function Confirmation({ orderId }: { orderId: string }) {
         {festive ? (
           <div className="relative flex items-center justify-between gap-3 rounded-lg bg-surface px-4 py-3.5 text-ink">
             <p className="flex flex-col leading-tight">
-              <span className="text-caption font-bold uppercase text-primary-strong">{data.deliveryMethod === "pickup" ? "Ready for pickup" : "Arriving"}</span>
+              <span className="text-caption font-bold uppercase text-primary-strong">{data.deliveryMethod === "pickup" ? "Ready for pickup" : "Delivery time"}</span>
               <span className="font-display text-heading-sm font-extrabold">{data.estimate ? formatEstimate(data.estimate) : "We'll message you"}</span>
             </p>
             <span className="rounded-sm bg-surface-tint px-2.5 py-1 text-caption font-bold text-primary-strong">{pill.label}</span>
