@@ -266,6 +266,7 @@ describe('pricing and delivery quotes', { skip: !TEST_DATABASE_URL && 'TEST_DATA
     assert.equal(await quoted({ state: 'FCT' }), 'Abuja', 'FCT is listed in the nationwide zone but has its own');
     assert.equal(await quoted({ state: 'Lagos', area: 'Ikeja' }), 'Lagos Mainland & Island');
     assert.equal(await quoted({ state: 'Rivers', area: 'Port Harcourt' }), 'Port Harcourt', 'the area zone wins in its area');
+    assert.equal(await quoted({ state: 'RIVERS', area: '  port   HARCOURT ' }), 'Port Harcourt', 'state and area match regardless of case and spacing');
     assert.equal(await quoted({ state: 'Kaduna' }), 'Nationwide', 'a state with no zone of its own is priced nationwide');
     assert.equal(await quoted({ state: 'Rivers', area: 'Bonny' }), 'Nationwide', 'an area none of the state zones list falls back to the nationwide zone');
     const noArea = await post('/api/v1/delivery/quotes', { items: [{ variantId: v.scarce, quantity: 1 }], deliveryAddress: { state: 'Rivers' } });
