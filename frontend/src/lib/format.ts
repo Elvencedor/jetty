@@ -101,9 +101,14 @@ export function formatDay(key: string, now: Date = new Date()): string {
 }
 
 /** A delivery window: "Tomorrow", or "Wed 22 Oct – Fri 24 Oct". */
-export function formatEstimate(estimate: { earliestDate: string; latestDate: string }, now: Date = new Date()): string {
-  const from = formatDay(estimate.earliestDate, now);
-  return estimate.earliestDate === estimate.latestDate ? from : `${from} – ${formatDay(estimate.latestDate, now)}`;
+export function formatEstimate(estimate: { minDays: number; maxDays: number; startsOn?: string | null }): string {
+  const { minDays, maxDays, startsOn } = estimate;
+  const unit = (n: number) => (n === 1 ? "day" : "days");
+  const takes = maxDays <= 0 ? "Same day" : minDays === maxDays ? `${maxDays} ${unit(maxDays)}` : `${minDays} to ${maxDays} days`;
+  if (!startsOn) return takes;
+  // Held back by a prep period: the days count from the day deliveries start.
+  const day = formatDay(startsOn);
+  return `${takes} from ${day === "Today" || day === "Tomorrow" ? day.toLowerCase() : day}`;
 }
 
 /** 3h 20m, 45m, 30s: for visible countdown labels. */

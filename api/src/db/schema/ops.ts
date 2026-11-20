@@ -82,6 +82,27 @@ export const deliveryZones = pgTable('delivery_zones', {
   updatedAt: updatedAt(),
 });
 
+/**
+ * A preparation period before deliveries go out. While it applies (switched on, and today is inside `activeFrom`..
+ * `activeUntil`, either of which may be null) deliveries start `days` after today (`mode` days) or on `deliversFrom`
+ * (`mode` date), and then take the zone's own days. It covers every zone, or only the zones in `zoneIds`.
+ */
+export const deliveryPrepTimes = pgTable('delivery_prep_times', {
+  id: id(),
+  name: text('name').notNull(),
+  active: boolean('active').notNull().default(true),
+  mode: text('mode').notNull().default('days'),
+  days: integer('days'),
+  deliversFrom: text('delivers_from'),
+  activeFrom: text('active_from'),
+  activeUntil: text('active_until'),
+  /** `all`: every zone. `zones`: only the zones listed in `zoneIds`. */
+  appliesTo: text('applies_to').notNull().default('all'),
+  zoneIds: jsonb('zone_ids').notNull().default(sql`'[]'::jsonb`),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
 export const storeSettings = pgTable('store_settings', {
   key: text('key').primaryKey(),
   value: jsonb('value').notNull(),

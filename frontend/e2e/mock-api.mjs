@@ -308,7 +308,7 @@ const orders = new Map();
 let counter = 0;
 const orderStatus = (o) => ({
   orderId: o.id, orderNumber: o.number, status: o.paid ? "placed" : "pending_payment", paymentStatus: o.paid ? "paid" : "pending", amountMinor: o.amount, currency: "NGN",
-  reservationExpiresAt: "2099-01-01T00:00:00Z", deliveryMethod: o.deliveryMethod, estimate: { earliestDate: "2026-10-21", latestDate: "2026-10-21" }, itemCount: o.items,
+  reservationExpiresAt: "2099-01-01T00:00:00Z", deliveryMethod: o.deliveryMethod, estimate: { earliestDate: "2026-10-21", latestDate: "2026-10-21", minDays: 1, maxDays: 1, startsOn: null }, itemCount: o.items,
   recipientFirstName: o.firstName, paymentAttempt: { id: "a" + o.attempt, status: o.paid ? "succeeded" : o.failed ? "failed" : "pending" },
 });
 const paymentStart = (o) => ({ orderId: o.id, orderNumber: o.number, paymentAttemptId: "a" + o.attempt, provider: "paystack", reference: `ref-${o.id}-${o.attempt}`, accessCode: "code" + o.attempt, authorizationUrl: "https://checkout.paystack.com/x", amountMinor: o.amount, currency: "NGN", reservationExpiresAt: "2099-01-01T00:00:00Z" });
@@ -753,7 +753,7 @@ const server = createServer(async (req, res) => {
     }
     if (path === "/pricing/quote") return send(200, quote(json.items ?? [], json.promotionCodes ?? []));
     if (path === "/delivery/quotes") {
-      return send(200, { currency: "NGN", zone: { id: "z", name: "Lagos", state: json.deliveryAddress?.state ?? "Lagos" }, warnings: [], options: [{ method: "delivery", available: true, baseFeeMinor: 300000, feeMinor: 300000, freeDeliveryPromotionId: null, estimate: { earliestDate: "2026-10-21", latestDate: "2026-10-21" } }] });
+      return send(200, { currency: "NGN", zone: { id: "z", name: "Lagos", state: json.deliveryAddress?.state ?? "Lagos" }, warnings: [], options: [{ method: "delivery", available: true, baseFeeMinor: 300000, feeMinor: 300000, freeDeliveryPromotionId: null, estimate: { earliestDate: "2026-10-21", latestDate: "2026-10-21", minDays: 1, maxDays: 1, startsOn: null } }] });
     }
     if (path === "/checkout") {
       const q = quote(json.items ?? [], json.promotionCodes ?? []);

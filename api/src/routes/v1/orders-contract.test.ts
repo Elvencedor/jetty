@@ -109,7 +109,7 @@ describe('order and quote contract for the storefront', { skip: !TEST_DATABASE_U
       const status = (await api.inject({ url: `/api/v1/checkout/${body.orderId}/status`, headers: { cookie: `jh_checkout=${cookie}` } })).result as Json;
       assert.equal(status.deliveryMethod, 'delivery');
       // The zone promised 1 to 3 days when the order was placed.
-      assert.deepEqual(status.estimate, { earliestDate: lagosDate(1), latestDate: lagosDate(3) });
+      assert.deepEqual(status.estimate, { earliestDate: lagosDate(1), latestDate: lagosDate(3), minDays: 1, maxDays: 3, startsOn: null });
       assert.equal(status.itemCount, 3);
       assert.equal(status.recipientFirstName, 'Ada');
       assert.ok(!JSON.stringify(status).includes('+234') && !JSON.stringify(status).includes('1 St'));
@@ -145,7 +145,7 @@ describe('order and quote contract for the storefront', { skip: !TEST_DATABASE_U
       assert.equal(item.slug, 'oc-wig');
       assert.match(item.image.url, /cover\.webp/);
       assert.equal(item.reviewable, true);
-      assert.deepEqual(d.estimate, { earliestDate: lagosDate(1), latestDate: lagosDate(1) });
+      assert.deepEqual(d.estimate, { earliestDate: lagosDate(1), latestDate: lagosDate(1), minDays: 1, maxDays: 1, startsOn: null });
 
       // The id is exactly what the review endpoint wants, and the line stops being reviewable afterwards.
       const review = await api.inject({ method: 'POST', url: '/api/v1/reviews', payload: { orderItemId: item.id, rating: 5, title: 'Love it' }, headers: bearer() });

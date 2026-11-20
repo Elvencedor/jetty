@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { Db } from '../../db/client.js';
 import { unprocessable } from '../../lib/errors.js';
-import { deliveryOptions, resolveZone, type DeliveryMethod, type DeliveryOption, type DeliveryZone, type Destination } from '../delivery/zones.js';
+import { deliveryOptions, resolveZone, stateZonesFor, type DeliveryMethod, type DeliveryOption, type DeliveryZone, type Destination } from '../delivery/zones.js';
+import { prepForZone, prepForZones } from '../delivery/prep.js';
 import { estimatePaymentFee } from '../payments/fees.js';
 import { priceCart, type CartItem, type PricedCart } from './cart.js';
 
@@ -26,7 +27,7 @@ export async function quote(db: Db, input: Common & { deliveryAddress?: Destinat
   let option: DeliveryOption | undefined;
   if (input.deliveryAddress && input.deliveryMethod) {
     zone = await requireZone(db, input.deliveryAddress);
-    option = deliveryOptions(zone, now).find((o) => o.method === input.deliveryMethod);
+    option = deliveryOptions(zone, now, await prepForZone(db, now, zone)).find((o) => o.method === input.deliveryMethod);
     if (!option) {
       throw unprocessable('DELIVERY_METHOD_UNAVAILABLE', 'That delivery method is not available for this location right now.', [
         { method: input.deliveryMethod, reason: 'NOT_OFFERED' },
@@ -74,13 +75,47 @@ export async function quote(db: Db, input: Common & { deliveryAddress?: Destinat
 /** POST /delivery/quotes: zone, methods, prices, ETAs for a destination and cart. */
 export async function deliveryQuote(db: Db, input: Common & { deliveryAddress: Destination }) {
   const now = input.now ?? new Date();
-  const zone = await requireZone(db, input.deliveryAddress);
+  const resolved = await resolveZone(db, input.deliveryAddress);
+  if (!resolved) {
+    // The state is served by several area zones and the customer has not said which area. Show the spread of prices and
+    // the areas behind each one instead of claiming we do not deliver.
+    const zones = await stateZonesFor(db, input.deliveryAddress.state);
+    if (zones.length === 0) throw unprocessable('DELIVERY_UNAVAILABLE', 'We do not deliver to this location yet.');
+    const cart = await priceCart(db, { items: input.items, promotionCodes: input.promotionCodes, customerId: input.customerId, now });
+    const preps = await prepForZones(db, now, zones);
+    // Held back only if every zone is: the earliest start is what a customer in any of them can count on.
+    const held = zones.map((z) => preps.get(z.id) ?? null);
+    const earliest = held.every((h) => h !== null) ? held.reduce((a, b) => (a!.startsOn <= b!.startsOn ? a : b)) : null;
+    const fees = zones.map((z) => Number(z.deliveryFeeMinor));
+    return {
+      currency: cart.currency,
+      zone: null,
+      prep: earliest,
+      options: [],
+      deliveryRange: { minFeeMinor: Math.min(...fees), maxFeeMinor: Math.max(...fees) },
+      areaPrices: zones.map((z) => ({
+        zoneId: z.id,
+        zoneName: z.name,
+        areas: Array.isArray(z.areas) ? z.areas.filter((a): a is string => typeof a === 'string') : [],
+        feeMinor: Number(z.deliveryFeeMinor),
+        startsOn: preps.get(z.id)?.startsOn ?? null,
+        minDays: z.deliveryMinDays,
+        maxDays: z.deliveryMaxDays,
+      })),
+      warnings: cart.warnings,
+    };
+  }
+  const zone = resolved;
+  const prep = await prepForZone(db, now, zone);
   const cart = await priceCart(db, { items: input.items, promotionCodes: input.promotionCodes, zoneId: zone.id, customerId: input.customerId, now });
 
   return {
+    prep,
+    deliveryRange: null,
+    areaPrices: [],
     currency: cart.currency,
     zone: { id: zone.id, name: zone.name, scope: zone.scope, state: zone.state },
-    options: deliveryOptions(zone, now).map((o) => ({
+    options: deliveryOptions(zone, now, prep).map((o) => ({
       method: o.method,
       available: o.available,
       baseFeeMinor: o.baseFeeMinor,

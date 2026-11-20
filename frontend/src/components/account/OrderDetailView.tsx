@@ -56,7 +56,7 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
       </div>
       <p className="text-body-sm text-muted">Placed {formatDateTime(o.placedAt ?? o.createdAt)}</p>
       {!closed ? <OrderTracker status={o.status} /> : null}
-      {o.estimate && !FINAL.has(o.status) ? <p className="rounded-lg bg-surface-tint p-3 text-body-sm font-semibold">Arriving {formatEstimate(o.estimate)}</p> : null}
+      {o.estimate && !FINAL.has(o.status) ? <p className="rounded-lg bg-surface-tint p-3 text-body-sm font-semibold">Delivery takes {formatEstimate(o.estimate)}</p> : null}
       {o.rider?.name ? (
         <p className="rounded-lg bg-surface-tint p-3 text-body-sm">{o.rider.name} is delivering your order.{o.rider.phone ? <> <a href={`tel:${o.rider.phone}`} className="font-semibold underline">Call {formatPhone(o.rider.phone)}</a></> : null}</p>
       ) : null}

@@ -1,16 +1,17 @@
 "use client";
 
-import { CreditCard, RotateCcw, Store, Truck, type LucideIcon } from "lucide-react";
+import { CreditCard, Hourglass, RotateCcw, Store, Truck, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { EmptyState } from "@/components/ui";
 import { SETTINGS_SECTIONS, sectionByKey, type SettingsSectionKey } from "@/lib/admin/settings";
 import { cn } from "@/lib/cn";
 import { DeliverySection } from "./DeliverySection";
+import { PrepTimeSection } from "./PrepTimeSection";
 import { PaymentsForm, PoliciesForm, StoreFormCard } from "./SettingForms";
 import { permits } from "@/lib/admin/permissions";
 import { useAdminSession } from "@/lib/stores/session";
 
-const ICONS: Record<SettingsSectionKey, LucideIcon> = { store: Store, delivery: Truck, payments: CreditCard, policies: RotateCcw };
+const ICONS: Record<SettingsSectionKey, LucideIcon> = { store: Store, delivery: Truck, prep: Hourglass, payments: CreditCard, policies: RotateCcw };
 
 /** Settings: a menu of sections beside the section's form. Only an owner can save; others read. */
 export function SettingsPage({ section }: { section: string }) {
@@ -38,7 +39,7 @@ export function SettingsPage({ section }: { section: string }) {
 
       <div className="flex min-w-0 flex-[999_1_640px] flex-col gap-3.5">
         {!canWrite ? <p className="rounded-lg bg-info-bg px-4 py-2.5 text-body-sm text-info">You can look at these settings, but only an owner can change them.</p> : null}
-        {current?.key === "store" ? <StoreFormCard canWrite={canWrite} /> : current?.key === "delivery" ? <DeliverySection canWrite={canWrite} /> : current?.key === "payments" ? <PaymentsForm canWrite={canWrite} /> : current?.key === "policies" ? <PoliciesForm canWrite={canWrite} /> : (
+        {current?.key === "store" ? <StoreFormCard canWrite={canWrite} /> : current?.key === "delivery" ? <DeliverySection canWrite={canWrite} /> : current?.key === "prep" ? <PrepTimeSection canWrite={canWrite} /> : current?.key === "payments" ? <PaymentsForm canWrite={canWrite} /> : current?.key === "policies" ? <PoliciesForm canWrite={canWrite} /> : (
           <EmptyState title="That settings page doesn't exist">Choose one from the menu.</EmptyState>
         )}
       </div>

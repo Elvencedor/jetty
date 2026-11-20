@@ -38,3 +38,23 @@ export const patchSetting = <K extends SettingKey>(key: K, patch: Partial<Settin
 export const listZones = (init: Init = {}) => apiFetch<{ zones: DeliveryZone[] }>("/admin/settings/delivery-zones", { auth: "admin", ...init }).then((r) => r.zones);
 export const deleteZone = (id: string) => apiFetch<{ zones: DeliveryZone[] }>(`/admin/settings/delivery-zones/${id}`, { method: "DELETE", auth: "admin" }).then((r) => r.zones);
 export const saveZone = (zone: ZoneInput) => apiFetch<{ zones: DeliveryZone[] }>("/admin/settings/delivery-zones", { method: "PATCH", body: { zones: [zone] }, auth: "admin" }).then((r) => r.zones);
+
+/** A stretch of preparation before deliveries go out. Dates are YYYY-MM-DD; null means no bound. */
+export type PrepTime = {
+  id: string;
+  name: string;
+  active: boolean;
+  mode: "days" | "date";
+  days: number | null;
+  deliversFrom: string | null;
+  activeFrom: string | null;
+  activeUntil: string | null;
+  appliesTo: "all" | "zones";
+  zoneIds: string[];
+};
+export type PrepTimeInput = Partial<Omit<PrepTime, "id">>;
+
+export const listPrepTimes = (init: Init = {}) => apiFetch<{ prepTimes: PrepTime[] }>("/admin/settings/prep-times", { auth: "admin", ...init }).then((r) => r.prepTimes);
+export const createPrepTime = (input: PrepTimeInput) => apiFetch<{ prepTimes: PrepTime[] }>("/admin/settings/prep-times", { method: "POST", body: input, auth: "admin" }).then((r) => r.prepTimes);
+export const updatePrepTime = (id: string, input: PrepTimeInput) => apiFetch<{ prepTimes: PrepTime[] }>(`/admin/settings/prep-times/${id}`, { method: "PATCH", body: input, auth: "admin" }).then((r) => r.prepTimes);
+export const deletePrepTime = (id: string) => apiFetch<{ prepTimes: PrepTime[] }>(`/admin/settings/prep-times/${id}`, { method: "DELETE", auth: "admin" }).then((r) => r.prepTimes);

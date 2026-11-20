@@ -35,13 +35,13 @@ describe('deliveryOptions', () => {
 
   it('counts the admin-set duration from the local date', () => {
     const delivery = deliveryOptions(zone({ deliveryMinDays: 2, deliveryMaxDays: 4 }), at('2026-10-17T09:00:00Z'))[0]!;
-    assert.deepEqual(delivery.estimate, { earliestDate: '2026-10-19', latestDate: '2026-10-21' });
+    assert.deepEqual(delivery.estimate, { earliestDate: '2026-10-19', latestDate: '2026-10-21', minDays: 2, maxDays: 4, startsOn: null });
   });
 
   it('computes estimates in the zone timezone, not UTC', () => {
     // 23:30 UTC is 00:30 the next day in Lagos.
     const delivery = deliveryOptions(zone({ deliveryMinDays: 0, deliveryMaxDays: 0 }), at('2026-10-17T23:30:00Z'))[0]!;
-    assert.deepEqual(delivery.estimate, { earliestDate: '2026-10-18', latestDate: '2026-10-18' });
+    assert.deepEqual(delivery.estimate, { earliestDate: '2026-10-18', latestDate: '2026-10-18', minDays: 0, maxDays: 0, startsOn: null });
   });
 
   it('treats a free delivery price as offered', () => {
@@ -60,14 +60,14 @@ describe('deliveryOptions', () => {
 describe('estimateFor', () => {
   const placed = at('2026-10-17T09:00:00Z');
   it('uses the days saved with the order', () => {
-    assert.deepEqual(estimateFor('delivery', placed, { minDays: 2, maxDays: 5 }), { earliestDate: '2026-10-19', latestDate: '2026-10-22' });
+    assert.deepEqual(estimateFor('delivery', placed, { minDays: 2, maxDays: 5 }), { earliestDate: '2026-10-19', latestDate: '2026-10-22', minDays: 2, maxDays: 5, startsOn: null });
   });
   it('has no window when the order saved no days', () => {
     assert.equal(estimateFor('delivery', placed), null);
   });
   it('keeps the old windows for orders placed under the old methods', () => {
-    assert.deepEqual(estimateFor('same_day', placed), { earliestDate: '2026-10-17', latestDate: '2026-10-17' });
-    assert.deepEqual(estimateFor('nationwide', placed), { earliestDate: '2026-10-19', latestDate: '2026-10-21' });
+    assert.deepEqual(estimateFor('same_day', placed), { earliestDate: '2026-10-17', latestDate: '2026-10-17', minDays: 0, maxDays: 0, startsOn: null });
+    assert.deepEqual(estimateFor('nationwide', placed), { earliestDate: '2026-10-19', latestDate: '2026-10-21', minDays: 2, maxDays: 4, startsOn: null });
   });
   it('has no window for pickup', () => {
     assert.equal(estimateFor('pickup', placed, { minDays: 1, maxDays: 2 }), null);
@@ -79,5 +79,21 @@ describe('promisedDays', () => {
     assert.deepEqual(promisedDays({ deliveryMinDays: 1, deliveryMaxDays: 3, state: 'Lagos' }), { minDays: 1, maxDays: 3 });
     assert.deepEqual(promisedDays({ deliveryMinDays: '1' }), {});
     assert.deepEqual(promisedDays(null), {});
+  });
+});
+
+describe('estimates with a prep period', () => {
+  const prep = { startsOn: '2026-10-27', days: 10 };
+  it('counts the zone days from the day deliveries start', () => {
+    const delivery = deliveryOptions(zone({ deliveryMinDays: 2, deliveryMaxDays: 4 }), at('2026-10-17T10:00:00Z'), prep)[0]!;
+    assert.deepEqual(delivery.estimate, { earliestDate: '2026-10-29', latestDate: '2026-10-31', minDays: 2, maxDays: 4, startsOn: '2026-10-27' });
+  });
+  it('keeps what an order was promised when it was placed', () => {
+    const placed = new Date('2026-10-17T10:00:00Z');
+    assert.deepEqual(estimateFor('delivery', placed, { minDays: 2, maxDays: 4, startsOn: '2026-10-27' }), { earliestDate: '2026-10-29', latestDate: '2026-10-31', minDays: 2, maxDays: 4, startsOn: '2026-10-27' });
+    assert.deepEqual(promisedDays({ deliveryMinDays: 2, deliveryMaxDays: 4, deliveryStartsOn: '2026-10-27' }), { minDays: 2, maxDays: 4, startsOn: '2026-10-27' });
+  });
+  it('ignores a start day that has already passed', () => {
+    assert.equal(estimateFor('delivery', new Date('2026-11-05T10:00:00Z'), { minDays: 1, maxDays: 2, startsOn: '2026-10-27' })!.startsOn, null);
   });
 });

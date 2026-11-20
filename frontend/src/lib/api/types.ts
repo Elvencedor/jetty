@@ -137,7 +137,8 @@ export type StaticPage = { slug: string; title: string; markdown: string; update
 /** `delivery` is the one priced option for a zone (its fee and how many days it takes); `pickup` is collection from the showroom. */
 export type DeliveryMethod = "delivery" | "pickup";
 export type PaymentMethod = "card" | "bank_transfer";
-export type DeliveryEstimate = { earliestDate: string; latestDate: string };
+/** The days the zone promises, as admin set them. Dates are kept for the server's records; the storefront shows days. */
+export type DeliveryEstimate = { earliestDate: string; latestDate: string; minDays: number; maxDays: number; /** Set when a prep period holds deliveries back: the days count from this day. */ startsOn: string | null };
 
 export type QuoteLine = {
   variantId: string;
@@ -193,7 +194,21 @@ export type DeliveryOption = {
   freeDeliveryPromotionId: string | null;
   estimate: DeliveryEstimate | null;
 };
-export type DeliveryQuote = { currency: string; zone: { id: string; name: string; state: string }; options: DeliveryOption[]; warnings: QuoteWarning[] };
+/** One zone of a state that has several, with the areas it covers. Shown when the customer has not picked an area yet. */
+export type AreaPrice = { zoneId: string; zoneName: string; areas: string[]; feeMinor: number; /** The day deliveries start when a prep time holds this zone back. */ startsOn: string | null; minDays: number; maxDays: number };
+/** `days` is the prep time when it was set in days; null when admin picked a date. */
+export type DeliveryPrep = { startsOn: string; days: number | null };
+export type DeliveryQuote = {
+  currency: string;
+  /** Null when the state has several area zones and the area is not chosen yet: see `deliveryRange` and `areaPrices`. */
+  zone: { id: string; name: string; state: string } | null;
+  /** Set while orders are being prepared: deliveries start on this day, then take the zone's days. */
+  prep: DeliveryPrep | null;
+  options: DeliveryOption[];
+  deliveryRange: { minFeeMinor: number; maxFeeMinor: number } | null;
+  areaPrices: AreaPrice[];
+  warnings: QuoteWarning[];
+};
 
 export type CartItemInput = { variantId: string; quantity: number };
 

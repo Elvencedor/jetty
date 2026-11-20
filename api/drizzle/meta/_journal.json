@@ -29,6 +29,13 @@
       "when": 1794141484203,
       "tag": "0003_delivery_zones_single_price_and_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795162690272,
+      "tag": "0004_delivery_prep_times",
+      "breakpoints": true
     }
   ]
 }
