@@ -4,9 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, Plus } from "lucide-react";
 import { useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog";
+import { useConflictSave } from "../ConflictDialog";
 import { EntryFormPanel } from "./EntryForm";
 import { Button, Media, Skeleton, StatusPill } from "@/components/ui";
-import { adminErrorMessage } from "@/lib/admin/concurrency";
+import { adminErrorMessage, conflictOf } from "@/lib/admin/concurrency";
 import { adminKeys } from "@/lib/admin/keys";
 import { entryStatus, moveEntry } from "@/lib/admin/storefront";
 import { listContent, updateContent, type ContentEntry, type ContentType } from "@/lib/api/admin-content";
@@ -31,18 +32,31 @@ export function EntrySection({ type, canWrite }: { type: ContentType; canWrite: 
   const entries = (list.data ?? []).filter((e) => e.status !== "archived").sort((a, b) => a.sortOrder - b.sortOrder || (a.updatedAt ?? "").localeCompare(b.updatedAt ?? ""));
   const refresh = () => void queryClient.invalidateQueries({ queryKey: adminKeys.resource("content") });
 
-  const change = useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof updateContent>[1] }) => updateContent(id, patch),
-    onSuccess: refresh,
+  type Patch = Parameters<typeof updateContent>[2];
+  const [acting, setActing] = useState<string | null>(null);
+  const change = useConflictSave<[ContentEntry, Patch, (() => void)?], ContentEntry>({
+    noun,
+    save: (version, entry, patch) => updateContent(entry.id, version ?? entry.version, patch),
+    onSaved: (_saved, _entry, _patch, after) => { refresh(); after?.(); },
     onError: (err) => toast.error(adminErrorMessage(err)),
+    onUseTheirs: () => refresh(),
   });
+  const act = (entry: ContentEntry, patch: Patch, after?: () => void) => { setActing(entry.id); change.run(entry, patch, after); };
   const move = useMutation({
     mutationFn: async ({ id, by }: { id: string; by: -1 | 1 }) => {
       const next = moveEntry(entries, id, by);
-      await Promise.all(next.map((e, i) => (e.sortOrder === i * 10 ? null : updateContent(e.id, { sortOrder: i * 10 }))));
+      await Promise.all(next.map((e, i) => (e.sortOrder === i * 10 ? null : updateContent(e.id, e.version, { sortOrder: i * 10 }))));
     },
     onSuccess: refresh,
-    onError: (err) => toast.error(adminErrorMessage(err)),
+    onError: (err) => {
+      // Reordering touches every entry at once, so there is no single other version to choose. Show what is saved now.
+      if (conflictOf(err)) {
+        refresh();
+        toast.error("The list was changed by someone else while you were reordering. It has been refreshed; try again.");
+        return;
+      }
+      toast.error(adminErrorMessage(err));
+    },
   });
 
   if (editing) {
@@ -59,6 +73,7 @@ export function EntrySection({ type, canWrite }: { type: ContentType; canWrite: 
 
   return (
     <div className="flex flex-col gap-3">
+      {change.dialog}
       {list.isError && !list.data ? (
         <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-danger-bg p-3 text-danger"><span>{adminErrorMessage(list.error)}</span><Button size="sm" variant="outline" onClick={() => void list.refetch()}>Retry</Button></div>
       ) : !list.data ? <Skeleton className="h-32" /> : entries.length === 0 ? (
@@ -76,7 +91,7 @@ export function EntrySection({ type, canWrite }: { type: ContentType; canWrite: 
                 {canWrite ? (
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Button size="sm" variant="outline" onClick={() => setEditing(e)}>Edit<span className="sr-only"> {noun}: {summary(e)}</span></Button>
-                    {e.status === "published" ? <Button size="sm" variant="outline" loading={change.isPending && change.variables?.id === e.id} onClick={() => change.mutate({ id: e.id, patch: { status: "draft" } })}>Take down<span className="sr-only"> {summary(e)}</span></Button> : <Button size="sm" loading={change.isPending && change.variables?.id === e.id} onClick={() => change.mutate({ id: e.id, patch: { status: "published" } })}>Publish<span className="sr-only"> {summary(e)}</span></Button>}
+                    {e.status === "published" ? <Button size="sm" variant="outline" loading={change.pending && acting === e.id} onClick={() => act(e, { status: "draft" })}>Take down<span className="sr-only"> {summary(e)}</span></Button> : <Button size="sm" loading={change.pending && acting === e.id} onClick={() => act(e, { status: "published" })}>Publish<span className="sr-only"> {summary(e)}</span></Button>}
                     <Button size="sm" variant="danger-soft" onClick={() => setArchiving(e)}>Remove<span className="sr-only"> {summary(e)}</span></Button>
                     {ORDERABLE.includes(type) ? (
                       <span className="ml-auto flex gap-1">
@@ -93,7 +108,7 @@ export function EntrySection({ type, canWrite }: { type: ContentType; canWrite: 
       )}
       {canWrite && !(type === "flash" && entries.length > 0) ? <Button variant="add" className="self-start" iconLeft={<Plus aria-hidden="true" size={16} />} onClick={() => setEditing("new")}>Add {noun}</Button> : null}
 
-      <ConfirmDialog open={!!archiving} title={`Remove this ${noun}?`} confirmLabel="Remove" tone="danger" busy={change.isPending} onCancel={() => setArchiving(null)} onConfirm={() => archiving && change.mutate({ id: archiving.id, patch: { status: "archived" } }, { onSuccess: () => { setArchiving(null); toast.success("Removed"); } })}>
+      <ConfirmDialog open={!!archiving} title={`Remove this ${noun}?`} confirmLabel="Remove" tone="danger" busy={change.pending} onCancel={() => setArchiving(null)} onConfirm={() => archiving && act(archiving, { status: "archived" }, () => { setArchiving(null); toast.success("Removed"); })}>
         It disappears from the shop and from this list. Customers see the page without it straight away.
       </ConfirmDialog>
     </div>

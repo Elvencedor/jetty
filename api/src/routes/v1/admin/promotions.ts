@@ -2,7 +2,7 @@ import type { ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
 import { attachProductToPromotion, detachProductFromPromotion, promotionsForProduct } from '../../../modules/admin/product-promotions.js';
 import { CODE_PATTERN, createPromotion, getAdminPromotion, listAdminPromotions, setPromotionState, SUPPORTED_KINDS, updatePromotion, type PromotionInput, type PromotionPatch } from '../../../modules/admin/promotions.js';
-import { audited, db, guard, NO_STORE, pageQuery, uuidParam } from './shared.js';
+import { assertIfMatch, audited, db, etagFor, guard, NO_STORE, pageQuery, uuidParam } from './shared.js';
 
 const write = guard('promotions:write');
 const read = guard('promotions:read');
@@ -64,7 +64,10 @@ export const adminPromotionRoutes: ServerRoute[] = [
     method: 'GET',
     path: '/admin/promotions/{id}',
     options: { ...read, description: 'Promotion with codes and redemption stats', tags: ['api', 'admin'], validate: { params: uuidParam('id') } },
-    handler: async (request, h) => h.response(await getAdminPromotion(db(request), (request.params as { id: string }).id)).header('Cache-Control', NO_STORE),
+    handler: async (request, h) => {
+      const detail = await getAdminPromotion(db(request), (request.params as { id: string }).id);
+      return h.response(detail).header('ETag', etagFor(detail.promotion.version)).header('Cache-Control', NO_STORE);
+    },
   },
   {
     method: 'PATCH',
@@ -74,7 +77,7 @@ export const adminPromotionRoutes: ServerRoute[] = [
       const { id } = request.params as { id: string };
       await audited(
         request,
-        (tx) => updatePromotion(tx, id, request.payload as PromotionPatch),
+        (tx) => updatePromotion(tx, id, request.payload as PromotionPatch, (version) => assertIfMatch(request, version)),
         ({ before, after }) => ({
           action: 'promotion.update',
           resourceType: 'promotion',
@@ -83,7 +86,8 @@ export const adminPromotionRoutes: ServerRoute[] = [
           after: { name: after.name, kind: after.kind, configuration: after.configuration, scope: after.scope, startsAt: after.startsAt, endsAt: after.endsAt, totalUsageLimit: after.totalUsageLimit, codes: (request.payload as PromotionPatch).codes?.map((c) => c.code) },
         }),
       );
-      return h.response(await getAdminPromotion(db(request), id)).header('Cache-Control', NO_STORE);
+      const detail = await getAdminPromotion(db(request), id);
+      return h.response(detail).header('ETag', etagFor(detail.promotion.version)).header('Cache-Control', NO_STORE);
     },
   },
   ...(['activate', 'deactivate'] as const).map(
@@ -93,7 +97,7 @@ export const adminPromotionRoutes: ServerRoute[] = [
       options: { ...write, description: `${action === 'activate' ? 'Activate' : 'Deactivate'} a promotion; its schedule is still enforced`, tags: ['api', 'admin'], validate: { params: uuidParam('id'), payload: Joi.any() } },
       handler: async (request, h) => {
         const { id } = request.params as { id: string };
-        await audited(request, (tx) => setPromotionState(tx, id, action === 'activate' ? 'active' : 'inactive'), ({ before, after }) => ({ action: `promotion.${action}`, resourceType: 'promotion', resourceId: id, before: { status: before.status }, after: { status: after.status } }));
+        await audited(request, (tx) => setPromotionState(tx, id, action === 'activate' ? 'active' : 'inactive', request.headers['if-match'] ? (version) => assertIfMatch(request, version) : undefined), ({ before, after }) => ({ action: `promotion.${action}`, resourceType: 'promotion', resourceId: id, before: { status: before.status }, after: { status: after.status } }));
         return h.response(await getAdminPromotion(db(request), id)).header('Cache-Control', NO_STORE);
       },
     }),

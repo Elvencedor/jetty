@@ -1,8 +1,9 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
+import { useConflictSave } from "../ConflictDialog";
 import { PageHeader } from "../PageHeader";
 import { EntrySection } from "./EntrySection";
 import { PagesTab } from "./PagesTab";
@@ -52,15 +53,23 @@ function Homepage({ canWrite }: { canWrite: boolean }) {
   const entry: ContentEntry | undefined = layout.data?.find((e) => e.status === "published");
   const sections = layout.data ? mergeLayout((entry?.body.sections as LayoutSection[] | undefined) ?? null) : null;
 
-  const save = useMutation({
-    mutationFn: async (next: LayoutSection[]) => (entry ? updateContent(entry.id, { body: { sections: next } }) : createContent({ contentType: "home_layout", title: "Home layout", body: { sections: next }, status: "published" })),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: adminKeys.resource("content") }),
+  const save = useConflictSave<[LayoutSection[], (() => void)?], ContentEntry>({
+    noun: "home page layout",
+    editing: !!entry,
+    save: (version, next) => (entry ? updateContent(entry.id, version ?? entry.version, { body: { sections: next } }) : createContent({ contentType: "home_layout", title: "Home layout", body: { sections: next }, status: "published" })),
+    onSaved: (saved, _next, after) => {
+      // Take the saved version in at once, so an Undo right after this starts from it rather than from the one before.
+      queryClient.setQueryData<ContentEntry[]>(key, (current) => (current?.some((e) => e.id === saved.id) ? current.map((e) => (e.id === saved.id ? saved : e)) : [...(current ?? []), saved]));
+      void queryClient.invalidateQueries({ queryKey: adminKeys.resource("content") });
+      after?.();
+    },
     onError: (err) => toast.error(adminErrorMessage(err)),
+    onUseTheirs: () => queryClient.invalidateQueries({ queryKey: adminKeys.resource("content") }),
   });
 
   function apply(next: LayoutSection[], message: string, previous: LayoutSection[]) {
     setAnnounce(message);
-    save.mutate(next, { onSuccess: () => toast.success(message, { label: "Undo", onClick: () => save.mutate(previous) }) });
+    save.run(next, () => toast.success(message, { label: "Undo", onClick: () => save.run(previous) }));
   }
   const move = (index: number, by: -1 | 1) => {
     if (!sections) return;
@@ -79,6 +88,7 @@ function Homepage({ canWrite }: { canWrite: boolean }) {
 
   return (
     <div className="flex flex-wrap items-start gap-4">
+      {save.dialog}
       <section aria-label="Homepage sections" className="flex min-w-0 flex-[1_1_280px] flex-col gap-2.5 rounded-card border border-line bg-surface p-4">
         <div><h2 className="font-display text-heading-xs font-extrabold">Homepage sections</h2><p className="text-caption text-muted">{sections ? showingText(sections, true) : " "} · top to bottom, as customers see it. Use the arrows to move one.</p></div>
         <p role="status" className="sr-only">{announce}</p>
@@ -97,9 +107,9 @@ function Homepage({ canWrite }: { canWrite: boolean }) {
                 onSelect={() => setSelected(s.type)}
                 controls={canWrite ? (
                   <>
-                    <IconButton label={`Move ${SECTION_META[s.type].name} up`} disabled={i === 0 || save.isPending} onClick={() => move(i, -1)}><ArrowUp aria-hidden="true" size={15} /></IconButton>
-                    <IconButton label={`Move ${SECTION_META[s.type].name} down`} disabled={i === sections.length - 1 || save.isPending} onClick={() => move(i, 1)}><ArrowDown aria-hidden="true" size={15} /></IconButton>
-                    <IconButton label={`${s.enabled ? "Hide" : "Show"} ${SECTION_META[s.type].name}`} disabled={save.isPending} onClick={() => toggle(i)}>{s.enabled ? <Eye aria-hidden="true" size={15} /> : <EyeOff aria-hidden="true" size={15} />}</IconButton>
+                    <IconButton label={`Move ${SECTION_META[s.type].name} up`} disabled={i === 0 || save.pending} onClick={() => move(i, -1)}><ArrowUp aria-hidden="true" size={15} /></IconButton>
+                    <IconButton label={`Move ${SECTION_META[s.type].name} down`} disabled={i === sections.length - 1 || save.pending} onClick={() => move(i, 1)}><ArrowDown aria-hidden="true" size={15} /></IconButton>
+                    <IconButton label={`${s.enabled ? "Hide" : "Show"} ${SECTION_META[s.type].name}`} disabled={save.pending} onClick={() => toggle(i)}>{s.enabled ? <Eye aria-hidden="true" size={15} /> : <EyeOff aria-hidden="true" size={15} />}</IconButton>
                   </>
                 ) : null}
               />

@@ -1,8 +1,8 @@
-import { eq, inArray, sql } from 'drizzle-orm';
-import type { Db } from '../../db/client.js';
+import { and, eq, inArray, sql } from 'drizzle-orm';
+import type { Db, Tx } from '../../db/client.js';
 import { contentEntries, products, promotions } from '../../db/schema/index.js';
 import { decodeCursor, encodeCursor } from '../../lib/cursor.js';
-import { conflict, notFound, unprocessable } from '../../lib/errors.js';
+import { conflict, notFound, staleRecord, unprocessable } from '../../lib/errors.js';
 import { BODY_SCHEMAS, type ContentType } from '../content/content.js';
 import { slugify } from './products.js';
 import { uniqueViolation } from '../../lib/sql.js';
@@ -26,7 +26,7 @@ function checkBody(type: ContentType, body: unknown): Record<string, unknown> {
 }
 
 /** References inside a body must point at something that exists, so a typo is caught when saving, not on the storefront. */
-async function checkReferences(db: Db, type: ContentType, body: Record<string, unknown>) {
+async function checkReferences(db: Db | Tx, type: ContentType, body: Record<string, unknown>) {
   if (type === 'featured_products') {
     const ids = body.productIds as string[];
     if (ids.length === 0) return;
@@ -71,31 +71,35 @@ export async function createContent(db: Db, adminId: string, input: ContentInput
   throw conflict('SLUG_TAKEN', 'Could not find a free slug; set one explicitly.');
 }
 
-export async function updateContent(db: Db, id: string, patch: Partial<Omit<ContentInput, 'contentType'>>) {
-  const [before] = await db.select().from(contentEntries).where(eq(contentEntries.id, id));
-  if (!before) throw notFound('Content entry not found.');
-  const type = before.contentType as ContentType;
-  const body = patch.body ? checkBody(type, patch.body) : undefined;
-  if (body) await checkReferences(db, type, body);
-  const startsAt = patch.startsAt === undefined ? before.startsAt : patch.startsAt;
-  const endsAt = patch.endsAt === undefined ? before.endsAt : patch.endsAt;
-  checkWindow(startsAt, endsAt);
+export async function updateContent(db: Db, id: string, patch: Partial<Omit<ContentInput, 'contentType'>>, check: (version: number) => void = () => undefined) {
   try {
-    const [after] = await db
-      .update(contentEntries)
-      .set({
-        ...(patch.title !== undefined ? { title: patch.title } : {}),
-        ...(patch.slug !== undefined ? { slug: patch.slug } : {}),
-        ...(body ? { body } : {}),
-        ...(patch.status !== undefined ? { status: patch.status } : {}),
-        ...(patch.sortOrder !== undefined ? { sortOrder: patch.sortOrder } : {}),
-        startsAt,
-        endsAt,
-        updatedAt: new Date(),
-      })
-      .where(eq(contentEntries.id, id))
-      .returning();
-    return { before, after: after! };
+    return await db.transaction(async (tx) => {
+      const [before] = await tx.select().from(contentEntries).where(eq(contentEntries.id, id)).for('update');
+      if (!before) throw notFound('Content entry not found.');
+      check(before.version);
+      const type = before.contentType as ContentType;
+      const body = patch.body ? checkBody(type, patch.body) : undefined;
+      if (body) await checkReferences(tx, type, body);
+      const startsAt = patch.startsAt === undefined ? before.startsAt : patch.startsAt;
+      const endsAt = patch.endsAt === undefined ? before.endsAt : patch.endsAt;
+      checkWindow(startsAt, endsAt);
+      const [after] = await tx
+        .update(contentEntries)
+        .set({
+          ...(patch.title !== undefined ? { title: patch.title } : {}),
+          ...(patch.slug !== undefined ? { slug: patch.slug } : {}),
+          ...(body ? { body } : {}),
+          ...(patch.status !== undefined ? { status: patch.status } : {}),
+          ...(patch.sortOrder !== undefined ? { sortOrder: patch.sortOrder } : {}),
+          startsAt,
+          endsAt,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(contentEntries.id, id), eq(contentEntries.version, before.version)))
+        .returning();
+      if (!after) throw staleRecord();
+      return { before, after };
+    });
   } catch (err) {
     if (uniqueViolation(err)) throw conflict('SLUG_TAKEN', 'Another entry of this type already uses this slug.');
     throw err;
@@ -122,7 +126,7 @@ export async function listContent(db: Db, input: { type?: ContentType | undefine
   return {
     data: page.map((r) => ({
       id: r.id as string, contentType: r.content_type as string, slug: r.slug as string, title: r.title as string, body: r.body, status: r.status as string,
-      startsAt: iso(r.starts_at), endsAt: iso(r.ends_at), sortOrder: r.sort_order as number, updatedAt: iso(r.updated_at),
+      startsAt: iso(r.starts_at), endsAt: iso(r.ends_at), sortOrder: r.sort_order as number, updatedAt: iso(r.updated_at), version: r.version as number,
     })),
     page: { nextCursor: hasMore && last ? encodeCursor({ sort: 'admin-content', values: [String(last.cur_at), String(last.id)] }) : null },
   };

@@ -3,6 +3,7 @@
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, X } from "lucide-react";
 import { useState } from "react";
+import { useConflictSave } from "../ConflictDialog";
 import { useDebounced } from "@/components/shell/useDebounced";
 import { Button, Skeleton, TextField } from "@/components/ui";
 import { adminErrorMessage } from "@/lib/admin/concurrency";
@@ -33,7 +34,6 @@ function Editor({ entry, canWrite }: { entry: ContentEntry | null; canWrite: boo
   const [heading, setHeading] = useState(initialHeading);
   const [search, setSearch] = useState("");
   const q = useDebounced(search.trim(), 300);
-  const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
   const dirty = manual !== (!!entry && entry.status === "published") || heading !== initialHeading || JSON.stringify(ids) !== JSON.stringify(initialIds);
   useUnsavedGuard(dirty);
@@ -41,28 +41,31 @@ function Editor({ entry, canWrite }: { entry: ContentEntry | null; canWrite: boo
   const names = useQueries({ queries: ids.map((id) => ({ queryKey: adminKeys.detail("products", id), queryFn: ({ signal }: { signal: AbortSignal }) => getAdminProduct(id, { signal }), staleTime: 60_000 })) });
   const results = useQuery({ queryKey: adminKeys.list("products", { picker: q }), queryFn: ({ signal }) => listAdminProducts({ ...(q ? { q } : {}), status: "active", limit: 8 }, { signal }), enabled: manual && canWrite, staleTime: 30_000 });
 
-  async function save() {
-    setBusy(true);
-    setProblem(undefined);
-    try {
+  const save = useConflictSave<[], unknown>({
+    noun: "row",
+    editing: !!entry,
+    save: async (version) => {
       if (!manual) {
-        if (entry) await updateContent(entry.id, { status: "archived" });
+        if (entry) await updateContent(entry.id, version ?? entry.version, { status: "archived" });
       } else {
         const body = { ...(heading.trim() ? { heading: heading.trim() } : {}), productIds: ids };
-        if (entry) await updateContent(entry.id, { title: heading.trim() || "Jetty's picks", body, status: "published" });
+        if (entry) await updateContent(entry.id, version ?? entry.version, { title: heading.trim() || "Jetty's picks", body, status: "published" });
         else await createContent({ contentType: "featured_products", title: heading.trim() || "Jetty's picks", body, status: "published" });
       }
+    },
+    onSaved: () => {
       toast.success("Saved. The home page row is updated.");
       void queryClient.invalidateQueries({ queryKey: adminKeys.resource("content") });
-    } catch (err) {
-      setProblem(adminErrorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  }
+    },
+    onError: (err) => setProblem(adminErrorMessage(err)),
+    onUseTheirs: () => queryClient.invalidateQueries({ queryKey: adminKeys.resource("content") }),
+  });
+  const busy = save.pending;
+  const submit = () => { setProblem(undefined); save.run(); };
 
   return (
     <div className="flex flex-col gap-3.5">
+      {save.dialog}
       {problem ? <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-body-sm text-danger">{problem}</p> : null}
       <div role="radiogroup" aria-label="Which products?" className="grid gap-2">
         {[{ on: true, label: "I will pick them", note: "Choose the products and their order." }, { on: false, label: "Products marked as featured", note: "Automatic: whatever is starred in the catalogue." }].map((o) => (
@@ -118,7 +121,7 @@ function Editor({ entry, canWrite }: { entry: ContentEntry | null; canWrite: boo
           ) : null}
         </>
       ) : null}
-      {canWrite ? <div className="flex justify-end"><Button loading={busy} disabled={!dirty || busy} onClick={() => void save()}>Save and publish</Button></div> : null}
+      {canWrite ? <div className="flex justify-end"><Button loading={busy} disabled={!dirty || busy} onClick={submit}>Save and publish</Button></div> : null}
     </div>
   );
 }

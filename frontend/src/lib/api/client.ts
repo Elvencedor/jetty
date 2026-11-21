@@ -65,6 +65,9 @@ export type RequestOptions = Omit<RequestInit, "body"> & {
   ifMatch?: string;
 };
 
+/** The `If-Match` value for a record's version counter. */
+export const versionTag = (version: number) => `"${version}"`;
+
 export type ApiResult<T> = { data: T; status: number; headers: Headers; etag: string | null };
 
 export function withQuery(path: string, query?: Record<string, QueryValue>): string {

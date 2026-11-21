@@ -1,8 +1,9 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, X } from "lucide-react";
 import { useState } from "react";
+import { useConflictSave } from "../ConflictDialog";
 import { SideDrawer } from "../SideDrawer";
 import { useDebounced } from "@/components/shell/useDebounced";
 import { Button, SelectField, Switch, TextareaField, TextField } from "@/components/ui";
@@ -35,21 +36,26 @@ const num = (v: string) => (v.trim() ? Number(v) : undefined);
 export function CategoryDrawer({ category, all, canWrite, onClose, onSaved }: { category: CategoryRow | null; all: CategoryRow[]; canWrite: boolean; onClose: () => void; onSaved: () => void }) {
   const f = useForm(category ? { name: category.name, slug: category.slug, sortOrder: String(category.sortOrder), active: category.active, parentId: category.parentId ?? "", description: "" } : blank());
   const blocked = category ? selfAndDescendants(all, category.id) : new Set<string>();
-  const save = useMutation({
-    mutationFn: () => {
+  const save = useConflictSave<[], unknown>({
+    noun: "category",
+    editing: !!category,
+    save: (version) => {
       const body = { name: f.form.name.trim(), ...(f.form.slug.trim() ? { slug: f.form.slug.trim() } : {}), sortOrder: num(f.form.sortOrder), active: f.form.active, parentId: f.form.parentId || null };
-      return category ? updateAdminCategory(category.id, body) : createAdminCategory(body);
+      return category ? updateAdminCategory(category.id, version ?? category.version, body) : createAdminCategory(body);
     },
-    onSuccess: () => { toast.success(category ? "Category saved" : "Category created"); onSaved(); },
+    onSaved: () => { toast.success(category ? "Category saved" : "Category created"); onSaved(); },
     onError: (err) => f.setProblem(adminErrorMessage(err)),
+    // Their version is what the list holds once it is read again: close, and the list refreshes.
+    onUseTheirs: () => onSaved(),
   });
   function submit() {
     const found = validateTaxonomy(f.form);
     f.setErrors(found);
-    if (!Object.keys(found).length) save.mutate();
+    if (!Object.keys(found).length) save.run();
   }
   return (
-    <SideDrawer open onClose={onClose} title={category ? `Edit ${category.name}` : "New category"} dirty={f.dirty} footer={canWrite ? <><Button variant="outline" onClick={onClose}>Cancel</Button><Button loading={save.isPending} disabled={!!category && !f.dirty} onClick={submit}>{category ? "Save category" : "Create category"}</Button></> : undefined}>
+    <SideDrawer open onClose={onClose} title={category ? `Edit ${category.name}` : "New category"} dirty={f.dirty} footer={canWrite ? <><Button variant="outline" onClick={onClose}>Cancel</Button><Button loading={save.pending} disabled={!!category && !f.dirty} onClick={submit}>{category ? "Save category" : "Create category"}</Button></> : undefined}>
+      {save.dialog}
       <div className="flex flex-col gap-4">
         {f.problem ? <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-body-sm text-danger">{f.problem}</p> : null}
         <TextField size="admin" label="Name" value={f.form.name} disabled={!canWrite} error={f.errors.name} onChange={(e) => f.set("name", e.target.value)} />
@@ -76,26 +82,30 @@ export function CollectionDrawer({ collection, canWrite, onClose, onSaved }: { c
   const q = useDebounced(search.trim(), 300);
   const results = useQuery({ queryKey: adminKeys.list("products", { picker: q, status: "active" }), queryFn: ({ signal }) => listAdminProducts({ ...(q ? { q } : {}), status: "active", limit: 8 }, { signal }), enabled: canWrite, staleTime: 30_000 });
 
-  const save = useMutation({
-    mutationFn: async () => {
+  const save = useConflictSave<[], unknown>({
+    noun: "collection",
+    editing: !!collection,
+    save: async (version) => {
       const body = { name: f.form.name.trim(), ...(f.form.slug.trim() ? { slug: f.form.slug.trim() } : {}), sortOrder: num(f.form.sortOrder), active: f.form.active, description: f.form.description.trim() || null };
-      const saved = collection ? await updateAdminCollection(collection.id, body) : await createAdminCollection(body);
+      const saved = collection ? await updateAdminCollection(collection.id, version ?? collection.version, body) : await createAdminCollection(body);
       if (membersChanged || (!collection && picked)) await setCollectionMembers(saved.id, current.map((p) => p.id));
       return saved;
     },
-    onSuccess: () => { toast.success(collection ? "Collection saved" : "Collection created"); onSaved(); },
+    onSaved: () => { toast.success(collection ? "Collection saved" : "Collection created"); onSaved(); },
     onError: (err) => f.setProblem(adminErrorMessage(err)),
+    onUseTheirs: () => onSaved(),
   });
   function submit() {
     const found = validateTaxonomy(f.form);
     f.setErrors(found);
-    if (!Object.keys(found).length) save.mutate();
+    if (!Object.keys(found).length) save.run();
   }
   const edit = (next: { id: string; title: string }[]) => setPicked(next);
   const dirty = f.dirty || membersChanged;
 
   return (
-    <SideDrawer open onClose={onClose} title={collection ? `Edit ${collection.name}` : "New collection"} dirty={dirty} footer={canWrite ? <><Button variant="outline" onClick={onClose}>Cancel</Button><Button loading={save.isPending} disabled={!!collection && !dirty} onClick={submit}>{collection ? "Save collection" : "Create collection"}</Button></> : undefined}>
+    <SideDrawer open onClose={onClose} title={collection ? `Edit ${collection.name}` : "New collection"} dirty={dirty} footer={canWrite ? <><Button variant="outline" onClick={onClose}>Cancel</Button><Button loading={save.pending} disabled={!!collection && !dirty} onClick={submit}>{collection ? "Save collection" : "Create collection"}</Button></> : undefined}>
+      {save.dialog}
       <div className="flex flex-col gap-4">
         {f.problem ? <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-body-sm text-danger">{f.problem}</p> : null}
         <TextField size="admin" label="Name" value={f.form.name} disabled={!canWrite} error={f.errors.name} onChange={(e) => f.set("name", e.target.value)} />

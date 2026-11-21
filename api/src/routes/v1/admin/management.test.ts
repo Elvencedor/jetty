@@ -7,6 +7,7 @@ import { createLogger } from '../../../lib/logger.js';
 import { STARTER_PAGES } from '../../../db/starter-pages.js';
 import { createServer } from '../../../server.js';
 import { adminTestEnv, signInAdmin } from '../../../testing/admin.js';
+import { withVersion } from '../../../testing/versions.js';
 import { createTestDatabase, TEST_DATABASE_URL, type TestDatabase } from '../../../testing/database.js';
 import { FakeProvider } from '../../../testing/fake-provider.js';
 
@@ -25,7 +26,8 @@ describe('admin content, customers, reviews and settings', { skip: !TEST_DATABAS
   let variantId = '';
 
   const call = async (method: string, url: string, payload?: Json, who = owner) => {
-    const res = await api.inject({ method: method as 'GET', url: `/api/v1${url}`, ...(payload ? { payload } : {}), headers: who.headers });
+    const v = await withVersion(t.db, method, url, payload, who.headers);
+    const res = await api.inject({ method: method as 'GET', url: `/api/v1${url}`, ...(v.payload ? { payload: v.payload } : {}), headers: v.headers });
     return { status: res.statusCode, body: res.result as Json };
   };
   const publicGet = async (url: string) => ({ status: (await api.inject({ url: `/api/v1${url}` })).statusCode, body: (await api.inject({ url: `/api/v1${url}` })).result as Json });

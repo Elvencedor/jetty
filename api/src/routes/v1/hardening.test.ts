@@ -7,6 +7,7 @@ import { contentEntries, deliveryZones, inventory, productMedia, productVariants
 import { createLogger } from '../../lib/logger.js';
 import { createServer } from '../../server.js';
 import { adminTestEnv, signInAdmin } from '../../testing/admin.js';
+import { withVersion } from '../../testing/versions.js';
 import { createTestDatabase, TEST_DATABASE_URL, type TestDatabase } from '../../testing/database.js';
 import { FakeProvider } from '../../testing/fake-provider.js';
 import { FakeStorage } from '../../testing/fake-storage.js';
@@ -183,7 +184,7 @@ describe('review hardening', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL no
     });
 
     it('holds stock for the configured payment windows', async () => {
-      const set = (payload: Json) => api.inject({ method: 'PATCH', url: '/api/v1/admin/settings/payments', payload, headers: owner.headers });
+      const set = async (payload: Json) => api.inject({ method: 'PATCH', url: '/api/v1/admin/settings/payments', payload, headers: (await withVersion(t.db, 'PATCH', '/admin/settings/payments', payload, owner.headers)).headers });
       assert.equal((await set({ transferHoldMinutes: 5 })).statusCode, 422, 'at least 15 minutes');
       assert.equal((await set({ cardHoldMinutes: 20, transferHoldMinutes: 90 })).statusCode, 200);
       const minutesLeft = async (method: string) => {

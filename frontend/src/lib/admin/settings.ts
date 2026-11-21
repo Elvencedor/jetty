@@ -137,9 +137,10 @@ export function validateZone(f: ZoneForm): ZoneErrors {
   return errors;
 }
 
-export function zoneToInput(f: ZoneForm, id?: string): ZoneInput {
+export function zoneToInput(f: ZoneForm, id?: string, version?: number): ZoneInput {
   return {
     ...(id ? { id } : {}),
+    ...(id && version !== undefined ? { version } : {}),
     name: f.name.trim(),
     scope: f.scope,
     state: f.scope === "state" ? f.state.trim() : null,

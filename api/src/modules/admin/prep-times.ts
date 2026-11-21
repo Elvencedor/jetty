@@ -1,8 +1,8 @@
-import { asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import Joi from 'joi';
 import type { Db } from '../../db/client.js';
 import { deliveryPrepTimes, deliveryZones } from '../../db/schema/index.js';
-import { notFound, unprocessable } from '../../lib/errors.js';
+import { notFound, staleRecord, unprocessable } from '../../lib/errors.js';
 
 const day = Joi.string().trim().pattern(/^\d{4}-\d{2}-\d{2}$/).allow(null, '').messages({ 'string.pattern.base': 'must be a date like 2026-12-01' });
 
@@ -71,13 +71,15 @@ export async function createPrepTime(db: Db, fields: PrepTimeInput) {
   });
 }
 
-export async function updatePrepTime(db: Db, id: string, fields: PrepTimeInput) {
+export async function updatePrepTime(db: Db, id: string, fields: PrepTimeInput, check: (version: number) => void = () => undefined) {
   return db.transaction(async (tx) => {
     const [before] = await tx.select().from(deliveryPrepTimes).where(eq(deliveryPrepTimes.id, id)).for('update');
     if (!before) throw notFound(`Prep time ${id} does not exist.`);
+    check(before.version);
     const values = await resolve(tx, before, fields);
-    const [after] = await tx.update(deliveryPrepTimes).set({ ...values, updatedAt: new Date() }).where(eq(deliveryPrepTimes.id, id)).returning();
-    return { before, after: after! };
+    const [after] = await tx.update(deliveryPrepTimes).set({ ...values, updatedAt: new Date() }).where(and(eq(deliveryPrepTimes.id, id), eq(deliveryPrepTimes.version, before.version))).returning();
+    if (!after) throw staleRecord();
+    return { before, after };
   });
 }
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CategoryRow } from "@/lib/api/admin-catalog";
 import { categoryTree, isSlug, productCountText, selfAndDescendants, slugify, validateTaxonomy } from "./taxonomy";
 
-const cat = (id: string, name: string, parentId: string | null = null, sortOrder = 0): CategoryRow => ({ id, name, slug: slugify(name), parentId, sortOrder, active: true, productCount: 0 });
+const cat = (id: string, name: string, parentId: string | null = null, sortOrder = 0): CategoryRow => ({ id, name, slug: slugify(name), parentId, sortOrder, active: true, productCount: 0, version: 1 });
 
 describe("slugs", () => {
   it("makes web addresses from names", () => {

@@ -6,6 +6,7 @@ import { adminAuditLog, collections, deliveryZones, inventory, productCollection
 import { createLogger } from '../../../lib/logger.js';
 import { createServer } from '../../../server.js';
 import { adminTestEnv, signInAdmin } from '../../../testing/admin.js';
+import { withVersion } from '../../../testing/versions.js';
 import { createTestDatabase, TEST_DATABASE_URL, type TestDatabase } from '../../../testing/database.js';
 import { runMaintenance } from '../../../worker/maintenance.js';
 
@@ -22,7 +23,8 @@ describe('admin promotions', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL no
   let productId = '';
 
   const call = async (method: string, url: string, payload?: Json, who = owner) => {
-    const res = await api.inject({ method: method as 'GET', url: `/api/v1${url}`, ...(payload ? { payload } : {}), headers: who.headers });
+    const v = await withVersion(t.db, method, url, payload, who.headers);
+    const res = await api.inject({ method: method as 'GET', url: `/api/v1${url}`, ...(v.payload ? { payload: v.payload } : {}), headers: v.headers });
     return { status: res.statusCode, body: res.result as Json };
   };
   const quote = async (promotionCodes: string[] = []) => {

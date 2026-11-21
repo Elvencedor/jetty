@@ -1,4 +1,4 @@
-import { apiFetch, type RequestOptions } from "./client";
+import { apiFetch, versionTag, type RequestOptions } from "./client";
 
 type Init = Pick<RequestOptions, "signal">;
 
@@ -18,6 +18,8 @@ export type ContentEntry = {
   endsAt: string | null;
   sortOrder: number;
   updatedAt: string | null;
+  /** Counts every change; an edit must send the one it read. */
+  version: number;
   /** The picture on a hero card, story circle or tile, with a URL to show it. */
   image: { objectKey: string; url: string | null } | null;
 };
@@ -39,7 +41,7 @@ export async function listContent(query: { type?: ContentType; status?: ContentS
   return entries;
 }
 export const createContent = (input: ContentInput) => apiFetch<ContentEntry>("/admin/content", { method: "POST", body: input, auth: "admin" });
-export const updateContent = (id: string, patch: ContentPatch) => apiFetch<ContentEntry>(`/admin/content/${id}`, { method: "PATCH", body: patch, auth: "admin" });
+export const updateContent = (id: string, version: number, patch: ContentPatch) => apiFetch<ContentEntry>(`/admin/content/${id}`, { method: "PATCH", body: patch, ifMatch: versionTag(version), auth: "admin" });
 
 export type ContentUploadIntent = { objectKey: string; upload: { method: "PUT"; url: string; headers: Record<string, string>; expiresAt: string } };
 export const createContentUploadIntent = (input: { contentType: string; sizeBytes: number }) => apiFetch<ContentUploadIntent>("/admin/media/content-upload-intents", { method: "POST", body: input, auth: "admin" });

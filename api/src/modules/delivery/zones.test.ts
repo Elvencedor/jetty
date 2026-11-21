@@ -21,6 +21,7 @@ const zone = (over: Partial<DeliveryZone> = {}): DeliveryZone => ({
   pickupEnabled: true,
   createdAt: new Date(),
   updatedAt: new Date(),
+  version: 1,
   ...over,
 });
 

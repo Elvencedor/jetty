@@ -5,14 +5,14 @@ import { customerSegments, getAdminCustomer, listAdminCustomers, SEGMENTS, listA
 import { deleteZone, listZones, upsertZones, zoneSchema, type ZoneInput } from '../../../modules/admin/zones.js';
 import { createPrepTime, deletePrepTime, listPrepTimes, prepTimeSchema, updatePrepTime, type PrepTimeInput } from '../../../modules/admin/prep-times.js';
 import { CONTENT_STATUSES, CONTENT_TYPES } from '../../../modules/content/content.js';
-import { getSetting, isSettingKey, SETTING_KEYS, SETTINGS, updateSetting } from '../../../modules/settings/settings.js';
+import { getSetting, getSettingVersion, isSettingKey, SETTING_KEYS, SETTINGS, updateSetting } from '../../../modules/settings/settings.js';
 import { withUrl } from '../../../modules/media/urls.js';
 import { CONTENT_KEY_PREFIX } from '../../../modules/admin/media.js';
 import type { ObjectStorage } from '../../../modules/media/storage.js';
 import { apiError, unprocessable } from '../../../lib/errors.js';
 import { revalidateStorefront } from '../../../lib/revalidate.js';
 import { fromJoi, notFound } from '../../../lib/errors.js';
-import { audited, db, guard, NO_STORE, pageQuery, slugSchema, uuidParam } from './shared.js';
+import { assertIfMatch, audited, db, etagFor, guard, NO_STORE, pageQuery, slugSchema, uuidParam } from './shared.js';
 
 const contentFields = {
   title: Joi.string().trim().min(1).max(200),
@@ -59,7 +59,10 @@ export const adminManagementRoutes: ServerRoute[] = [
     method: 'GET',
     path: '/admin/content/{id}',
     options: { ...guard('content:read'), description: 'One content entry', tags: ['api', 'admin'], validate: { params: uuidParam('id') } },
-    handler: async (request, h) => h.response(presentEntry(request, await getContent(db(request), (request.params as { id: string }).id))).header('Cache-Control', NO_STORE),
+    handler: async (request, h) => {
+      const entry = await getContent(db(request), (request.params as { id: string }).id);
+      return h.response(presentEntry(request, entry)).header('ETag', etagFor(entry.version)).header('Cache-Control', NO_STORE);
+    },
   },
   {
     method: 'POST',
@@ -84,7 +87,7 @@ export const adminManagementRoutes: ServerRoute[] = [
     handler: async (request, h) => {
       const { id } = request.params as { id: string };
       await assertContentImage(request.server.app.storage, (request.payload as { body?: unknown }).body);
-      const { after } = await audited(request, (tx) => updateContent(tx, id, request.payload as Partial<ContentInput>), ({ before, after }) => ({ action: 'content.update', resourceType: 'content', resourceId: id, before: { title: before.title, status: before.status, startsAt: before.startsAt, endsAt: before.endsAt, body: before.body }, after: { title: after.title, status: after.status, startsAt: after.startsAt, endsAt: after.endsAt, body: after.body } }));
+      const { after } = await audited(request, (tx) => updateContent(tx, id, request.payload as Partial<ContentInput>, (version) => assertIfMatch(request, version)), ({ before, after }) => ({ action: 'content.update', resourceType: 'content', resourceId: id, before: { title: before.title, status: before.status, startsAt: before.startsAt, endsAt: before.endsAt, body: before.body }, after: { title: after.title, status: after.status, startsAt: after.startsAt, endsAt: after.endsAt, body: after.body } }));
       void revalidateStorefront(request.server.app.env, request.server.app.logger, ['home']);
       return h.response(presentEntry(request, after)).header('Cache-Control', NO_STORE);
     },
@@ -167,7 +170,7 @@ export const adminManagementRoutes: ServerRoute[] = [
       const { key } = request.params as { key: string };
       if (key === 'delivery-zones') return h.response({ zones: await listZones(db(request)) }).header('Cache-Control', NO_STORE);
       if (!isSettingKey(key)) throw notFound('Unknown setting.');
-      return h.response(await getSetting(db(request), key)).header('Cache-Control', NO_STORE);
+      return h.response(await getSetting(db(request), key)).header('ETag', etagFor(await getSettingVersion(db(request), key))).header('Cache-Control', NO_STORE);
     },
   },
   {
@@ -192,7 +195,7 @@ export const adminManagementRoutes: ServerRoute[] = [
     options: { ...guard('settings:write'), description: 'Update a delivery prep time', tags: ['api', 'admin'], validate: { params: uuidParam('id'), payload: prepTimeSchema.min(1) } },
     handler: async (request, h) => {
       const { id } = request.params as { id: string };
-      await audited(request, (tx) => updatePrepTime(tx, id, request.payload as PrepTimeInput), ({ before, after }) => ({ action: 'settings.prep_time_update', resourceType: 'settings', resourceId: id, before, after }));
+      await audited(request, (tx) => updatePrepTime(tx, id, request.payload as PrepTimeInput, (version) => assertIfMatch(request, version)), ({ before, after }) => ({ action: 'settings.prep_time_update', resourceType: 'settings', resourceId: id, before, after }));
       void revalidateStorefront(request.server.app.env, request.server.app.logger, ['settings']);
       return h.response({ prepTimes: await listPrepTimes(db(request)) }).header('Cache-Control', NO_STORE);
     },
@@ -240,9 +243,9 @@ export const adminManagementRoutes: ServerRoute[] = [
       if (!isSettingKey(key)) throw notFound('Unknown setting.');
       const { value, error } = SETTINGS[key].schema.validate(request.payload, { abortEarly: false });
       if (error) throw fromJoi(error);
-      const { after } = await audited(request, (tx) => updateSetting(tx, request.auth.credentials.adminId!, key, value as Record<string, unknown>), ({ before, after }) => ({ action: `settings.${key}`, resourceType: 'settings', resourceId: key, before, after }));
+      const saved = await audited(request, (tx) => updateSetting(tx, request.auth.credentials.adminId!, key, value as Record<string, unknown>, (version) => assertIfMatch(request, version)), ({ before, after }) => ({ action: `settings.${key}`, resourceType: 'settings', resourceId: key, before, after }));
       void revalidateStorefront(request.server.app.env, request.server.app.logger, ['settings']);
-      return h.response(after).header('Cache-Control', NO_STORE);
+      return h.response(saved.after).header('ETag', etagFor(saved.version)).header('Cache-Control', NO_STORE);
     },
   },
 ];

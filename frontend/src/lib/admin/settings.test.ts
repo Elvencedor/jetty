@@ -42,7 +42,7 @@ describe("payments and policies", () => {
 });
 
 describe("delivery zones", () => {
-  const zone: DeliveryZone = { id: "z1", name: "Lagos Mainland", scope: "state", state: "Lagos", states: [], areas: ["Yaba", "Ikeja"], active: true, timezone: "Africa/Lagos", deliveryFeeMinor: 350_000, deliveryMinDays: 1, deliveryMaxDays: 2, pickupEnabled: true };
+  const zone: DeliveryZone = { version: 1, id: "z1", name: "Lagos Mainland", scope: "state", state: "Lagos", states: [], areas: ["Yaba", "Ikeja"], active: true, timezone: "Africa/Lagos", deliveryFeeMinor: 350_000, deliveryMinDays: 1, deliveryMaxDays: 2, pickupEnabled: true };
   const north: DeliveryZone = { ...zone, id: "z2", name: "North", scope: "nationwide", state: null, states: ["Kano", "Kaduna"], areas: [], deliveryFeeMinor: 600_000, deliveryMinDays: 2, deliveryMaxDays: 4 };
   it("round-trips a state zone through the form, the price in naira", () => {
     const form = zoneToForm(zone);

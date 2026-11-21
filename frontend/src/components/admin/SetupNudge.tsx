@@ -12,7 +12,7 @@ import { useAdminSession } from "@/lib/stores/session";
 export function SetupNudge() {
   const held = useAdminSession((s) => s.user?.permissions) ?? [];
   const store = useQuery({ queryKey: adminKeys.detail("settings", "store"), queryFn: ({ signal }) => getSetting("store", { signal }), enabled: permits(held, "settings:read"), staleTime: 60_000 });
-  const missing = store.data ? missingStoreDetails(store.data) : [];
+  const missing = store.data ? missingStoreDetails(store.data.data) : [];
   if (missing.length === 0) return null;
   return (
     <section aria-label="Finish setting up" className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-line bg-warning-bg p-4 text-warning">

@@ -1,7 +1,7 @@
-import { asc, eq, inArray, sql } from 'drizzle-orm';
-import type { Db } from '../../db/client.js';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import type { Db, Tx } from '../../db/client.js';
 import { categories, collections, productCategories, productCollections, products } from '../../db/schema/index.js';
-import { conflict, notFound, unprocessable } from '../../lib/errors.js';
+import { conflict, notFound, staleRecord, unprocessable } from '../../lib/errors.js';
 import { slugify } from './products.js';
 import { uniqueViolation } from '../../lib/sql.js';
 
@@ -10,7 +10,7 @@ type CategoryInput = { name: string; slug?: string | undefined; parentId?: strin
 /** Categories with how many products are in each, for the management screen. */
 export const listCategories = (db: Db) =>
   db
-    .select({ id: categories.id, name: categories.name, slug: categories.slug, parentId: categories.parentId, sortOrder: categories.sortOrder, active: categories.active, productCount: sql<number>`(select count(*)::int from ${productCategories} pc where pc.category_id = ${categories.id})` })
+    .select({ id: categories.id, name: categories.name, slug: categories.slug, parentId: categories.parentId, sortOrder: categories.sortOrder, active: categories.active, version: categories.version, productCount: sql<number>`(select count(*)::int from ${productCategories} pc where pc.category_id = ${categories.id})` })
     .from(categories)
     .orderBy(asc(categories.sortOrder), asc(categories.name));
 
@@ -29,7 +29,7 @@ export async function createCategory(db: Db, input: CategoryInput) {
 }
 
 /** A category cannot be its own ancestor: walk up from the proposed parent. */
-async function assertParent(db: Db, id: string | null, parentId: string) {
+async function assertParent(db: Db | Tx, id: string | null, parentId: string) {
   const all = await db.select({ id: categories.id, parentId: categories.parentId }).from(categories);
   const byId = new Map(all.map((c) => [c.id, c.parentId]));
   if (!byId.has(parentId)) throw unprocessable('VALIDATION_FAILED', 'The parent category does not exist.', [{ path: 'parentId', code: 'any.invalid' }]);
@@ -38,23 +38,29 @@ async function assertParent(db: Db, id: string | null, parentId: string) {
   }
 }
 
-export async function updateCategory(db: Db, id: string, patch: Partial<CategoryInput>) {
-  const [before] = await db.select().from(categories).where(eq(categories.id, id));
-  if (!before) throw notFound('Category not found.');
-  if (patch.parentId) await assertParent(db, id, patch.parentId);
+export async function updateCategory(db: Db, id: string, patch: Partial<CategoryInput>, check: (version: number) => void = () => undefined) {
   try {
-    const [after] = await db
-      .update(categories)
-      .set({
-        ...(patch.name !== undefined ? { name: patch.name } : {}),
-        ...(patch.slug !== undefined ? { slug: patch.slug } : {}),
-        ...(patch.parentId !== undefined ? { parentId: patch.parentId } : {}),
-        ...(patch.sortOrder !== undefined ? { sortOrder: patch.sortOrder } : {}),
-        ...(patch.active !== undefined ? { active: patch.active } : {}),
-      })
-      .where(eq(categories.id, id))
-      .returning();
-    return { before, after: after! };
+    return await db.transaction(async (tx) => {
+      const [before] = await tx.select().from(categories).where(eq(categories.id, id)).for('update');
+      if (!before) throw notFound('Category not found.');
+      check(before.version);
+      if (patch.parentId) await assertParent(tx, id, patch.parentId);
+      const [after] = await tx
+        .update(categories)
+        .set({
+          ...(patch.name !== undefined ? { name: patch.name } : {}),
+          ...(patch.slug !== undefined ? { slug: patch.slug } : {}),
+          ...(patch.parentId !== undefined ? { parentId: patch.parentId } : {}),
+          ...(patch.sortOrder !== undefined ? { sortOrder: patch.sortOrder } : {}),
+          ...(patch.active !== undefined ? { active: patch.active } : {}),
+          // A write with nothing to change still counts as an edit, so it moves the version like any other.
+          version: sql`${categories.version}`,
+        })
+        .where(and(eq(categories.id, id), eq(categories.version, before.version)))
+        .returning();
+      if (!after) throw staleRecord();
+      return { before, after };
+    });
   } catch (err) {
     if (uniqueViolation(err)) throw conflict('SLUG_TAKEN', 'Another category already uses this slug.');
     throw err;
@@ -65,7 +71,7 @@ type CollectionInput = { name: string; slug?: string | undefined; description?: 
 
 export const listCollections = (db: Db) =>
   db
-    .select({ id: collections.id, name: collections.name, slug: collections.slug, description: collections.description, sortOrder: collections.sortOrder, active: collections.active, productCount: sql<number>`(select count(*)::int from ${productCollections} pc where pc.collection_id = ${collections.id})` })
+    .select({ id: collections.id, name: collections.name, slug: collections.slug, description: collections.description, sortOrder: collections.sortOrder, active: collections.active, version: collections.version, productCount: sql<number>`(select count(*)::int from ${productCollections} pc where pc.collection_id = ${collections.id})` })
     .from(collections)
     .orderBy(asc(collections.sortOrder), asc(collections.name));
 
@@ -94,22 +100,27 @@ export async function createCollection(db: Db, input: CollectionInput) {
   }
 }
 
-export async function updateCollection(db: Db, id: string, patch: Partial<CollectionInput>) {
-  const [before] = await db.select().from(collections).where(eq(collections.id, id));
-  if (!before) throw notFound('Collection not found.');
+export async function updateCollection(db: Db, id: string, patch: Partial<CollectionInput>, check: (version: number) => void = () => undefined) {
   try {
-    const [after] = await db
-      .update(collections)
-      .set({
-        ...(patch.name !== undefined ? { name: patch.name } : {}),
-        ...(patch.slug !== undefined ? { slug: patch.slug } : {}),
-        ...(patch.description !== undefined ? { description: patch.description } : {}),
-        ...(patch.sortOrder !== undefined ? { sortOrder: patch.sortOrder } : {}),
-        ...(patch.active !== undefined ? { active: patch.active } : {}),
-      })
-      .where(eq(collections.id, id))
-      .returning();
-    return { before, after: after! };
+    return await db.transaction(async (tx) => {
+      const [before] = await tx.select().from(collections).where(eq(collections.id, id)).for('update');
+      if (!before) throw notFound('Collection not found.');
+      check(before.version);
+      const [after] = await tx
+        .update(collections)
+        .set({
+          ...(patch.name !== undefined ? { name: patch.name } : {}),
+          ...(patch.slug !== undefined ? { slug: patch.slug } : {}),
+          ...(patch.description !== undefined ? { description: patch.description } : {}),
+          ...(patch.sortOrder !== undefined ? { sortOrder: patch.sortOrder } : {}),
+          ...(patch.active !== undefined ? { active: patch.active } : {}),
+          version: sql`${collections.version}`,
+        })
+        .where(and(eq(collections.id, id), eq(collections.version, before.version)))
+        .returning();
+      if (!after) throw staleRecord();
+      return { before, after };
+    });
   } catch (err) {
     if (uniqueViolation(err)) throw conflict('SLUG_TAKEN', 'Another collection already uses this slug.');
     throw err;
