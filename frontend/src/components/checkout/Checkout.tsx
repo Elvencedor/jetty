@@ -19,8 +19,10 @@ import { useStoreHydrated } from "@/lib/stores/hydrated";
 import { usePaymentSession } from "@/lib/stores/payment-session";
 import { useCustomerSession } from "@/lib/stores/session";
 import { DeliveryStep } from "./DeliveryStep";
+import { FailureNotice } from "./FailureNotice";
 import { PaymentStep } from "./PaymentStep";
 import { PriceSummary } from "@/components/bag/PriceSummary";
+import { UnavailableNotice } from "@/components/bag/UnavailableNotice";
 import { ReviewStep } from "./ReviewStep";
 import { STEPS, StepIndicator, type StepKey } from "./StepIndicator";
 
@@ -138,7 +140,7 @@ export function Checkout() {
       });
       router.push(`/checkout/pay?order=${encodeURIComponent(res.orderId)}`);
     } catch (err) {
-      const f = interpretCheckoutError(err);
+      const f = interpretCheckoutError(err, { place: [details.area.trim(), details.state.trim()].filter(Boolean).join(", ") });
       setFailure(f);
       if (f.kind === "payment-start" && f.orderId) router.push(`/checkout/pay?order=${encodeURIComponent(f.orderId)}`);
       if (f.kind === "stock" || f.kind === "offer") void queryClient.invalidateQueries({ queryKey: ["quote"] });
@@ -176,15 +178,11 @@ export function Checkout() {
           <p className="text-body-sm text-ink-soft">Have an account? <Link href="/account/sign-in?next=%2Fcheckout" className="font-semibold text-primary-strong underline">Sign in</Link> to fill in your details. Guests can check out too.</p>
         ) : null}
 
-        {views.some((v) => v.problem) ? (
+        {!failure && views.some((v) => v.problem) ? (
           <div role="alert" className="rounded-lg bg-warning-bg p-3 text-body-sm">Something in your bag has changed. <Link href="/bag" className="font-semibold underline">Check your bag</Link></div>
         ) : null}
-        {failure ? (
-          <div role="alert" className="flex flex-col gap-2 rounded-lg bg-danger-bg p-3 text-body-sm text-danger">
-            <p>{failure.message}</p>
-            {failure.kind === "stock" || failure.kind === "offer" ? <Link href="/bag" className="font-semibold underline">Go to your bag</Link> : null}
-          </div>
-        ) : null}
+        <UnavailableNotice items={quoteState.unavailable} />
+        {failure ? <FailureNotice failure={failure} onChange={(to) => { setFailure(null); go(to); }} /> : null}
 
         <form onSubmit={(e) => { e.preventDefault(); next(); }} noValidate aria-busy={submitting} className="flex flex-col gap-5">
           <fieldset disabled={submitting} className="contents">

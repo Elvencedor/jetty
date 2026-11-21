@@ -17,6 +17,7 @@ import { BagLine, GiftLine } from "./BagLine";
 import { giftLines } from "@/lib/cart/model";
 import { CodeEntry } from "./CodeEntry";
 import { PriceSummary } from "./PriceSummary";
+import { UnavailableNotice } from "./UnavailableNotice";
 
 const UNDO_MS = 5000;
 
@@ -29,7 +30,8 @@ export function Bag() {
   const setQuantity = useCartStore((s) => s.setQuantity);
   const remove = useCartStore((s) => s.remove);
   const restore = useCartStore((s) => s.restore);
-  const { quote, views, busy, error, refetch, ready } = useQuote();
+  const { quote, views, busy, error, unavailable, refetch, ready } = useQuote();
+  const unavailableIds = new Set(unavailable.map((u) => u.variantId));
   const [removed, setRemoved] = useState<Removed[]>([]);
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
@@ -69,6 +71,7 @@ export function Bag() {
       <div className="mx-auto flex w-full max-w-xl flex-col gap-3 px-4">
         {!hydrated ? <Skeleton className="h-64 w-full" /> : empty ? <EmptyBag /> : (
           <>
+            <UnavailableNotice items={unavailable} onRemove={(variantId) => useCartStore.getState().remove(variantId)} onRemoveAll={() => { for (const item of unavailable) useCartStore.getState().remove(item.variantId); }} />
             {error ? (
               <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-danger-bg p-3 text-body-sm text-danger">
                 <span>We couldn&apos;t update your prices.</span>
@@ -77,7 +80,8 @@ export function Bag() {
             ) : null}
 
             <div className="flex flex-col gap-2">
-              {views.map((v) => <BagLine key={v.variantId} view={v} onQuantity={setQuantity} onRemove={onRemove} busy={busy} />)}
+              {/* While items can't be sold the shop cannot price or name the bag, and the notice above says what to do: show only lines it still can name. */}
+              {views.filter((v) => !unavailableIds.has(v.variantId) && (quote || unavailable.length === 0)).map((v) => <BagLine key={v.variantId} view={v} onQuantity={setQuantity} onRemove={onRemove} busy={busy} />)}
               {giftLines(quote).map((g) => <GiftLine key={`gift-${g.gift?.promotionId}-${g.variantId}`} line={g} />)}
               {removed.map((r) => (
                 <div key={r.variantId} role="status" className="flex items-center justify-between gap-3 rounded-card bg-surface px-4 py-3 text-body-sm">
@@ -90,7 +94,7 @@ export function Bag() {
             {lines.length ? (
               <>
                 <CodeEntry quote={quote} />
-                {quote ? <PriceSummary quote={quote} busy={busy} /> : <Skeleton className="h-40 w-full" />}
+                {quote ? <PriceSummary quote={quote} busy={busy} /> : unavailable.length === 0 ? <Skeleton className="h-40 w-full" /> : null}
                 <p className="text-center text-caption text-muted">Secure checkout · 7-day returns · Help on WhatsApp</p>
                 {/* The total is announced here once it settles; the sticky bar below is not a live region. */}
                 <p role="status" className="sr-only">{quote && !busy ? `Total ${formatNaira(quote.totalMinor)}.${quote.discountMinor > 0 ? ` You're saving ${formatNaira(quote.discountMinor)}.` : ""}` : ""}</p>

@@ -197,6 +197,12 @@ describe('POST /checkout', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not 
     assert.equal(res.status, 409);
     assert.equal(res.body.error.code, 'OUT_OF_STOCK');
     assert.equal(res.body.error.details[0].variantId, v.scarce);
+    // It says which item, how many were asked for and how many are left, in the message and in the details.
+    const detail = res.body.error.details[0];
+    assert.equal(detail.requestedQuantity, 3);
+    assert.ok(detail.availableQuantity < 3);
+    assert.equal(typeof detail.productTitle, 'string');
+    assert.ok(res.body.error.message.includes(detail.productTitle), res.body.error.message);
     assert.equal((await stock(v.scarce!)).reservedQuantity, before.reservedQuantity);
     assert.equal((await t.db.select().from(orderItems).where(eq(orderItems.variantId, v.scarce!))).length, 0);
     assert.equal(provider.calls.length, 0);

@@ -103,6 +103,53 @@ const liveVariants = (db: Db, ids: string[]) =>
     .leftJoin(inventory, eq(inventory.variantId, productVariants.id))
     .where(and(inArray(productVariants.id, ids), eq(productVariants.active, true)));
 
+export type UnavailableVariant = {
+  variantId: string;
+  /** The product's name, or null when the product no longer exists. */
+  productTitle: string | null;
+  /** `20" · HD`: the options that were chosen, when they can still be read. */
+  optionSummary: string;
+  /** NOT_FOR_SALE: it exists but is hidden, archived or switched off. REMOVED: it no longer exists. */
+  reason: 'NOT_FOR_SALE' | 'REMOVED';
+};
+
+/**
+ * Names the items that could not be priced, so a client can say which ones and why instead of "something". Product names
+ * and options are what any shopper sees on the product page, so they are safe to put in an error.
+ */
+export async function describeUnavailable(db: Db, variantIds: string[]): Promise<UnavailableVariant[]> {
+  const rows = await db
+    .select({ variantId: productVariants.id, title: products.title })
+    .from(productVariants)
+    .innerJoin(products, eq(products.id, productVariants.productId))
+    .where(inArray(productVariants.id, variantIds));
+  const optionRows = rows.length
+    ? await db
+        .select({ variantId: variantOptionValues.variantId, label: productOptionValues.label })
+        .from(variantOptionValues)
+        .innerJoin(productOptionValues, eq(productOptionValues.id, variantOptionValues.optionValueId))
+        .innerJoin(productOptions, eq(productOptions.id, productOptionValues.optionId))
+        .where(inArray(variantOptionValues.variantId, rows.map((r) => r.variantId)))
+        .orderBy(asc(productOptions.sortOrder))
+    : [];
+  const byId = new Map(rows.map((r) => [r.variantId, r.title]));
+  return variantIds.map((variantId) => ({
+    variantId,
+    productTitle: byId.get(variantId) ?? null,
+    optionSummary: optionRows.filter((o) => o.variantId === variantId).map((o) => o.label).join(' · '),
+    reason: byId.has(variantId) ? 'NOT_FOR_SALE' : 'REMOVED',
+  }));
+}
+
+const nameOf = (i: UnavailableVariant) => (i.productTitle ? `${i.productTitle}${i.optionSummary ? ` (${i.optionSummary})` : ''}` : null);
+
+/** The error message for clients that only show `message`: names what it can. */
+export function unavailableMessage(items: UnavailableVariant[]): string {
+  const names = items.map(nameOf).filter((n): n is string => n !== null);
+  if (items.length === 1) return names[0] ? `${names[0]} is no longer available.` : 'An item in your bag is no longer available.';
+  return names.length === items.length ? `These items are no longer available: ${names.join(', ')}.` : `${items.length} items in your bag are no longer available.`;
+}
+
 /**
  * The single pricing service. Prices come only from persisted variants; the
  * client supplies variant IDs, quantities and promotion codes, nothing else.
@@ -121,11 +168,8 @@ export async function priceCart(
   const byId = new Map(rows.map((r) => [r.variantId, r]));
   const missing = ids.filter((id) => !byId.has(id));
   if (missing.length > 0) {
-    throw unprocessable(
-      'VARIANT_UNAVAILABLE',
-      'One or more items are no longer available.',
-      missing.map((variantId) => ({ variantId })),
-    );
+    const items = await describeUnavailable(db, missing);
+    throw unprocessable('VARIANT_UNAVAILABLE', unavailableMessage(items), items);
   }
 
   const currencies = new Set(rows.map((r) => r.currency));
