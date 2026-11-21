@@ -207,11 +207,12 @@ describe('admin refunds and double-payment handling', { skip: !TEST_DATABASE_URL
       const o = await place('card');
       await pay(o.reference);
       assert.equal((await refund(o.orderId, { reason: 'Customer returned the wig' })).status, 201);
-      assert.equal((await send('refund.processing', { id: 'rf_1', transaction_reference: o.reference, amount: 250000 })).outcome, 'updated');
+      const id = (await refundOf(o.orderId)).providerReference!;
+      assert.equal((await send('refund.processing', { id, transaction_reference: o.reference, amount: 250000 })).outcome, 'updated');
       assert.equal((await refundOf(o.orderId)).status, 'processing');
-      assert.equal((await send('refund.processed', { id: 'rf_1', transaction_reference: o.reference, amount: 250000 })).outcome, 'updated');
-      assert.equal((await send('refund.processed', { id: 'rf_1' })).outcome, 'duplicate');
-      assert.equal((await send('refund.failed', { id: 'rf_1' })).outcome, 'duplicate');
+      assert.equal((await send('refund.processed', { id, transaction_reference: o.reference, amount: 250000 })).outcome, 'updated');
+      assert.equal((await send('refund.processed', { id })).outcome, 'duplicate');
+      assert.equal((await send('refund.failed', { id })).outcome, 'duplicate');
       assert.equal((await refundOf(o.orderId)).status, 'processed');
       assert.equal((await orderRow(o.orderId)).paymentStatus, 'refunded');
     });
@@ -221,7 +222,8 @@ describe('admin refunds and double-payment handling', { skip: !TEST_DATABASE_URL
       const o = await place('card');
       await pay(o.reference);
       assert.equal((await refund(o.orderId, { reason: 'Customer returned the wig' })).status, 201);
-      assert.equal((await send('refund.failed', { id: 'rf_1', transaction_reference: o.reference, amount: 250000 })).outcome, 'updated');
+      const id = (await refundOf(o.orderId)).providerReference!;
+      assert.equal((await send('refund.failed', { id, transaction_reference: o.reference, amount: 250000 })).outcome, 'updated');
       assert.equal((await refundOf(o.orderId)).status, 'failed');
       const order = await orderRow(o.orderId);
       assert.deepEqual([order.paymentStatus, order.status === 'refunded'], ['paid', false]);
@@ -251,7 +253,7 @@ describe('admin refunds and double-payment handling', { skip: !TEST_DATABASE_URL
       const o = await place('card');
       await pay(o.reference);
       assert.equal((await refund(o.orderId, { reason: 'Customer returned the wig' })).status, 201);
-      provider.providerRefunds.set(o.reference, [{ reference: 'rf_1', status: 'processed', amountMinor: 250000 }]);
+      provider.providerRefunds.set(o.reference, [{ reference: (await refundOf(o.orderId)).providerReference!, status: 'processed', amountMinor: 250000 }]);
       assert.equal((await reconcilePendingRefunds(t.db, provider, logger)).updated, 0);
       assert.equal((await refundOf(o.orderId)).status, 'pending');
       assert.equal((await reconcilePendingRefunds(t.db, provider, logger, later())).updated, 1);

@@ -7,8 +7,10 @@ test("the home renders with the brand fonts and tokens, and is accessible", asyn
   const hero = page.getByRole("link", { name: /Wigs you will love/ });
   await expect(hero).toBeVisible();
 
-  // Tokens are wired in: the logo tile is the brand pink, and the hero card is too.
-  await expect(page.locator('header a[href="/"] span').first()).toHaveCSS("background-color", "rgb(214, 31, 105)");
+  // The brand logo is in the header and links home, and the fonts are wired in.
+  const logo = page.locator('header a[href="/"] img').locator("visible=true");
+  await expect(logo).toBeVisible();
+  await expect(logo).toHaveAttribute("alt", "Jetty's Hairs");
   await expect(hero.getByText("Wigs you will love")).toHaveCSS("font-family", /Bricolage/);
   await expect(page.locator("main p").first()).toHaveCSS("font-family", /Figtree/);
 

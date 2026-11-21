@@ -47,7 +47,7 @@ test("a product page resolves variants, disables sold-out choices and adds to th
   await expect(page.getByRole("heading", { level: 1, name: "Bone Straight Frontal Wig" })).toBeVisible();
 
   // The best seller is preselected, and the price comes from the server quote.
-  await expect(page.getByRole("button", { name: /Add to bag · ₦180,000/ })).toBeEnabled();
+  await expect(page.getByRole("button", { name: /Add to cart · ₦180,000/ })).toBeEnabled();
 
   // 14 inch × Swiss lace is sold out, so that chip cannot be picked and says why.
   await page.getByRole("button", { name: /Lace/ }).click();
@@ -57,12 +57,15 @@ test("a product page resolves variants, disables sold-out choices and adds to th
   // Changing the length to one that has no Swiss lace at all keeps the choices that still make sense.
   await page.getByRole("button", { name: /Length/ }).click();
   await page.getByRole("button", { name: "20 inch" }).click();
-  await expect(page.getByRole("button", { name: /Add to bag · ₦240,000/ })).toBeEnabled();
+  await expect(page.getByRole("button", { name: /Add to cart · ₦240,000/ })).toBeEnabled();
 
-  await page.getByRole("button", { name: /Add to bag/ }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Added to bag" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "View bag" })).toBeVisible();
+  await page.getByRole("button", { name: /Add to cart/ }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Added to cart" })).toBeVisible();
+  // The header exists twice (desktop and phone layouts); the one on screen shows the count.
+  await expect(page.getByRole("link", { name: "Bag, 1 item" }).locator("visible=true").first()).toBeVisible();
 
+  // Scan the settled page: mid-animation colours and a moving header read as contrast and heading failures.
+  await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
 });

@@ -32,6 +32,8 @@ export class FakeProvider implements PaymentProvider {
   providerRefunds = new Map<string, ProviderRefund[]>();
   listRefundsDown = false;
   private seq = 1000;
+  /** Never reset: a refund reference is unique for the life of the fake, as Paystack's are, so a test cannot be answered by another test's refund. */
+  private refundSeq = 0;
 
   reset() {
     this.calls = [];
@@ -66,7 +68,7 @@ export class FakeProvider implements PaymentProvider {
     this.refunds.push(input);
     if (this.refundMode === 'reject') throw new PaymentRejectedError('rejected');
     if (this.refundMode === 'timeout') throw new PaymentIndeterminateError('timeout');
-    return { providerReference: `rf_${this.refunds.length}`, status: 'pending' };
+    return { providerReference: `rf_${++this.refundSeq}`, status: 'pending' };
   }
 
   async listRefunds(reference: string) {

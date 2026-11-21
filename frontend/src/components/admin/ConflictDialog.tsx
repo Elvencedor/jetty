@@ -81,7 +81,7 @@ export function useConflictChoice({ noun, onUseTheirs }: { noun: string; onUseTh
     return true;
   }, []);
 
-  async function keepMine() {
+  async function chooseMine() {
     const asked = pending;
     if (!asked || !asked.keepable) return;
     setBusy("mine");
@@ -95,7 +95,7 @@ export function useConflictChoice({ noun, onUseTheirs }: { noun: string; onUseTh
     }
   }
 
-  async function useTheirs() {
+  async function chooseTheirs() {
     setBusy("theirs");
     try {
       await onUseTheirs();
@@ -105,7 +105,7 @@ export function useConflictChoice({ noun, onUseTheirs }: { noun: string; onUseTh
     }
   }
 
-  const dialog = <ConflictDialog open={!!pending} noun={noun} canKeepMine={pending?.keepable === true} detail={pending?.detail} busy={busy} onKeepMine={() => void keepMine()} onUseTheirs={() => void useTheirs()} onCancel={() => setPending(null)} />;
+  const dialog = <ConflictDialog open={!!pending} noun={noun} canKeepMine={pending?.keepable === true} detail={pending?.detail} busy={busy} onKeepMine={() => void chooseMine()} onUseTheirs={() => void chooseTheirs()} onCancel={() => setPending(null)} />;
   return { offer, dialog };
 }
 
@@ -130,13 +130,16 @@ type SaveOptions<Args extends unknown[], R> = {
  * whose version stands. Everything else goes to `onError`, so the choice appears only when a save is refused.
  */
 export function useConflictSave<Args extends unknown[], R>(options: SaveOptions<Args, R>) {
+  // The newest options, read when a save runs or fails (never while rendering), so the callbacks below can stay stable.
   const latest = useRef(options);
-  latest.current = options;
+  useEffect(() => { latest.current = options; });
   const [pending, setPending] = useState(false);
   const lastArgs = useRef<Args | null>(null);
   const choice = useConflictChoice({ noun: options.noun, onUseTheirs: () => latest.current.onUseTheirs(...(lastArgs.current ?? ([] as unknown as Args))) });
   const { offer } = choice;
 
+  // A save retries itself ('keep my changes') through this, since a function cannot name itself before it exists.
+  const attemptRef = useRef<(args: Args, version?: number) => Promise<void>>(async () => undefined);
   const attempt = useCallback(
     async (args: Args, version?: number): Promise<void> => {
       lastArgs.current = args;
@@ -145,7 +148,7 @@ export function useConflictSave<Args extends unknown[], R>(options: SaveOptions<
         const result = await latest.current.save(version, ...args);
         latest.current.onSaved(result, ...args);
       } catch (err) {
-        if (latest.current.editing !== false && offer(err, (v) => attempt(args, v))) return;
+        if (latest.current.editing !== false && offer(err, (v) => attemptRef.current(args, v))) return;
         latest.current.onError(err, ...args);
         throw err;
       } finally {
@@ -154,6 +157,8 @@ export function useConflictSave<Args extends unknown[], R>(options: SaveOptions<
     },
     [offer],
   );
+
+  useEffect(() => { attemptRef.current = attempt; }, [attempt]);
 
   const run = useCallback((...args: Args) => void attempt(args).catch(() => undefined), [attempt]);
   return { run, pending, dialog: choice.dialog };

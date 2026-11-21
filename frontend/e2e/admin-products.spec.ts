@@ -129,16 +129,31 @@ test("changes in the drawer are guarded: closing asks first, and keeping edits k
   await expect(page.getByText("Bone Straight HD Frontal Wig")).toBeVisible();
 });
 
-test("when someone else changed the product, the save says so, keeps the edit, and Reload brings their version", async ({ page, request }) => {
+test("when someone else changed the product, the save offers a choice; keeping editing leaves the edit, and their version replaces it", async ({ page, request }) => {
   await owner(page, `/admin/products?product=${PRODUCT}`);
   const d = drawer(page);
   await d.getByLabel("Title").fill("My edit");
   await request.post(`http://localhost:4010/api/v1/__test/touch-product/${PRODUCT}`);
   await d.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(d.getByRole("alert")).toContainText("Someone else changed this. Reload to see their version.");
+  const choice = page.getByRole("dialog", { name: "Someone else changed this product" });
+  await expect(choice).toBeVisible();
+  await choice.getByRole("button", { name: "Keep editing" }).click();
+  await expect(choice).toBeHidden();
   await expect(d.getByLabel("Title")).toHaveValue("My edit");
-  await d.getByRole("button", { name: "Reload" }).click();
+  await d.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("dialog", { name: "Someone else changed this product" }).getByRole("button", { name: "Use their version" }).click();
   await expect(d.getByLabel("Title")).not.toHaveValue("My edit");
+});
+
+test("'keep my changes' saves the edit on top of what someone else saved", async ({ page, request }) => {
+  await owner(page, `/admin/products?product=${PRODUCT}`);
+  const d = drawer(page);
+  await d.getByLabel("Title").fill("My edit wins");
+  await request.post(`http://localhost:4010/api/v1/__test/touch-product/${PRODUCT}`);
+  await d.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("dialog", { name: "Someone else changed this product" }).getByRole("button", { name: "Keep my changes" }).click();
+  await expect(d.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
+  await expect(d.getByLabel("Title")).toHaveValue("My edit wins");
 });
 
 test("stock adjusts in the row and is written to the ledger as one change", async ({ page }) => {
@@ -160,7 +175,8 @@ test("stock adjusts in the row and is written to the ledger as one change", asyn
 test("variants group by any option, filter and search, and the action bar stays pinned", async ({ page }) => {
   await owner(page, `/admin/products?product=${PRODUCT}&tab=variants`);
   const d = drawer(page);
-  await expect(d.getByRole("button", { name: "Save", exact: true })).toBeVisible();
+  // With nothing changed the bar offers Done; Save appears once there is something to save.
+  await expect(d.getByRole("button", { name: "Done", exact: true })).toBeVisible();
   const bar = d.getByRole("button", { name: "Delete product" });
   // The action bar is pinned to the bottom of the screen: its buttons end one padding (12px) above the bottom edge.
   const bottom = page.viewportSize()!.height - 12;
@@ -215,9 +231,11 @@ test("promotions can be attached to a product from existing ones, taken off agai
   await expect(onProduct.getByRole("listitem").filter({ hasText: "Bone Straight sale" })).toContainText("15% off");
   // Editing happens on the Promotions page: the row links there, and has no edit controls of its own.
   await expect(onProduct.getByRole("link", { name: /View in Promotions.*Bone Straight sale/ })).toHaveAttribute("href", /\/admin\/promotions\//);
-  // Promotions for every product show too, with no way to take one product off them.
-  await expect(onProduct.getByRole("listitem").filter({ hasText: "BOGO · Bob wigs" })).toContainText("Applies to every product");
-  await expect(onProduct.getByRole("listitem").filter({ hasText: "BOGO · Bob wigs" }).getByRole("button")).toHaveCount(0);
+  // Store-wide promotions are listed apart (folded away until opened), with no way to take one product off them.
+  await promos.getByText(/store-wide promotions? also apply/).click();
+  const storeWide = promos.getByRole("list", { name: "Promotions on every product" });
+  await expect(storeWide.getByRole("listitem").filter({ hasText: "BOGO · Bob wigs" })).toBeVisible();
+  await expect(storeWide.getByRole("listitem").filter({ hasText: "BOGO · Bob wigs" }).getByRole("button")).toHaveCount(0);
 
   await onProduct.getByRole("button", { name: "Remove Bone Straight sale from this product" }).click();
   await expect(d.getByRole("status").filter({ hasText: "Taken off Bone Straight sale" })).toBeVisible();
@@ -247,8 +265,8 @@ test("promotions can be attached to a product from existing ones, taken off agai
   const launch = onProduct.getByRole("listitem").filter({ hasText: "Launch week" });
   await expect(launch).toContainText("20% off");
   await expect(launch).toContainText("Chosen for this product");
-  // It is the only product on it, so it cannot be removed from here.
-  await expect(launch).toContainText("Only product on it");
+  // It is the only product on it, so it cannot be removed from here: it can only be switched off.
+  await expect(launch).toContainText("This product is the only one on it");
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
 });

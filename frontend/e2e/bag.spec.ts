@@ -4,10 +4,10 @@ import { expect, test, type Page } from "@playwright/test";
 /** Adds the preselected Bone Straight wig (₦180,000), retrying the tap until the page has hydrated. */
 async function addWig(page: Page) {
   await page.goto("/p/bone-straight-frontal");
-  const add = page.getByRole("button", { name: /Add to bag/ });
+  const add = page.getByRole("button", { name: /Add to cart/ });
   await expect(async () => {
     await add.click();
-    await expect(page.getByRole("status").filter({ hasText: "Added to bag" })).toBeVisible({ timeout: 500 });
+    await expect(page.getByRole("status").filter({ hasText: "Added to cart" })).toBeVisible({ timeout: 500 });
   }).toPass();
 }
 

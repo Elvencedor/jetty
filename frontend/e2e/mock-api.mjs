@@ -596,6 +596,11 @@ const server = createServer(async (req, res) => {
       content.push(x);
       return send(201, withImage(x));
     }
+    if (path === "/admin/content/order" && req.method === "PUT") {
+      if (!can(a, "content:write")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");
+      json.ids.forEach((entryId, i) => { const x = content.find((q) => q.id === entryId); if (x) x.sortOrder = i * 10; });
+      return send(200, { data: json.ids.map((entryId, i) => ({ id: entryId, sortOrder: i * 10, version: 2 })) });
+    }
     const contentPatch = path.match(/^\/admin\/content\/([^/]+)$/);
     if (contentPatch && req.method === "PATCH") {
       if (!can(a, "content:write")) return fail(403, "FORBIDDEN", "You do not have permission to do that.");
@@ -693,7 +698,7 @@ const server = createServer(async (req, res) => {
       const needsMatch = (req.method === "PATCH" && !sub) || sub === "variants";
       if (needsMatch) {
         if (!req.headers["if-match"]) return fail(428, "PRECONDITION_REQUIRED", "If-Match is required.");
-        if (req.headers["if-match"] !== etagOfProduct(p)) return fail(412, "PRECONDITION_FAILED", "This record changed.");
+        if (req.headers["if-match"] !== etagOfProduct(p)) return send(412, { error: { code: "PRECONDITION_FAILED", message: "This record changed.", requestId: "r", details: [{ currentVersion: p.version }] } });
       }
       if (sub === "publish") { if (!p.variants.some((v) => v.active)) return fail(422, "PRODUCT_NOT_PUBLISHABLE", "Needs an active variant."); p.status = "active"; }
       else if (sub === "archive") p.status = "archived";

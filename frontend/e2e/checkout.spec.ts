@@ -4,10 +4,10 @@ import { expect, test, type Page } from "@playwright/test";
 
 async function addWigAndOpenCheckout(page: Page) {
   await page.goto("/p/bone-straight-frontal");
-  const add = page.getByRole("button", { name: /Add to bag/ });
+  const add = page.getByRole("button", { name: /Add to cart/ });
   await expect(async () => {
     await add.click();
-    await expect(page.getByRole("status").filter({ hasText: "Added to bag" })).toBeVisible({ timeout: 500 });
+    await expect(page.getByRole("status").filter({ hasText: "Added to cart" })).toBeVisible({ timeout: 500 });
   }).toPass();
   await page.goto("/checkout");
   // Typing or submitting before the page is interactive would be lost, so wait for it.
