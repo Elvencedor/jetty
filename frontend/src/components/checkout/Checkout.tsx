@@ -37,7 +37,7 @@ export function Checkout() {
   const codes = useCartStore((s) => s.promotionCodes);
   const { details, deliveryMethod, paymentMethod, submission } = useCheckoutDraft();
   const { setDetails, setDeliveryMethod, setPaymentMethod, setSubmission } = useCheckoutDraft.getState();
-  const quoteState = useQuote({ deliveryAddress: details.state ? { state: details.state } : undefined, ...(deliveryMethod ? { deliveryMethod } : {}), ...(paymentMethod ? { paymentMethod } : {}) });
+  const quoteState = useQuote({ deliveryAddress: details.state ? { state: details.state, area: details.area } : undefined, ...(deliveryMethod ? { deliveryMethod } : {}), ...(paymentMethod ? { paymentMethod } : {}) });
   const { quote, busy, views } = quoteState;
 
   const requested = params.get("step");
