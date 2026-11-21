@@ -20,7 +20,7 @@ import {
   wishlistItems,
 } from '../../db/schema/index.js';
 import { decodeCursor, encodeCursor } from '../../lib/cursor.js';
-import { conflict, notFound, unprocessable } from '../../lib/errors.js';
+import { apiError, conflict, notFound, unprocessable } from '../../lib/errors.js';
 import type { ObjectStorage } from '../media/storage.js';
 import { withUrl, withUrls } from '../media/urls.js';
 import { likeContains, uniqueViolation } from '../../lib/sql.js';
@@ -64,7 +64,7 @@ export async function listAdminProducts(db: Db, input: ProductListInput, storage
     after = sql`and (p.updated_at, p.id) < (${at}::timestamptz, ${id}::uuid)`;
   }
   const rows = (await db.execute(sql`
-    select p.id, p.slug, p.title, p.status, p.featured, p.tags, p.published_at, p.updated_at, p.updated_at::text as cur_at,
+    select p.id, p.slug, p.title, p.status, p.featured, p.tags, p.published_at, p.updated_at, p.version, p.updated_at::text as cur_at,
       s.variant_count, s.available, s.min_price, s.max_price, s.low,
       m.object_key as cover_key
     from products p
@@ -96,6 +96,7 @@ export async function listAdminProducts(db: Db, input: ProductListInput, storage
       tags: r.tags as string[],
       publishedAt: r.published_at ? new Date(r.published_at as string).toISOString() : null,
       updatedAt: new Date(r.updated_at as string).toISOString(),
+      version: Number(r.version),
       variantCount: r.variant_count as number,
       availableQuantity: r.available as number,
       lowStock: r.low as boolean,
@@ -224,12 +225,12 @@ export async function createProduct(db: Db, input: ProductFields) {
   throw conflict('SLUG_TAKEN', 'Could not find a free slug for this title; set one explicitly.');
 }
 
-export async function updateProduct(db: Db, id: string, patch: Partial<ProductFields>, check: (updatedAt: Date) => void) {
+export async function updateProduct(db: Db, id: string, patch: Partial<ProductFields>, check: (version: number) => void) {
   try {
     return await db.transaction(async (tx) => {
       const [current] = await tx.select().from(products).where(eq(products.id, id)).for('update');
       if (!current) throw notFound('Product not found.');
-      check(current.updatedAt);
+      check(current.version);
       const [updated] = await tx
         .update(products)
         .set({
@@ -244,8 +245,10 @@ export async function updateProduct(db: Db, id: string, patch: Partial<ProductFi
           ...(patch.tags !== undefined ? { tags: normaliseTags(patch.tags) } : {}),
           updatedAt: new Date(),
         })
-        .where(eq(products.id, id))
+        // Compare-and-set on top of the row lock: the write only lands on the version that was checked.
+        .where(and(eq(products.id, id), eq(products.version, current.version)))
         .returning();
+      if (!updated) throw apiError(412, 'PRECONDITION_FAILED', 'This record changed since you loaded it. Reload and try again.');
       await setMemberships(tx, id, patch);
       return { before: current, after: updated! };
     });
@@ -256,10 +259,11 @@ export async function updateProduct(db: Db, id: string, patch: Partial<ProductFi
 }
 
 /** Publishing needs something to sell: at least one active variant. `publishAt` may schedule a future go-live. */
-export async function setProductStatus(db: Db, id: string, status: 'active' | 'archived', options: { publishAt?: Date | undefined } = {}) {
+export async function setProductStatus(db: Db, id: string, status: 'active' | 'archived', options: { publishAt?: Date | undefined; check?: ((version: number) => void) | undefined } = {}) {
   return db.transaction(async (tx) => {
     const [current] = await tx.select().from(products).where(eq(products.id, id)).for('update');
     if (!current) throw notFound('Product not found.');
+    options.check?.(current.version);
     if (status === 'active') {
       const [v] = await tx.select({ n: sql<number>`count(*)::int` }).from(productVariants).where(and(eq(productVariants.productId, id), eq(productVariants.active, true)));
       if (!v || v.n === 0) throw unprocessable('PRODUCT_NOT_PUBLISHABLE', 'Add at least one active variant before publishing.');
@@ -339,7 +343,7 @@ const bad = (path: string, message: string) => unprocessable('VALIDATION_FAILED'
  * or by their option combination; ones left out are deactivated rather than
  * deleted, because orders, reservations and wishlists may still point at them.
  */
-export async function replaceMatrix(db: Db, adminId: string | null, productId: string, input: MatrixInput, check: (updatedAt: Date) => void = () => undefined) {
+export async function replaceMatrix(db: Db, adminId: string | null, productId: string, input: MatrixInput, check: (version: number) => void = () => undefined) {
   const names = input.options.map((o) => o.name);
   if (new Set(names.map((n) => n.toLowerCase())).size !== names.length) throw bad('options', 'Option names must be unique.');
   for (const [i, o] of input.options.entries()) {
@@ -359,7 +363,7 @@ export async function replaceMatrix(db: Db, adminId: string | null, productId: s
     return await db.transaction(async (tx) => {
       const [product] = await tx.select().from(products).where(eq(products.id, productId)).for('update');
       if (!product) throw notFound('Product not found.');
-      check(product.updatedAt);
+      check(product.version);
       const priorVariants = await tx.select().from(productVariants).where(eq(productVariants.productId, productId));
 
       // Options and values: upsert, then retire what is no longer offered.

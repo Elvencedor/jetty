@@ -36,6 +36,13 @@
       "when": 1795162690272,
       "tag": "0004_delivery_prep_times",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795255919261,
+      "tag": "0005_product_version",
+      "breakpoints": true
     }
   ]
 }

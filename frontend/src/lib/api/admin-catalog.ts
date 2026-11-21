@@ -1,4 +1,4 @@
-import { apiRequest, apiFetch, type RequestOptions } from "./client";
+import { apiRequest, apiFetch, isApiError, type RequestOptions } from "./client";
 
 type Init = Pick<RequestOptions, "signal">;
 
@@ -14,6 +14,8 @@ export type AdminProductRow = {
   tags: string[];
   publishedAt: string | null;
   updatedAt: string;
+  /** Counts every change to the product; an edit must send the version it read. */
+  version: number;
   variantCount: number;
   availableQuantity: number;
   lowStock: boolean;
@@ -59,6 +61,7 @@ export type AdminProductDetail = {
     categoryIds: string[];
     collectionIds: string[];
     updatedAt: string;
+    version: number;
   };
   options: AdminOption[];
   variants: AdminVariant[];
@@ -98,7 +101,22 @@ async function versioned<T>(path: string, options: RequestOptions): Promise<Vers
 export const getAdminProduct = (id: string, init: Init = {}) => versioned<AdminProductDetail>(`/admin/products/${id}`, init);
 export const createAdminProduct = (title: string) => versioned<AdminProductDetail>("/admin/products", { method: "POST", body: { title } });
 export const updateAdminProduct = (id: string, etag: string | null, fields: ProductFields) => versioned<AdminProductDetail>(`/admin/products/${id}`, { method: "PATCH", body: fields, ...(etag ? { ifMatch: etag } : {}) });
-export const setAdminProductStatus = (id: string, action: "publish" | "archive") => versioned<AdminProductDetail>(`/admin/products/${id}/${action}`, { method: "POST", body: {} });
+export const setAdminProductStatus = (id: string, action: "publish" | "archive", etag: string | null = null) => versioned<AdminProductDetail>(`/admin/products/${id}/${action}`, { method: "POST", body: {}, ...(etag ? { ifMatch: etag } : {}) });
+
+/**
+ * A one-field edit made straight from a list (the featured star). The list may be older than the record, so it reads the
+ * current version first, and reads again once if another change slips in between.
+ */
+export async function updateAdminProductNow(id: string, fields: ProductFields): Promise<Versioned<AdminProductDetail>> {
+  for (let attempt = 0; ; attempt++) {
+    const current = await getAdminProduct(id);
+    try {
+      return await updateAdminProduct(id, current.etag, fields);
+    } catch (err) {
+      if (attempt >= 1 || !(isApiError(err) && err.status === 412)) throw err;
+    }
+  }
+}
 /** Permanently deletes a product (draft, active or archived) with its variants, stock, media and reviews. */
 export const deleteAdminProduct = (id: string) => apiFetch<null>(`/admin/products/${id}`, { method: "DELETE", auth: "admin" });
 export const putMatrix = (id: string, etag: string | null, matrix: MatrixPayload) => versioned<AdminProductDetail>(`/admin/products/${id}/variants`, { method: "PUT", body: matrix, ...(etag ? { ifMatch: etag } : {}) });

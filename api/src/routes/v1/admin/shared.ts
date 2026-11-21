@@ -17,16 +17,22 @@ export const pageQuery = {
 
 export const slugSchema = Joi.string().trim().lowercase().min(1).max(160).pattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 
-/** A quoted weak-validator ETag derived from a row's version timestamp. */
-export const etagFor = (updatedAt: Date | string) => `"${new Date(updatedAt).getTime()}"`;
+/** A quoted ETag carrying the record's version counter (see `products.version`). */
+export const etagFor = (version: number) => `"${version}"`;
 
-/** Enforces `If-Match` on concurrent edits: missing is 428, stale is 412. */
-export function assertIfMatch(request: Request, current: string): void {
+/**
+ * Enforces `If-Match` on edits: missing is 428; a version other than the current one is 412, with the current
+ * version in the error details so the client can re-read and try again. The version only ever goes up, so a lower
+ * one is an edit made against an old read, and a higher one is not a version this record has.
+ */
+export function assertIfMatch(request: Request, currentVersion: number): void {
   const header = request.headers['if-match'];
   if (!header) throw apiError(428, 'PRECONDITION_REQUIRED', 'Send the If-Match header with the ETag you last read.');
-  if (header !== current && header !== `W/${current}`) {
-    throw apiError(412, 'PRECONDITION_FAILED', 'This record changed since you loaded it. Reload and try again.');
-  }
+  const match = /^(?:W\/)?"(\d+)"$/.exec(String(header).trim());
+  const sent = match ? Number(match[1]) : NaN;
+  if (sent === currentVersion) return;
+  const message = sent > currentVersion ? 'That version does not exist yet. Reload and try again.' : 'This record changed since you loaded it. Reload and try again.';
+  throw apiError(412, 'PRECONDITION_FAILED', message, [{ currentVersion }]);
 }
 
 /** Route options that require an admin holding at least one of `permissions`. */

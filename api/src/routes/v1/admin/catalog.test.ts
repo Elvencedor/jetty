@@ -84,7 +84,7 @@ describe('admin catalog, media and inventory', { skip: !TEST_DATABASE_URL && 'TE
 
     it('requires If-Match for edits and rejects stale ones', async () => {
       assert.equal((await call('PATCH', `/admin/products/${id}`, { description: 'Soft' })).status, 428);
-      assert.equal((await call('PATCH', `/admin/products/${id}`, { description: 'Soft' }, owner, { 'if-match': '"1"' })).status, 412);
+      assert.equal((await call('PATCH', `/admin/products/${id}`, { description: 'Soft' }, owner, { 'if-match': '"0"' })).status, 412);
       const ok = await call('PATCH', `/admin/products/${id}`, { description: 'Soft and full', featured: true, seoTitle: '' }, owner, { 'if-match': etag });
       assert.equal(ok.status, 200, JSON.stringify(ok.body));
       assert.equal(ok.body.product.description, 'Soft and full');
@@ -109,12 +109,29 @@ describe('admin catalog, media and inventory', { skip: !TEST_DATABASE_URL && 'TE
       assert.deepEqual((await call('POST', '/admin/products', { title: 'No tags' })).body.product.tags, []);
     });
 
+    it('moves the version up by one on every write, and lets only one of two racing edits win', async () => {
+      const made = await call('POST', '/admin/products', { title: 'Race Wig' });
+      const pid = (made.body as { product: { id: string } }).product.id;
+      const version = Number(made.etag!.replaceAll('"', ''));
+      const race = await Promise.all([1, 2].map((n) => call('PATCH', `/admin/products/${pid}`, { description: `edit ${n}` }, owner, { 'if-match': made.etag! })));
+      assert.deepEqual(race.map((r) => r.status).sort(), [200, 412], 'one edit lands, the other is told to re-read');
+      const winner = race.find((r) => r.status === 200)!;
+      assert.equal(winner.etag, `"${version + 1}"`);
+      const loser = race.find((r) => r.status === 412)!;
+      assert.equal(((loser.body as { error: { details: { currentVersion: number }[] } }).error.details[0])!.currentVersion, version + 1, 'the refusal says which version is current');
+      assert.equal((await call('PATCH', `/admin/products/${pid}`, { description: 'from the future' }, owner, { 'if-match': `"${version + 50}"` })).status, 412, 'a version the record has not reached is refused');
+      const touched = await call('POST', `/admin/products/${pid}/archive`, {}, owner, { 'if-match': winner.etag! });
+      assert.equal(touched.status, 200);
+      assert.equal(touched.etag, `"${version + 2}"`, 'a status change moves the version too');
+      assert.equal((await call('POST', `/admin/products/${pid}/archive`, {}, owner, { 'if-match': winner.etag! })).status, 412, 'and a stale status change is refused');
+    });
+
     it('requires If-Match to replace the variant matrix and rejects a stale one', async () => {
       const p = await call('POST', '/admin/products', { title: 'Etag Wig' });
       const pid = p.body.product.id as string;
       const bare = await api.inject({ method: 'PUT', url: `/api/v1/admin/products/${pid}/variants`, payload: { options: [], variants: [{ sku: 'ETAG-1', priceMinor: 1000 }] }, headers: owner.headers });
       assert.equal(bare.statusCode, 428);
-      const stale = await call('PUT', `/admin/products/${pid}/variants`, { options: [], variants: [{ sku: 'ETAG-1', priceMinor: 1000 }] }, owner, { 'if-match': '"1"' });
+      const stale = await call('PUT', `/admin/products/${pid}/variants`, { options: [], variants: [{ sku: 'ETAG-1', priceMinor: 1000 }] }, owner, { 'if-match': '"0"' });
       assert.equal(stale.status, 412);
       assert.equal((await call('PUT', `/admin/products/${pid}/variants`, { options: [], variants: [{ sku: 'ETAG-1', priceMinor: 1000 }] })).status, 200);
     });
