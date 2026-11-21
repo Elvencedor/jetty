@@ -16,7 +16,7 @@ const QUOTE_DEBOUNCE_MS = 300;
  * three times asks once), the last answer stays on screen while the next one loads, and an answer is re-asked when
  * it expires or the shopper signs in or out (account-only offers).
  */
-export type QuoteOptions = { deliveryAddress?: { state: string }; deliveryMethod?: DeliveryMethod; paymentMethod?: PaymentMethod };
+export type QuoteOptions = { deliveryAddress?: { state: string; area?: string }; deliveryMethod?: DeliveryMethod; paymentMethod?: PaymentMethod };
 
 export function useQuote(options: QuoteOptions = {}) {
   const lines = useCartStore((s) => s.lines);
@@ -24,9 +24,10 @@ export function useQuote(options: QuoteOptions = {}) {
   const customer = useCustomerSession((s) => s.status);
   const { deliveryAddress, deliveryMethod, paymentMethod } = options;
   const state = deliveryAddress?.state;
+  const area = deliveryAddress?.area?.trim() || undefined;
   const request = useMemo(
-    () => ({ items: lines.map(({ variantId, quantity }) => ({ variantId, quantity })), promotionCodes: codes, ...(state && deliveryMethod ? { deliveryAddress: { state }, deliveryMethod } : {}), ...(paymentMethod ? { paymentMethod } : {}) }),
-    [lines, codes, state, deliveryMethod, paymentMethod],
+    () => ({ items: lines.map(({ variantId, quantity }) => ({ variantId, quantity })), promotionCodes: codes, ...(state && deliveryMethod ? { deliveryAddress: { state, ...(area ? { area } : {}) }, deliveryMethod } : {}), ...(paymentMethod ? { paymentMethod } : {}) }),
+    [lines, codes, state, area, deliveryMethod, paymentMethod],
   );
   const settled = useDebounced(request, QUOTE_DEBOUNCE_MS);
 
