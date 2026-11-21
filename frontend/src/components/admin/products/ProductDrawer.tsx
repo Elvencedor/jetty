@@ -8,6 +8,7 @@ import { adminErrorMessage, isStaleRecord } from "@/lib/admin/concurrency";
 import { adminKeys } from "@/lib/admin/keys";
 import { fromDetail, isChanged, toPayload, type MatrixDraft } from "@/lib/admin/matrix";
 import { basicsFrom, changedFields, validateBasics, type Basics } from "@/lib/admin/productForm";
+import { overlapWithRemote } from "@/lib/admin/rebase";
 import { useUrlState } from "@/lib/admin/useUrlState";
 import { deleteAdminProduct, getAdminProduct, listAdminCategories, putMatrix, setAdminProductStatus, updateAdminProduct, type AdminProductDetail, type Versioned } from "@/lib/api/admin-catalog";
 import { toast } from "@/lib/stores/toast";
@@ -79,10 +80,30 @@ function ProductEditor({ initial, categories, onClose, canWrite, reload }: Props
     setSaving(true);
     setProblem(null);
     let latest: Versioned<AdminProductDetail> = { data: base.detail, etag: base.etag };
-    try {
+    // Each step uses the version the one before it produced, so one save is one run through them.
+    const run = async (from: Versioned<AdminProductDetail>) => {
+      latest = from;
       if (fields) latest = await updateAdminProduct(product.id, latest.etag, fields);
       if (matrixChanged) latest = await putMatrix(product.id, latest.etag, toPayload(matrix));
-      if (statusChanged) latest = await setAdminProductStatus(product.id, basics.status === "active" ? "publish" : "archive");
+      if (statusChanged) latest = await setAdminProductStatus(product.id, basics.status === "active" ? "publish" : "archive", latest.etag);
+    };
+    try {
+      try {
+        await run(latest);
+      } catch (err) {
+        if (!(isStaleRecord(err) && latest.data === base.detail)) throw err;
+        // The product moved on since it was opened. If the other change touched different things, put this edit on top
+        // of it without bothering anyone; if both touched the same thing, say what, rather than overwrite it.
+        const fresh = ((await reload()) as { data?: Versioned<AdminProductDetail> }).data;
+        if (!fresh) throw err;
+        const clash = overlapWithRemote({ base: { basics: base.basics, matrix: base.matrix, categoryIds: product.categoryIds }, mine: { fields, matrixChanged, status: basics.status }, fresh: fresh.data });
+        if (clash.length) {
+          setBase((b) => ({ ...b, detail: fresh.data, etag: fresh.etag, basics: basicsFrom(fresh.data), matrix: fromDetail(fresh.data) }));
+          setProblem({ message: `Someone else changed ${clash.join(", ")} while you were editing. Your edits are still here; reload to see theirs, or save again to replace them.`, stale: true });
+          return;
+        }
+        await run(fresh);
+      }
       commit(latest);
       toast.success("Saved");
     } catch (err) {

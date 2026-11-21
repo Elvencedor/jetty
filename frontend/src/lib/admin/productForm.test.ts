@@ -3,7 +3,7 @@ import type { AdminProductDetail } from "@/lib/api/admin-catalog";
 import { tidyTags, basicsFrom, changedFields, STATUS_CHOICES, validateBasics } from "./productForm";
 
 const detail = (over: Partial<AdminProductDetail["product"]> = {}): AdminProductDetail => ({
-  product: { id: "p", slug: "s", title: "Bone Straight", description: "Soft.", status: "draft", featured: false, badgeOverride: null, tags: [], seoTitle: null, seoDescription: null, details: { details: "100% human hair" }, categoryIds: ["c1", "c2"], collectionIds: [], updatedAt: "2026-01-01T00:00:00Z", ...over },
+  product: { id: "p", slug: "s", title: "Bone Straight", description: "Soft.", status: "draft", featured: false, badgeOverride: null, tags: [], seoTitle: null, seoDescription: null, details: { details: "100% human hair" }, categoryIds: ["c1", "c2"], collectionIds: [], updatedAt: "2026-01-01T00:00:00Z", version: 1, ...over },
   options: [], variants: [], media: [],
 });
 

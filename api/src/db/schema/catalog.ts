@@ -35,6 +35,11 @@ export const products = pgTable(
     // Free-form labels the owner files products under ("bestseller", "summer"); for the admin's own organising and search.
     tags: jsonb('tags').notNull().default(sql`'[]'::jsonb`),
     publishedAt: tstz('published_at'),
+    /**
+     * Bumped by the database on every update (a trigger, see migration 0005), never by the app, so no write path can
+     * forget it, repeat it, or move it backwards. Admin edits send the version they read and are refused if it moved.
+     */
+    version: integer('version').notNull().default(1),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

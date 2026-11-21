@@ -15,22 +15,21 @@ const statusOf = (fn: () => void) => {
 
 describe('ETags and If-Match', () => {
   it('derives a quoted ETag from the version timestamp', () => {
-    assert.equal(etagFor(new Date(1_700_000_000_000)), '"1700000000000"');
-    assert.equal(etagFor('2026-01-01T00:00:00.000Z'), `"${Date.parse('2026-01-01T00:00:00.000Z')}"`);
+    assert.equal(etagFor(7), '"7"');
   });
   it('requires the header (428)', () => {
-    assert.equal(statusOf(() => assertIfMatch(withHeader(), '"1"')), 428);
+    assert.equal(statusOf(() => assertIfMatch(withHeader(), 1)), 428);
   });
   it('rejects a stale version (412)', () => {
-    assert.equal(statusOf(() => assertIfMatch(withHeader('"0"'), '"1"')), 412);
+    assert.equal(statusOf(() => assertIfMatch(withHeader('"0"'), 1)), 412);
   });
   it('accepts the current version, strong or weak', () => {
-    assert.equal(statusOf(() => assertIfMatch(withHeader('"1"'), '"1"')), 0);
-    assert.equal(statusOf(() => assertIfMatch(withHeader('W/"1"'), '"1"')), 0);
+    assert.equal(statusOf(() => assertIfMatch(withHeader('"1"'), 1)), 0);
+    assert.equal(statusOf(() => assertIfMatch(withHeader('W/"1"'), 1)), 0);
   });
   it('does not treat * or unquoted values as a match', () => {
-    assert.equal(statusOf(() => assertIfMatch(withHeader('*'), '"1"')), 412);
-    assert.equal(statusOf(() => assertIfMatch(withHeader('1'), '"1"')), 412);
+    assert.equal(statusOf(() => assertIfMatch(withHeader('*'), 1)), 412);
+    assert.equal(statusOf(() => assertIfMatch(withHeader('1'), 1)), 412);
   });
 });
 

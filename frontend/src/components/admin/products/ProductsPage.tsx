@@ -6,12 +6,12 @@ import { useState, type FormEvent } from "react";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { PageHeader } from "../PageHeader";
 import { Button, EmptyState, Skeleton, TextField } from "@/components/ui";
-import { adminErrorMessage, etagOf } from "@/lib/admin/concurrency";
+import { adminErrorMessage } from "@/lib/admin/concurrency";
 import { adminKeys } from "@/lib/admin/keys";
 import { permits } from "@/lib/admin/permissions";
 import { useDebounced } from "@/components/shell/useDebounced";
 import { useUrlState } from "@/lib/admin/useUrlState";
-import { createAdminProduct, listAdminProducts, updateAdminProduct, type AdminProductPage, type AdminProductRow, type AdminProductStatus } from "@/lib/api/admin-catalog";
+import { createAdminProduct, listAdminProducts, updateAdminProductNow, type AdminProductPage, type AdminProductRow, type AdminProductStatus } from "@/lib/api/admin-catalog";
 import { cn } from "@/lib/cn";
 import { useAdminSession } from "@/lib/stores/session";
 import { toast } from "@/lib/stores/toast";
@@ -53,7 +53,7 @@ export function ProductsPage() {
 
   // The featured star changes at once and is put back if the server refuses.
   const feature = useMutation({
-    mutationFn: ({ row, featured }: { row: AdminProductRow; featured: boolean }) => updateAdminProduct(row.id, etagOf(row.updatedAt), { featured }),
+    mutationFn: ({ row, featured }: { row: AdminProductRow; featured: boolean }) => updateAdminProductNow(row.id, { featured }),
     onMutate: async ({ row, featured }) => {
       await queryClient.cancelQueries({ queryKey: adminKeys.resource("products") });
       const previous = queryClient.getQueryData<InfiniteData<AdminProductPage>>(listKey);

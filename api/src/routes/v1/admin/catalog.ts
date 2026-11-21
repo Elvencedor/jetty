@@ -76,8 +76,8 @@ const mediaBody = {
   height: Joi.number().integer().min(1).max(20_000).allow(null),
 };
 
-const withEtag = (h: ResponseToolkit, body: object, updatedAt: Date | string, code = 200) =>
-  h.response(body).code(code).header('ETag', etagFor(updatedAt)).header('Cache-Control', NO_STORE);
+const withEtag = (h: ResponseToolkit, body: object, version: number, code = 200) =>
+  h.response(body).code(code).header('ETag', etagFor(version)).header('Cache-Control', NO_STORE);
 
 const productId = (request: Request) => (request.params as { id: string }).id;
 
@@ -100,7 +100,7 @@ export const adminCatalogRoutes: ServerRoute[] = [
     handler: async (request, h) => {
       const created = await audited(request, (tx) => createProduct(tx, blankToNull(request.payload as ProductFields)), (created) => ({ action: 'product.create', resourceType: 'product', resourceId: created.id, after: { title: created.title, slug: created.slug } }));
       const detail = await getAdminProduct(db(request), created.id, request.server.app.storage);
-      return withEtag(h, detail, created.updatedAt, 201);
+      return withEtag(h, detail, created.version, 201);
     },
   },
   {
@@ -109,7 +109,7 @@ export const adminCatalogRoutes: ServerRoute[] = [
     options: { ...read, description: 'Full product with options, variants, stock and media', tags: ['api', 'admin'], validate: { params: uuidParam('id') } },
     handler: async (request, h) => {
       const detail = await getAdminProduct(db(request), productId(request), request.server.app.storage);
-      return withEtag(h, detail, detail.product.updatedAt);
+      return withEtag(h, detail, detail.product.version);
     },
   },
   {
@@ -123,8 +123,8 @@ export const adminCatalogRoutes: ServerRoute[] = [
     },
     handler: async (request, h) => {
       const id = productId(request);
-      const { after } = await audited(request, (tx) => updateProduct(tx, id, blankToNull(request.payload as Partial<ProductFields>), (updatedAt) => assertIfMatch(request, etagFor(updatedAt))), ({ before, after }) => ({ action: 'product.update', resourceType: 'product', resourceId: id, before: { title: before.title, slug: before.slug, featured: before.featured }, after: { title: after.title, slug: after.slug, featured: after.featured } }));
-      return withEtag(h, await getAdminProduct(db(request), id, request.server.app.storage), after.updatedAt);
+      const { after } = await audited(request, (tx) => updateProduct(tx, id, blankToNull(request.payload as Partial<ProductFields>), (version) => assertIfMatch(request, version)), ({ before, after }) => ({ action: 'product.update', resourceType: 'product', resourceId: id, before: { title: before.title, slug: before.slug, featured: before.featured }, after: { title: after.title, slug: after.slug, featured: after.featured } }));
+      return withEtag(h, await getAdminProduct(db(request), id, request.server.app.storage), after.version);
     },
   },
   {
@@ -150,8 +150,8 @@ export const adminCatalogRoutes: ServerRoute[] = [
       handler: async (request, h) => {
         const id = productId(request);
         const publishAt = action === 'publish' ? (request.payload as { publishAt?: Date } | null)?.publishAt : undefined;
-        const { after } = await audited(request, (tx) => setProductStatus(tx, id, action === 'publish' ? 'active' : 'archived', { publishAt }), ({ before, after }) => ({ action: `product.${action}`, resourceType: 'product', resourceId: id, before: { status: before.status }, after: { status: after.status, publishedAt: after.publishedAt } }));
-        return withEtag(h, await getAdminProduct(db(request), id, request.server.app.storage), after.updatedAt);
+        const { after } = await audited(request, (tx) => setProductStatus(tx, id, action === 'publish' ? 'active' : 'archived', { publishAt, check: request.headers['if-match'] ? (version) => assertIfMatch(request, version) : undefined }), ({ before, after }) => ({ action: `product.${action}`, resourceType: 'product', resourceId: id, before: { status: before.status }, after: { status: after.status, publishedAt: after.publishedAt } }));
+        return withEtag(h, await getAdminProduct(db(request), id, request.server.app.storage), after.version);
       },
     }),
   ),
@@ -161,9 +161,9 @@ export const adminCatalogRoutes: ServerRoute[] = [
     options: { ...write, payload: { maxBytes: 4 * 1024 * 1024 }, description: 'Replace the option and variant matrix; requires If-Match', tags: ['api', 'admin'], validate: { params: uuidParam('id'), payload: matrixBody } },
     handler: async (request, h) => {
       const id = productId(request);
-      await audited(request, (tx) => replaceMatrix(tx, request.auth.credentials.adminId!, id, request.payload as MatrixInput, (updatedAt) => assertIfMatch(request, etagFor(updatedAt))), ({ changes }) => ({ action: 'product.variants.replace', resourceType: 'product', resourceId: id, after: { total: changes.length, sample: changes.slice(0, 50) } }));
+      await audited(request, (tx) => replaceMatrix(tx, request.auth.credentials.adminId!, id, request.payload as MatrixInput, (version) => assertIfMatch(request, version)), ({ changes }) => ({ action: 'product.variants.replace', resourceType: 'product', resourceId: id, after: { total: changes.length, sample: changes.slice(0, 50) } }));
       const detail = await getAdminProduct(db(request), id, request.server.app.storage);
-      return withEtag(h, detail, detail.product.updatedAt);
+      return withEtag(h, detail, detail.product.version);
     },
   },
   {
