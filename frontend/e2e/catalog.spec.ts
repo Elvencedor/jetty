@@ -66,6 +66,8 @@ test("a product page resolves variants, disables sold-out choices and adds to th
 
   // Scan the settled page: mid-animation colours and a moving header read as contrast and heading failures.
   await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
+  // The page title streams in after the content and is moved into the head: scan once it is there.
+  await expect.poll(() => page.evaluate(() => document.head.querySelector("title")?.textContent?.trim() ?? "")).not.toBe("");
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
 });

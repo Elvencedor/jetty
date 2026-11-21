@@ -137,6 +137,26 @@ export const updateMedia = (productId: string, mediaId: string, body: Partial<{ 
   apiFetch<AdminMedia>(`/admin/products/${productId}/media/${mediaId}`, { method: "PATCH", body, auth: "admin" });
 export const deleteMedia = (productId: string, mediaId: string) => apiFetch<null>(`/admin/products/${productId}/media/${mediaId}`, { method: "DELETE", auth: "admin" });
 
+/** What a bulk change reports for each product or category it was asked about. */
+export type BulkProductResult = {
+  status: AdminProductStatus;
+  requested: number;
+  /** Changed, with the version it is at now and what it was before (enough to put it back). */
+  updated: { id: string; version: number; previousStatus: AdminProductStatus }[];
+  /** Already in that status: nothing was written. */
+  unchanged: string[];
+  /** Not changed, and why (publishing needs an active variant). */
+  skipped: { id: string; title: string; code: string; reason: string }[];
+  /** No longer exist. */
+  missing: string[];
+};
+export type BulkCategoryResult = { active: boolean; requested: number; updated: { id: string; version: number; previousActive: boolean }[]; unchanged: string[]; skipped: never[]; missing: string[] };
+
+/** Moves many products to one status in a single request (up to 500). */
+export const bulkProductStatus = (ids: string[], status: AdminProductStatus) => apiFetch<BulkProductResult>("/admin/products/bulk-status", { method: "POST", body: { ids, status }, auth: "admin" });
+/** Shows or hides many categories in a single request (up to 500). */
+export const bulkCategoryActive = (ids: string[], active: boolean) => apiFetch<BulkCategoryResult>("/admin/categories/bulk-status", { method: "POST", body: { ids, active }, auth: "admin" });
+
 export const MEDIA_ANGLES = ["front", "side", "back", "hairline", "worn", "scale", "detail"] as const;
 
 // ---------------------------------------------------------- categories and collections

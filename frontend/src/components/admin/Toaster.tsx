@@ -37,7 +37,7 @@ function Item({ toast }: { toast: Toast }) {
 export function Toaster({ label = "Notifications" }: { label?: string } = {}) {
   const toasts = useToasts((s) => s.toasts);
   return (
-    <section aria-label={label} className="pointer-events-none fixed inset-x-3 bottom-3 z-50 sm:left-auto sm:w-96">
+    <section aria-label={label} style={{ bottom: "calc(0.75rem + var(--bulk-bar-height, 0px))" }} className="pointer-events-none fixed inset-x-3 z-50 sm:left-auto sm:w-96">
       {toasts.length ? <ul className="flex flex-col gap-2">{toasts.map((t) => <Item key={t.id} toast={t} />)}</ul> : null}
     </section>
   );
