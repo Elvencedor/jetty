@@ -2,7 +2,9 @@
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { isApiError } from "@/lib/api/client";
 import { getQuote } from "@/lib/api/pricing";
+import { unavailableItems } from "@/lib/checkout/unavailable";
 import type { DeliveryMethod, PaymentMethod } from "@/lib/api/types";
 import { useDebounced } from "@/components/shell/useDebounced";
 import { useCartStore } from "@/lib/stores/cart";
@@ -41,12 +43,15 @@ export function useQuote(options: QuoteOptions = {}) {
       return Math.min(Math.max(expires - 5_000, 0), 5 * 60_000);
     },
     refetchOnWindowFocus: true,
-    retry: 1,
+    // One more try for trouble that may pass (a dropped connection, a busy server); a plain "no" from the shop will not.
+    retry: (count, err) => count < 1 && (!isApiError(err) || err.retryable),
   });
 
   const quote = lines.length ? query.data : undefined;
+  // Items the shop can no longer sell make the whole quote fail. That is not a connection problem: name them.
+  const unavailable = useMemo(() => unavailableItems(query.error), [query.error]);
   // Waiting on the debounce, or on the server, both count as busy.
   const busy = settled !== request || query.isFetching || customer === "unknown";
   const views = useMemo(() => buildLineViews(lines, quote), [lines, quote]);
-  return { quote, views, busy, error: query.isError && !quote, refetch: query.refetch, ready: canCheckout(views, quote, busy) };
+  return { quote, views, busy, unavailable, error: query.isError && !quote && unavailable.length === 0, refetch: query.refetch, ready: canCheckout(views, quote, busy) && unavailable.length === 0 };
 }

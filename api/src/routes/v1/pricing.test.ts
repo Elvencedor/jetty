@@ -132,6 +132,23 @@ describe('pricing and delivery quotes', { skip: !TEST_DATABASE_URL && 'TEST_DATA
     assert.deepEqual(res.body.error.details.map((d: Json) => d.variantId).sort(), [missing, v.draft].sort());
   });
 
+  it('says which item is unavailable and why, so a client can name it', async () => {
+    const missing = '99999999-9999-4999-8999-999999999999';
+    const res = await post('/api/v1/pricing/quote', { items: [{ variantId: v.wig, quantity: 1 }, { variantId: v.draft, quantity: 1 }, { variantId: missing, quantity: 1 }] });
+    const details = res.body.error.details as Json[];
+    assert.deepEqual(details.map((d) => d.variantId).sort(), [missing, v.draft].sort(), 'only the ones that cannot be bought');
+    const hidden = details.find((d) => d.variantId === v.draft)!;
+    assert.equal(hidden.reason, 'NOT_FOR_SALE');
+    assert.equal(typeof hidden.productTitle, 'string');
+    assert.equal(typeof hidden.optionSummary, 'string');
+    assert.deepEqual(details.find((d) => d.variantId === missing), { variantId: missing, productTitle: null, optionSummary: '', reason: 'REMOVED' });
+
+    const one = await post('/api/v1/pricing/quote', { items: [{ variantId: v.draft, quantity: 1 }] });
+    assert.match(one.body.error.message, new RegExp(`^${String(hidden.productTitle).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}.* is no longer available\\.$`), 'the message names the product');
+    const gone = await post('/api/v1/pricing/quote', { items: [{ variantId: missing, quantity: 1 }] });
+    assert.equal(gone.body.error.message, 'An item in your bag is no longer available.', 'an item that no longer exists cannot be named');
+  });
+
   it('warns about stock without failing the quote', async () => {
     const { status, body } = await post('/api/v1/pricing/quote', { items: [{ variantId: v.scarce, quantity: 5 }] });
     assert.equal(status, 200);

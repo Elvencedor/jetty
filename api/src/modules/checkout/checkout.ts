@@ -4,6 +4,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { and, eq, inArray, like, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import {
+  inventory,
   orderItems,
   orderPromotionCodes,
   orders,
@@ -231,8 +232,18 @@ export async function checkout(
     });
   } catch (err) {
     if (err instanceof InsufficientStockError) {
-      throw conflict('OUT_OF_STOCK', 'One or more items are no longer available in the requested quantity.', [
-        { variantId: err.variantId },
+      // Say which item and how many are left, so the customer knows what to change and by how much.
+      const line = cart.lines.find((l) => l.variantId === err.variantId && !l.gift);
+      const [stock] = await db.select({ onHand: inventory.onHandQuantity, reserved: inventory.reservedQuantity }).from(inventory).where(eq(inventory.variantId, err.variantId));
+      const availableQuantity = Math.max((stock?.onHand ?? 0) - (stock?.reserved ?? 0), 0);
+      const name = line ? `${line.title}${line.optionSummary ? ` (${line.optionSummary})` : ''}` : null;
+      const message = !name
+        ? 'An item in your bag is no longer available in the quantity you chose.'
+        : availableQuantity === 0
+          ? `${name} has just sold out.`
+          : `Only ${availableQuantity} of ${name} ${availableQuantity === 1 ? 'is' : 'are'} left, and you asked for ${line!.quantity}.`;
+      throw conflict('OUT_OF_STOCK', message, [
+        { variantId: err.variantId, productTitle: line?.title ?? null, optionSummary: line?.optionSummary ?? '', requestedQuantity: line?.quantity ?? null, availableQuantity },
       ]);
     }
     throw err;
