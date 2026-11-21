@@ -29,8 +29,8 @@ export const isStaleRecord = (err: unknown) => isApiError(err) && (err.status ==
  * A save the API refused because the record moved on (412), with the version it is at now when the API said so. This is
  * the only case where the admin is asked which version to keep: a missing version (428) is a bug, not a conflict.
  */
-export function conflictOf(err: unknown): { currentVersion: number | null } | null {
+export function conflictOf(err: unknown): { currentVersion: number | null; details: unknown[] } | null {
   if (!isApiError(err) || err.status !== 412) return null;
   const first = err.details?.[0] as { currentVersion?: unknown } | undefined;
-  return { currentVersion: typeof first?.currentVersion === "number" ? first.currentVersion : null };
+  return { currentVersion: typeof first?.currentVersion === "number" ? first.currentVersion : null, details: err.details ?? [] };
 }

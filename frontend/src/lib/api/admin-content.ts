@@ -41,6 +41,21 @@ export async function listContent(query: { type?: ContentType; status?: ContentS
   return entries;
 }
 export const createContent = (input: ContentInput) => apiFetch<ContentEntry>("/admin/content", { method: "POST", body: input, auth: "admin" });
+/** Where an entry sits in its list. */
+export type EntryPlace = { id: string; sortOrder: number };
+/**
+ * Puts the (non-archived) entries of one type in a new order in one step. `expected` is the order that was on screen: if it
+ * is no longer what is stored the API refuses with a 412 that carries the stored order in `details[0].currentOrder`.
+ */
+export const reorderContent = (contentType: ContentType, ids: string[], expected: EntryPlace[]) =>
+  apiFetch<{ data: Array<EntryPlace & { version: number }> }>("/admin/content/order", { method: "PUT", body: { contentType, ids, expected }, auth: "admin" });
+
+/** The order the API reports when it refuses a reorder because the order changed. */
+export function currentOrderOf(details: unknown[] | undefined): EntryPlace[] {
+  const order = (details?.[0] as { currentOrder?: unknown } | undefined)?.currentOrder;
+  return Array.isArray(order) ? order.filter((e): e is EntryPlace => typeof (e as EntryPlace)?.id === "string" && typeof (e as EntryPlace)?.sortOrder === "number") : [];
+}
+
 export const updateContent = (id: string, version: number, patch: ContentPatch) => apiFetch<ContentEntry>(`/admin/content/${id}`, { method: "PATCH", body: patch, ifMatch: versionTag(version), auth: "admin" });
 
 export type ContentUploadIntent = { objectKey: string; upload: { method: "PUT"; url: string; headers: Record<string, string>; expiresAt: string } };

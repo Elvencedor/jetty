@@ -28,11 +28,11 @@ describe("adminErrorMessage", () => {
 describe("conflictOf", () => {
   const err = (status: number, details?: unknown[]) => new ApiError(status, { code: "X", message: "m", requestId: "r", ...(details ? { details } : {}) });
   it("reads the current version from a 412", () => {
-    expect(conflictOf(err(412, [{ currentVersion: 5 }]))).toEqual({ currentVersion: 5 });
+    expect(conflictOf(err(412, [{ currentVersion: 5 }]))).toEqual({ currentVersion: 5, details: [{ currentVersion: 5 }] });
   });
   it("is still a conflict when the API did not say which version is current", () => {
-    expect(conflictOf(err(412))).toEqual({ currentVersion: null });
-    expect(conflictOf(err(412, [{ other: 1 }]))).toEqual({ currentVersion: null });
+    expect(conflictOf(err(412))).toEqual({ currentVersion: null, details: [] });
+    expect(conflictOf(err(412, [{ other: 1 }]))).toEqual({ currentVersion: null, details: [{ other: 1 }] });
   });
   it("is not a conflict for any other failure", () => {
     for (const status of [0, 400, 401, 403, 404, 409, 422, 428, 500]) expect(conflictOf(err(status, [{ currentVersion: 5 }]))).toBeNull();

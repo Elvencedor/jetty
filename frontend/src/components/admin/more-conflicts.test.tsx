@@ -141,3 +141,89 @@ describe("content list: when taking an entry down finds it changed", () => {
     await waitFor(() => expect(screen.queryByText("Someone else changed this announcement")).not.toBeInTheDocument());
   });
 });
+
+describe("reordering: one request, and a choice only when the order itself changed", () => {
+  const story = (id: string, label: string, sortOrder: number, over: Partial<ContentEntry> = {}): ContentEntry => ({ id, contentType: "story", slug: id, title: label, body: { title: label, linkUrl: "/x" }, status: "published", startsAt: null, endsAt: null, sortOrder, updatedAt: null, version: 1, image: null, ...over });
+  const A = () => story("00000000-0000-4000-8000-00000000000a", "Alpha", 0);
+  const B = () => story("00000000-0000-4000-8000-00000000000b", "Bravo", 10);
+  const C = () => story("00000000-0000-4000-8000-00000000000c", "Charlie", 20);
+  type Put = { contentType: string; ids: string[]; expected: Array<{ id: string; sortOrder: number }> };
+
+  function setup(respond: (call: number, body: Put) => Response, list: () => ContentEntry[] = () => [A(), B(), C()]) {
+    const puts: Put[] = [];
+    let patches = 0;
+    server.use(
+      http.get(`${API}/admin/content`, () => HttpResponse.json({ data: list(), page: { nextCursor: null } })),
+      http.put(`${API}/admin/content/order`, async ({ request }) => { const body = (await request.json()) as Put; puts.push(body); return respond(puts.length, body); }),
+      http.patch(new RegExp(`${API}/admin/content/.+`), () => { patches++; return HttpResponse.json({}); }),
+    );
+    return { puts, patches: () => patches };
+  }
+  const moveLater = async (label: string) => userEvent.click(await screen.findByRole("button", { name: `Move ${label} later` }));
+  const ok = (puts: Put[]) => HttpResponse.json({ data: puts.at(-1)!.ids.map((id, i) => ({ id, sortOrder: i * 10, version: 2 })) });
+  const placesOf = (entries: ContentEntry[]) => entries.map((e) => ({ id: e.id, sortOrder: e.sortOrder }));
+
+  it("moving one entry is a single request carrying the whole new order and the order that was on screen", async () => {
+    const api = setup((_call, body) => ok([body]));
+    renderAdmin(<EntrySection type="story" canWrite />);
+    await moveLater("Alpha");
+    await waitFor(() => expect(api.puts).toHaveLength(1));
+    expect(api.puts[0]).toEqual({ contentType: "story", ids: [B().id, A().id, C().id], expected: placesOf([A(), B(), C()]) });
+    expect(api.patches()).toBe(0);
+    expect(screen.queryByText(/Someone else changed/)).not.toBeInTheDocument();
+  });
+
+  it("when someone else reordered first, 'keep my move' makes the same move on the order that is stored now", async () => {
+    // They moved Charlie to the front. I tried to move Alpha later, from the order I had on screen.
+    const stored = [story(C().id, "Charlie", 0), story(A().id, "Alpha", 10), story(B().id, "Bravo", 20)];
+    const api = setup((call) => (call === 1 ? HttpResponse.json({ error: { code: "PRECONDITION_FAILED", message: "The order changed.", requestId: "r", details: [{ currentOrder: placesOf(stored) }] } }, { status: 412 }) : HttpResponse.json({ data: [] })));
+    renderAdmin(<EntrySection type="story" canWrite />);
+    await moveLater("Alpha");
+    expect(await screen.findByText("Someone else changed this story circle order")).toBeInTheDocument();
+    expect(api.puts).toHaveLength(1);
+    await userEvent.click(screen.getByRole("button", { name: "Keep my changes" }));
+    await waitFor(() => expect(api.puts).toHaveLength(2));
+    // Alpha moves later in THEIR order (Charlie, Alpha, Bravo), not in the stale one.
+    expect(api.puts[1]).toEqual({ contentType: "story", ids: [C().id, B().id, A().id], expected: placesOf(stored) });
+    await waitFor(() => expect(screen.queryByText("Someone else changed this story circle order")).not.toBeInTheDocument());
+  });
+
+  it("'use their version' sends nothing more and shows the order as it is now", async () => {
+    let list = [A(), B(), C()];
+    const api = setup(() => { list = [story(C().id, "Charlie", 0), story(A().id, "Alpha", 10), story(B().id, "Bravo", 20)]; return HttpResponse.json({ error: { code: "PRECONDITION_FAILED", message: "The order changed.", requestId: "r", details: [{ currentOrder: placesOf(list) }] } }, { status: 412 }); }, () => list);
+    renderAdmin(<EntrySection type="story" canWrite />);
+    await moveLater("Alpha");
+    await userEvent.click(await screen.findByRole("button", { name: "Use their version" }));
+    await waitFor(() => expect(screen.queryByText("Someone else changed this story circle order")).not.toBeInTheDocument());
+    expect(api.puts).toHaveLength(1);
+    await waitFor(() => expect(screen.getAllByRole("button", { name: /^Move .* later$/ })[0]).toHaveAccessibleName("Move Charlie later"));
+  });
+
+  it("'keep editing' leaves the list alone", async () => {
+    const api = setup(() => HttpResponse.json({ error: { code: "PRECONDITION_FAILED", message: "The order changed.", requestId: "r", details: [{ currentOrder: placesOf([A(), B(), C()]) }] } }, { status: 412 }));
+    renderAdmin(<EntrySection type="story" canWrite />);
+    await moveLater("Alpha");
+    await userEvent.click(await screen.findByRole("button", { name: "Keep editing" }));
+    await waitFor(() => expect(screen.queryByText("Someone else changed this story circle order")).not.toBeInTheDocument());
+    expect(api.puts).toHaveLength(1);
+  });
+
+  it("if the entry was removed by the other person, 'keep my move' says so instead of guessing", async () => {
+    const stored = [story(B().id, "Bravo", 0), story(C().id, "Charlie", 10)]; // Alpha is gone
+    const api = setup(() => HttpResponse.json({ error: { code: "PRECONDITION_FAILED", message: "The order changed.", requestId: "r", details: [{ currentOrder: placesOf(stored) }] } }, { status: 412 }));
+    renderAdmin(<EntrySection type="story" canWrite />);
+    await moveLater("Alpha");
+    await userEvent.click(await screen.findByRole("button", { name: "Keep my changes" }));
+    await waitFor(() => expect(screen.queryByText("Someone else changed this story circle order")).not.toBeInTheDocument());
+    expect(api.puts).toHaveLength(1);
+  });
+
+  it("an error that is not a conflict is shown as an error, with no choice", async () => {
+    setup(() => HttpResponse.json({ error: { code: "INTERNAL", message: "Boom.", requestId: "r" } }, { status: 500 }));
+    renderAdmin(<EntrySection type="story" canWrite />);
+    await moveLater("Alpha");
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Keep my changes" })).not.toBeInTheDocument());
+    expect(screen.queryByText(/order$/)).not.toBeInTheDocument();
+  });
+});
+

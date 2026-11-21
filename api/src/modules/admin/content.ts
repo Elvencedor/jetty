@@ -1,8 +1,8 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { Db, Tx } from '../../db/client.js';
 import { contentEntries, products, promotions } from '../../db/schema/index.js';
 import { decodeCursor, encodeCursor } from '../../lib/cursor.js';
-import { conflict, notFound, staleRecord, unprocessable } from '../../lib/errors.js';
+import { apiError, conflict, notFound, staleRecord, unprocessable } from '../../lib/errors.js';
 import { BODY_SCHEMAS, type ContentType } from '../content/content.js';
 import { slugify } from './products.js';
 import { uniqueViolation } from '../../lib/sql.js';
@@ -104,6 +104,37 @@ export async function updateContent(db: Db, id: string, patch: Partial<Omit<Cont
     if (uniqueViolation(err)) throw conflict('SLUG_TAKEN', 'Another entry of this type already uses this slug.');
     throw err;
   }
+}
+
+export type EntryPlace = { id: string; sortOrder: number };
+
+/**
+ * Puts the entries of one type (archived ones are not part of the list) in a new order, all or nothing. `expected` is the
+ * order the admin was looking at. Under a lock on the whole list it must still be what is stored: if someone moved,
+ * added or removed an entry since, nothing is changed and the order that is stored now comes back in the error details.
+ * Editing an entry's text or schedule in the meantime does not count, because it does not change the order.
+ */
+export async function reorderContent(db: Db, type: ContentType, ids: string[], expected: EntryPlace[]) {
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .select({ id: contentEntries.id, sortOrder: contentEntries.sortOrder })
+      .from(contentEntries)
+      .where(and(eq(contentEntries.contentType, type), ne(contentEntries.status, 'archived')))
+      .orderBy(asc(contentEntries.sortOrder), asc(contentEntries.updatedAt), asc(contentEntries.id))
+      .for('update');
+    const stored = new Map(rows.map((r) => [r.id, r.sortOrder]));
+    const unchanged = expected.length === rows.length && expected.every((e) => stored.get(e.id) === e.sortOrder);
+    if (!unchanged) throw apiError(412, 'PRECONDITION_FAILED', 'The order changed since you loaded it. Reload and try again.', [{ currentOrder: rows }]);
+    if (ids.length !== rows.length || new Set(ids).size !== ids.length || ids.some((id) => !stored.has(id))) {
+      throw unprocessable('VALIDATION_FAILED', 'The new order must list every entry once.', [{ path: 'ids', code: 'any.invalid' }]);
+    }
+    const now = new Date();
+    for (const [i, id] of ids.entries()) {
+      if (stored.get(id) !== i * 10) await tx.update(contentEntries).set({ sortOrder: i * 10, updatedAt: now }).where(eq(contentEntries.id, id));
+    }
+    const after = await tx.select({ id: contentEntries.id, sortOrder: contentEntries.sortOrder, version: contentEntries.version }).from(contentEntries).where(inArray(contentEntries.id, ids));
+    return { type, before: rows, after: after.sort((a, b) => a.sortOrder - b.sortOrder) };
+  });
 }
 
 export async function listContent(db: Db, input: { type?: ContentType | undefined; status?: string | undefined; q?: string | undefined; limit: number; cursor?: string | undefined }) {

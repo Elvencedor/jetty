@@ -1,10 +1,10 @@
 import type { ServerRoute } from '@hapi/hapi';
 import Joi from 'joi';
-import { createContent, getContent, listContent, updateContent, type ContentInput } from '../../../modules/admin/content.js';
+import { createContent, getContent, listContent, reorderContent, updateContent, type ContentInput } from '../../../modules/admin/content.js';
 import { customerSegments, getAdminCustomer, listAdminCustomers, SEGMENTS, listAdminReviews, moderateReview, reviewSummary } from '../../../modules/admin/people.js';
 import { deleteZone, listZones, upsertZones, zoneSchema, type ZoneInput } from '../../../modules/admin/zones.js';
 import { createPrepTime, deletePrepTime, listPrepTimes, prepTimeSchema, updatePrepTime, type PrepTimeInput } from '../../../modules/admin/prep-times.js';
-import { CONTENT_STATUSES, CONTENT_TYPES } from '../../../modules/content/content.js';
+import { CONTENT_STATUSES, CONTENT_TYPES, type ContentType } from '../../../modules/content/content.js';
 import { getSetting, getSettingVersion, isSettingKey, SETTING_KEYS, SETTINGS, updateSetting } from '../../../modules/settings/settings.js';
 import { withUrl } from '../../../modules/media/urls.js';
 import { CONTENT_KEY_PREFIX } from '../../../modules/admin/media.js';
@@ -78,6 +78,28 @@ export const adminManagementRoutes: ServerRoute[] = [
       const row = await audited(request, (tx) => createContent(tx, request.auth.credentials.adminId!, request.payload as ContentInput), (row) => ({ action: 'content.create', resourceType: 'content', resourceId: row.id, after: { contentType: row.contentType, slug: row.slug, status: row.status } }));
       void revalidateStorefront(request.server.app.env, request.server.app.logger, ['home']);
       return h.response(presentEntry(request, row)).code(201).header('Cache-Control', NO_STORE);
+    },
+  },
+  {
+    method: 'PUT',
+    path: '/admin/content/order',
+    options: {
+      ...guard('content:write'),
+      description: 'Reorder the (non-archived) entries of one type in one step; refused with 412 if the order changed since `expected` was read',
+      tags: ['api', 'admin'],
+      validate: {
+        payload: Joi.object({
+          contentType: Joi.string().valid(...CONTENT_TYPES).required(),
+          ids: Joi.array().items(Joi.string().uuid()).min(1).max(500).required(),
+          expected: Joi.array().items(Joi.object({ id: Joi.string().uuid().required(), sortOrder: Joi.number().integer().required() })).max(500).required(),
+        }),
+      },
+    },
+    handler: async (request, h) => {
+      const body = request.payload as { contentType: ContentType; ids: string[]; expected: { id: string; sortOrder: number }[] };
+      const result = await audited(request, (tx) => reorderContent(tx, body.contentType, body.ids, body.expected), (r) => ({ action: 'content.reorder', resourceType: 'content', resourceId: r.type, before: { order: r.before.map((e) => e.id) }, after: { order: r.after.map((e) => e.id) } }));
+      void revalidateStorefront(request.server.app.env, request.server.app.logger, ['home']);
+      return h.response({ data: result.after }).header('Cache-Control', NO_STORE);
     },
   },
   {

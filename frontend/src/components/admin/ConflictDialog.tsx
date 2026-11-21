@@ -58,30 +58,35 @@ export function ConflictDialog({ open, noun, canKeepMine, detail, busy, onKeepMi
   );
 }
 
-type Pending = { currentVersion: number | null; retry: (version: number) => Promise<unknown>; detail?: string | undefined };
+type Retry = (version: number, details: unknown[]) => Promise<unknown>;
+type Pending = { currentVersion: number | null; details: unknown[]; retry: Retry; detail?: string | undefined; keepable: boolean };
 
 /**
  * Wires a save to the conflict choice. Call `offer(err, retry)` from the save's error path: it returns true, and opens
  * the dialog, only when the error is a version conflict. `retry` saves the same edits again against the version given.
  * `onUseTheirs` drops the edits and shows what is saved now.
  */
-export function useConflictChoice({ noun, onUseTheirs }: { noun: string; onUseTheirs: () => unknown }): { offer: (err: unknown, retry: (version: number) => Promise<unknown>, detail?: string) => boolean; dialog: ReactNode } {
+export function useConflictChoice({ noun, onUseTheirs }: { noun: string; onUseTheirs: () => unknown }): { offer: (err: unknown, retry: Retry, detail?: string, options?: { keepWithoutVersion?: boolean }) => boolean; dialog: ReactNode } {
   const [pending, setPending] = useState<Pending | null>(null);
   const [busy, setBusy] = useState<"mine" | "theirs" | null>(null);
 
-  const offer = useCallback((err: unknown, retry: (version: number) => Promise<unknown>, detail?: string) => {
+  /**
+   * `retry` saves the same edit again against what the API reported. `keepWithoutVersion` is for a conflict that is not about one
+   * record's version (a list's order): "keep mine" is offered and `retry` reads what it needs from `details`.
+   */
+  const offer = useCallback((err: unknown, retry: Retry, detail?: string, options?: { keepWithoutVersion?: boolean }) => {
     const conflict = conflictOf(err);
     if (!conflict) return false;
-    setPending({ currentVersion: conflict.currentVersion, retry, detail });
+    setPending({ currentVersion: conflict.currentVersion, details: conflict.details, retry, detail, keepable: conflict.currentVersion !== null || options?.keepWithoutVersion === true });
     return true;
   }, []);
 
   async function keepMine() {
     const asked = pending;
-    if (!asked || asked.currentVersion === null) return;
+    if (!asked || !asked.keepable) return;
     setBusy("mine");
     try {
-      await asked.retry(asked.currentVersion);
+      await asked.retry(asked.currentVersion ?? 0, asked.details);
     } catch {
       // The save's own error path already said what went wrong, or offered the choice again with a newer version.
     } finally {
@@ -100,7 +105,7 @@ export function useConflictChoice({ noun, onUseTheirs }: { noun: string; onUseTh
     }
   }
 
-  const dialog = <ConflictDialog open={!!pending} noun={noun} canKeepMine={pending?.currentVersion != null} detail={pending?.detail} busy={busy} onKeepMine={() => void keepMine()} onUseTheirs={() => void useTheirs()} onCancel={() => setPending(null)} />;
+  const dialog = <ConflictDialog open={!!pending} noun={noun} canKeepMine={pending?.keepable === true} detail={pending?.detail} busy={busy} onKeepMine={() => void keepMine()} onUseTheirs={() => void useTheirs()} onCancel={() => setPending(null)} />;
   return { offer, dialog };
 }
 

@@ -1,16 +1,16 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, Plus } from "lucide-react";
 import { useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog";
-import { useConflictSave } from "../ConflictDialog";
+import { useConflictChoice, useConflictSave } from "../ConflictDialog";
 import { EntryFormPanel } from "./EntryForm";
 import { Button, Media, Skeleton, StatusPill } from "@/components/ui";
-import { adminErrorMessage, conflictOf } from "@/lib/admin/concurrency";
+import { adminErrorMessage } from "@/lib/admin/concurrency";
 import { adminKeys } from "@/lib/admin/keys";
-import { entryStatus, moveEntry } from "@/lib/admin/storefront";
-import { listContent, updateContent, type ContentEntry, type ContentType } from "@/lib/api/admin-content";
+import { entryStatus, moveId } from "@/lib/admin/storefront";
+import { currentOrderOf, listContent, reorderContent, updateContent, type ContentEntry, type ContentType, type EntryPlace } from "@/lib/api/admin-content";
 import { toast } from "@/lib/stores/toast";
 
 const ORDERABLE: ContentType[] = ["banner", "story", "tile"];
@@ -42,22 +42,28 @@ export function EntrySection({ type, canWrite }: { type: ContentType; canWrite: 
     onUseTheirs: () => refresh(),
   });
   const act = (entry: ContentEntry, patch: Patch, after?: () => void) => { setActing(entry.id); change.run(entry, patch, after); };
-  const move = useMutation({
-    mutationFn: async ({ id, by }: { id: string; by: -1 | 1 }) => {
-      const next = moveEntry(entries, id, by);
-      await Promise.all(next.map((e, i) => (e.sortOrder === i * 10 ? null : updateContent(e.id, e.version, { sortOrder: i * 10 }))));
-    },
-    onSuccess: refresh,
-    onError: (err) => {
-      // Reordering touches every entry at once, so there is no single other version to choose. Show what is saved now.
-      if (conflictOf(err)) {
-        refresh();
-        toast.error("The list was changed by someone else while you were reordering. It has been refreshed; try again.");
-        return;
-      }
+  // Moving an entry sends the whole new order in one request. The API refuses it only if the order itself changed since it
+  // was on screen (editing an entry's text does not count); then the admin chooses, and "keep my move" makes the same move
+  // on the order that is stored now.
+  const reorder = useConflictChoice({ noun: `${noun} order`, onUseTheirs: () => refresh() });
+  const [moving, setMoving] = useState(false);
+  async function moveBy(id: string, by: -1 | 1, from: EntryPlace[]): Promise<void> {
+    if (!from.some((e) => e.id === id)) {
+      refresh();
+      toast.error(`That ${noun} is no longer in the list. It has been refreshed.`);
+      return;
+    }
+    setMoving(true);
+    try {
+      await reorderContent(type, moveId(from.map((e) => e.id), id, by), from.map(({ id: entryId, sortOrder }) => ({ id: entryId, sortOrder })));
+      refresh();
+    } catch (err) {
+      if (reorder.offer(err, (_version, details) => moveBy(id, by, currentOrderOf(details)), undefined, { keepWithoutVersion: true })) return;
       toast.error(adminErrorMessage(err));
-    },
-  });
+    } finally {
+      setMoving(false);
+    }
+  }
 
   if (editing) {
     return (
@@ -74,6 +80,7 @@ export function EntrySection({ type, canWrite }: { type: ContentType; canWrite: 
   return (
     <div className="flex flex-col gap-3">
       {change.dialog}
+      {reorder.dialog}
       {list.isError && !list.data ? (
         <div role="alert" className="flex items-center justify-between gap-3 rounded-lg bg-danger-bg p-3 text-danger"><span>{adminErrorMessage(list.error)}</span><Button size="sm" variant="outline" onClick={() => void list.refetch()}>Retry</Button></div>
       ) : !list.data ? <Skeleton className="h-32" /> : entries.length === 0 ? (
@@ -95,8 +102,8 @@ export function EntrySection({ type, canWrite }: { type: ContentType; canWrite: 
                     <Button size="sm" variant="danger-soft" onClick={() => setArchiving(e)}>Remove<span className="sr-only"> {summary(e)}</span></Button>
                     {ORDERABLE.includes(type) ? (
                       <span className="ml-auto flex gap-1">
-                        <button type="button" aria-label={`Move ${summary(e)} earlier`} disabled={i === 0 || move.isPending} onClick={() => move.mutate({ id: e.id, by: -1 })} className="inline-flex size-9 items-center justify-center rounded-full bg-surface-tint disabled:opacity-40"><ArrowUp aria-hidden="true" size={16} /></button>
-                        <button type="button" aria-label={`Move ${summary(e)} later`} disabled={i === entries.length - 1 || move.isPending} onClick={() => move.mutate({ id: e.id, by: 1 })} className="inline-flex size-9 items-center justify-center rounded-full bg-surface-tint disabled:opacity-40"><ArrowDown aria-hidden="true" size={16} /></button>
+                        <button type="button" aria-label={`Move ${summary(e)} earlier`} disabled={i === 0 || moving} onClick={() => void moveBy(e.id, -1, entries)} className="inline-flex size-9 items-center justify-center rounded-full bg-surface-tint disabled:opacity-40"><ArrowUp aria-hidden="true" size={16} /></button>
+                        <button type="button" aria-label={`Move ${summary(e)} later`} disabled={i === entries.length - 1 || moving} onClick={() => void moveBy(e.id, 1, entries)} className="inline-flex size-9 items-center justify-center rounded-full bg-surface-tint disabled:opacity-40"><ArrowDown aria-hidden="true" size={16} /></button>
                       </span>
                     ) : null}
                   </div>
