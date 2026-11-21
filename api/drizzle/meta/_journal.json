@@ -43,6 +43,13 @@
       "when": 1795255919261,
       "tag": "0005_product_version",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795257585423,
+      "tag": "0006_record_versions",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useConflictSave } from "../ConflictDialog";
 import { SideDrawer } from "../SideDrawer";
 import { Prose } from "@/components/content/Prose";
 import { Button, EmptyState, Segmented, Skeleton, StatusPill, TextareaField, TextField } from "@/components/ui";
@@ -50,14 +51,17 @@ function PageEditor({ page, canWrite, onClose }: { page: ContentEntry; canWrite:
   const [problem, setProblem] = useState<string>();
   const dirty = title !== page.title || markdown !== String(page.body.markdown ?? "");
 
-  const save = useMutation({
-    mutationFn: (publish: boolean) => updateContent(page.id, { title: title.trim(), body: { markdown }, ...(publish ? { status: "published" as const } : {}) }),
-    onSuccess: (saved) => {
+  const [mode, setMode] = useState<boolean | null>(null);
+  const save = useConflictSave<[boolean], ContentEntry>({
+    noun: "page",
+    save: (version, publish) => updateContent(page.id, version ?? page.version, { title: title.trim(), body: { markdown }, ...(publish ? { status: "published" as const } : {}) }),
+    onSaved: (saved) => {
       toast.success(saved.status === "published" ? "Saved and published" : "Saved");
       void queryClient.invalidateQueries({ queryKey: adminKeys.resource("content") });
       onClose();
     },
     onError: (err) => setProblem(adminErrorMessage(err)),
+    onUseTheirs: () => { onClose(); void queryClient.invalidateQueries({ queryKey: adminKeys.resource("content") }); },
   });
   const invalid = !title.trim() ? "Give the page a title" : !markdown.trim() ? "Write something for the page" : undefined;
 
@@ -68,9 +72,10 @@ function PageEditor({ page, canWrite, onClose }: { page: ContentEntry; canWrite:
       title={page.title}
       subtitle={`/${page.slug}`}
       dirty={dirty}
-      footer={canWrite ? <><Button variant="outline" onClick={onClose}>Cancel</Button><Button variant="outline" loading={save.isPending && save.variables === false} disabled={!dirty || !!invalid || save.isPending} onClick={() => save.mutate(false)}>Save</Button>{page.status !== "published" || dirty ? <Button loading={save.isPending && save.variables === true} disabled={!!invalid || save.isPending} onClick={() => save.mutate(true)}>Save and publish</Button> : null}</> : undefined}
+      footer={canWrite ? <><Button variant="outline" onClick={onClose}>Cancel</Button><Button variant="outline" loading={save.pending && mode === false} disabled={!dirty || !!invalid || save.pending} onClick={() => { setMode(false); save.run(false); }}>Save</Button>{page.status !== "published" || dirty ? <Button loading={save.pending && mode === true} disabled={!!invalid || save.pending} onClick={() => { setMode(true); save.run(true); }}>Save and publish</Button> : null}</> : undefined}
     >
       <div className="flex flex-col gap-3.5">
+        {save.dialog}
         {problem ? <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-body-sm text-danger">{problem}</p> : null}
         <TextField size="admin" label="Page title" value={title} disabled={!canWrite} onChange={(e) => { setTitle(e.target.value); setProblem(undefined); }} />
         <Segmented mode="tabs" label="Write or preview" items={[{ value: "write", label: "Write" }, { value: "preview", label: "Preview" }]} value={view} onChange={setView} />

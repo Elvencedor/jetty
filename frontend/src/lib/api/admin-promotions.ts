@@ -1,4 +1,4 @@
-import { apiFetch, type RequestOptions } from "./client";
+import { apiFetch, versionTag, type RequestOptions } from "./client";
 
 type Init = Pick<RequestOptions, "signal">;
 
@@ -35,6 +35,8 @@ export type PromotionDetail = {
     kind: PromotionKind;
     status: string;
     lifecycle: PromotionStatus;
+    /** Counts every edit; an edit must send the one it read. */
+    version: number;
     configuration: PromotionConfiguration;
     scope: PromotionScope;
     startsAt: string | null;
@@ -83,7 +85,7 @@ export async function listAllAdminPromotions(init: Init = {}): Promise<Promotion
 }
 export const getAdminPromotion = (id: string, init: Init = {}) => apiFetch<PromotionDetail>(`/admin/promotions/${id}`, { auth: "admin", ...init });
 export const createAdminPromotion = (input: PromotionInput) => apiFetch<PromotionDetail>("/admin/promotions", { method: "POST", body: input, auth: "admin" });
-export const updateAdminPromotion = (id: string, patch: Partial<PromotionInput>) => apiFetch<PromotionDetail>(`/admin/promotions/${id}`, { method: "PATCH", body: patch, auth: "admin" });
+export const updateAdminPromotion = (id: string, version: number, patch: Partial<PromotionInput>) => apiFetch<PromotionDetail>(`/admin/promotions/${id}`, { method: "PATCH", body: patch, ifMatch: versionTag(version), auth: "admin" });
 export const setPromotionActive = (id: string, active: boolean) => apiFetch<PromotionDetail>(`/admin/promotions/${id}/${active ? "activate" : "deactivate"}`, { method: "POST", body: {}, auth: "admin" });
 export const listAdminCollections = (init: Init = {}) => apiFetch<{ data: Collection[] }>("/admin/collections", { auth: "admin", ...init }).then((r) => r.data);
 

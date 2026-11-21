@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "@/lib/api/client";
-import { adminErrorMessage, isStaleRecord } from "./concurrency";
+import { adminErrorMessage, conflictOf, isStaleRecord } from "./concurrency";
 
 const fail = (status: number, message = "Refused", retryAfter?: number) => new ApiError(status, { code: "X", message, requestId: "r" }, retryAfter);
 
@@ -22,5 +22,21 @@ describe("adminErrorMessage", () => {
     expect(adminErrorMessage(fail(409, "That SKU is already used."))).toBe("That SKU is already used.");
     expect(adminErrorMessage(fail(500, "stack trace"))).toBe("The server had a problem. Please try again.");
     expect(adminErrorMessage(new Error("boom"))).toBe("Something went wrong. Please try again.");
+  });
+});
+
+describe("conflictOf", () => {
+  const err = (status: number, details?: unknown[]) => new ApiError(status, { code: "X", message: "m", requestId: "r", ...(details ? { details } : {}) });
+  it("reads the current version from a 412", () => {
+    expect(conflictOf(err(412, [{ currentVersion: 5 }]))).toEqual({ currentVersion: 5, details: [{ currentVersion: 5 }] });
+  });
+  it("is still a conflict when the API did not say which version is current", () => {
+    expect(conflictOf(err(412))).toEqual({ currentVersion: null, details: [] });
+    expect(conflictOf(err(412, [{ other: 1 }]))).toEqual({ currentVersion: null, details: [{ other: 1 }] });
+  });
+  it("is not a conflict for any other failure", () => {
+    for (const status of [0, 400, 401, 403, 404, 409, 422, 428, 500]) expect(conflictOf(err(status, [{ currentVersion: 5 }]))).toBeNull();
+    expect(conflictOf(new Error("plain"))).toBeNull();
+    expect(conflictOf(undefined)).toBeNull();
   });
 });

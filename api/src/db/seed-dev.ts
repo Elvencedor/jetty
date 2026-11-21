@@ -331,7 +331,7 @@ async function seedZones(db: Db) {
     pickupEnabled: true,
   };
   // An inactive Lagos zone is the pristine reference-seed one; an owner who has already switched it on keeps their own rates.
-  if (lagos && !lagos.active) await upsertZones(db, [{ id: lagos.id, ...lagosFields }]);
+  if (lagos && !lagos.active) await upsertZones(db, [{ id: lagos.id, version: lagos.version, ...lagosFields }]);
   if (!lagos) await upsertZones(db, [{ name: 'Lagos', state: 'Lagos', timezone: 'Africa/Lagos', ...lagosFields }]);
   if (!zones.some((z) => z.name === 'Abuja')) {
     await upsertZones(db, [{ name: 'Abuja', state: 'FCT', active: true, areas: [], deliveryFeeMinor: naira(4500), deliveryMinDays: 1, deliveryMaxDays: 2, pickupEnabled: false, timezone: 'Africa/Lagos' }]);

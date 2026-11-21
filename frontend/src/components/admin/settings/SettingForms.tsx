@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
+import { ConflictOffered, useConflictChoice } from "../ConflictDialog";
 import { FormSection } from "../FormSection";
 import { Button, SelectField, Skeleton, Switch, TextField } from "@/components/ui";
 import { adminErrorMessage } from "@/lib/admin/concurrency";
@@ -20,6 +21,7 @@ function Loaded<K extends SettingKey>({ name, saved, children }: { name: K; save
   const queryClient = useQueryClient();
   const key = adminKeys.detail("settings", name);
   const query = useQuery({ queryKey: key, queryFn: ({ signal }) => getSetting(name, { signal }), staleTime: 0 });
+  const { offer, dialog } = useConflictChoice({ noun: "setting", onUseTheirs: () => queryClient.invalidateQueries({ queryKey: key }) });
   if (query.isError && !query.data) {
     return (
       <div role="alert" className="flex items-center justify-between gap-3 rounded-card border border-line bg-surface p-5 text-danger">
@@ -29,14 +31,21 @@ function Loaded<K extends SettingKey>({ name, saved, children }: { name: K; save
     );
   }
   if (!query.data) return <Skeleton className="h-72 rounded-card" />;
-  async function save(patch: Partial<SettingsByKey[K]>) {
-    const next = await patchSetting(name, patch);
-    queryClient.setQueryData(key, next);
-    toast.success(saved);
-    return next;
+  async function save(patch: Partial<SettingsByKey[K]>, version = query.data!.version): Promise<SettingsByKey[K]> {
+    try {
+      const next = await patchSetting(name, version, patch);
+      queryClient.setQueryData(key, next);
+      toast.success(saved);
+      return next.data;
+    } catch (err) {
+      // Someone else saved first: the admin chooses. "Keep mine" saves this same patch on top of their version.
+      const again = (v: number) => save(patch, v).catch((failure: unknown) => { if (!(failure instanceof ConflictOffered)) toast.error(adminErrorMessage(failure)); throw failure; });
+      if (offer(err, again)) throw new ConflictOffered();
+      throw err;
+    }
   }
   // Keyed by the stored value, so the form starts again from what was saved.
-  return <div key={JSON.stringify(query.data)}>{children(query.data, save)}</div>;
+  return <div key={JSON.stringify(query.data)}>{dialog}{children(query.data.data, save)}</div>;
 }
 
 /** Discard and Save changes, with the reason a save failed beside them. Save waits for a change. */
@@ -61,7 +70,8 @@ function useSaver() {
     try {
       await action();
     } catch (err) {
-      setError(adminErrorMessage(err));
+      // A conflict is with the admin to settle in the dialog, not an error to print here.
+      if (!(err instanceof ConflictOffered)) setError(adminErrorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -112,7 +122,7 @@ function StoreForm({ initial, canWrite, save }: { initial: SettingsByKey["store"
 export function PaymentsForm({ canWrite }: { canWrite: boolean }) {
   // The store's name is the suggestion for the payout account's business name.
   const store = useQuery({ queryKey: adminKeys.detail("settings", "store"), queryFn: ({ signal }) => getSetting("store", { signal }), staleTime: 60_000 });
-  return <Loaded name="payments" saved="Payment settings saved">{(value, save) => <PaymentsEditor initial={value} canWrite={canWrite} save={save} storeName={store.data?.name ?? ""} />}</Loaded>;
+  return <Loaded name="payments" saved="Payment settings saved">{(value, save) => <PaymentsEditor initial={value} canWrite={canWrite} save={save} storeName={store.data?.data.name ?? ""} />}</Loaded>;
 }
 
 function PaymentsEditor({ initial, canWrite, save, storeName }: { storeName: string; initial: SettingsByKey["payments"]; canWrite: boolean; save: (patch: Partial<SettingsByKey["payments"]>) => Promise<unknown> }) {

@@ -163,6 +163,8 @@ export const categories = pgTable(
     name: text('name').notNull(),
     sortOrder: integer('sort_order').notNull().default(0),
     active: boolean('active').notNull().default(true),
+    /** Moved up by one by the database on every update; edits must send the one they read. */
+    version: integer('version').notNull().default(1),
   },
   (t) => [index('categories_parent_idx').on(t.parentId)],
 );
@@ -191,6 +193,8 @@ export const collections = pgTable('collections', {
   active: boolean('active').notNull().default(true),
   rulesJson: jsonb('rules_json'),
   sortOrder: integer('sort_order').notNull().default(0),
+  /** Moved up by one by the database on every update; edits must send the one they read. */
+  version: integer('version').notNull().default(1),
 });
 
 export const productCollections = pgTable(

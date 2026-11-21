@@ -1,4 +1,4 @@
-import { apiFetch, type RequestOptions } from "./client";
+import { apiFetch, apiRequest, versionTag, type RequestOptions } from "./client";
 
 type Init = Pick<RequestOptions, "signal">;
 
@@ -28,12 +28,24 @@ export type DeliveryZone = {
   deliveryMinDays: number;
   deliveryMaxDays: number;
   pickupEnabled: boolean;
+  /** Counts every change; an edit must send the one it read. */
+  version: number;
 };
 
 export type ZoneInput = Partial<Omit<DeliveryZone, "id">> & { id?: string };
 
-export const getSetting = <K extends SettingKey>(key: K, init: Init = {}) => apiFetch<SettingsByKey[K]>(`/admin/settings/${key}`, { auth: "admin", ...init });
-export const patchSetting = <K extends SettingKey>(key: K, patch: Partial<SettingsByKey[K]>) => apiFetch<SettingsByKey[K]>(`/admin/settings/${key}`, { method: "PATCH", body: patch, auth: "admin" });
+/** A setting with the version an edit of it must send (0 until it has been saved once). */
+export type SettingVersioned<T> = { data: T; version: number };
+const versionOf = (etag: string | null) => Number(etag?.replace(/[^0-9]/g, "") || 0);
+
+export const getSetting = async <K extends SettingKey>(key: K, init: Init = {}): Promise<SettingVersioned<SettingsByKey[K]>> => {
+  const res = await apiRequest<SettingsByKey[K]>(`/admin/settings/${key}`, { auth: "admin", ...init });
+  return { data: res.data, version: versionOf(res.etag) };
+};
+export const patchSetting = async <K extends SettingKey>(key: K, version: number, patch: Partial<SettingsByKey[K]>): Promise<SettingVersioned<SettingsByKey[K]>> => {
+  const res = await apiRequest<SettingsByKey[K]>(`/admin/settings/${key}`, { method: "PATCH", body: patch, ifMatch: versionTag(version), auth: "admin" });
+  return { data: res.data, version: versionOf(res.etag) };
+};
 
 export const listZones = (init: Init = {}) => apiFetch<{ zones: DeliveryZone[] }>("/admin/settings/delivery-zones", { auth: "admin", ...init }).then((r) => r.zones);
 export const deleteZone = (id: string) => apiFetch<{ zones: DeliveryZone[] }>(`/admin/settings/delivery-zones/${id}`, { method: "DELETE", auth: "admin" }).then((r) => r.zones);
@@ -51,10 +63,11 @@ export type PrepTime = {
   activeUntil: string | null;
   appliesTo: "all" | "zones";
   zoneIds: string[];
+  version: number;
 };
-export type PrepTimeInput = Partial<Omit<PrepTime, "id">>;
+export type PrepTimeInput = Partial<Omit<PrepTime, "id" | "version">>;
 
 export const listPrepTimes = (init: Init = {}) => apiFetch<{ prepTimes: PrepTime[] }>("/admin/settings/prep-times", { auth: "admin", ...init }).then((r) => r.prepTimes);
 export const createPrepTime = (input: PrepTimeInput) => apiFetch<{ prepTimes: PrepTime[] }>("/admin/settings/prep-times", { method: "POST", body: input, auth: "admin" }).then((r) => r.prepTimes);
-export const updatePrepTime = (id: string, input: PrepTimeInput) => apiFetch<{ prepTimes: PrepTime[] }>(`/admin/settings/prep-times/${id}`, { method: "PATCH", body: input, auth: "admin" }).then((r) => r.prepTimes);
+export const updatePrepTime = (id: string, version: number, input: PrepTimeInput) => apiFetch<{ prepTimes: PrepTime[] }>(`/admin/settings/prep-times/${id}`, { method: "PATCH", body: input, ifMatch: versionTag(version), auth: "admin" }).then((r) => r.prepTimes);
 export const deletePrepTime = (id: string) => apiFetch<{ prepTimes: PrepTime[] }>(`/admin/settings/prep-times/${id}`, { method: "DELETE", auth: "admin" }).then((r) => r.prepTimes);

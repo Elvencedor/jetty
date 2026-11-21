@@ -1,7 +1,8 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import Joi from 'joi';
 import type { Db } from '../../db/client.js';
 import { storeSettings } from '../../db/schema/index.js';
+import { staleRecord } from '../../lib/errors.js';
 
 export const PAYMENT_METHODS = ['card', 'bank_transfer'] as const;
 
@@ -45,16 +46,29 @@ export async function getSetting<K extends SettingKey>(db: Db, key: K): Promise<
   return { ...SETTINGS[key].defaults, ...((row?.value as object | undefined) ?? {}) } as (typeof SETTINGS)[K]['defaults'];
 }
 
-export async function updateSetting(db: Db, adminId: string, key: SettingKey, patch: Record<string, unknown>) {
+/** The version of a stored setting; 0 until it has been saved once. */
+export async function getSettingVersion(db: Db, key: SettingKey): Promise<number> {
+  const [row] = await db.select({ version: storeSettings.version }).from(storeSettings).where(eq(storeSettings.key, dbKey(key)));
+  return row?.version ?? 0;
+}
+
+/**
+ * Saves a patch on top of what is stored. `check` is given the version the row is at (0 when it has never been saved)
+ * under the row lock. A first save inserts with `on conflict do nothing`, so two first saves cannot both win.
+ */
+export async function updateSetting(db: Db, adminId: string, key: SettingKey, patch: Record<string, unknown>, check: (version: number) => void = () => undefined) {
   return db.transaction(async (tx) => {
     const [row] = await tx.select().from(storeSettings).where(eq(storeSettings.key, dbKey(key))).for('update');
+    check(row?.version ?? 0);
     const before = { ...SETTINGS[key].defaults, ...((row?.value as object | undefined) ?? {}) };
     const after = { ...before, ...patch };
-    await tx
-      .insert(storeSettings)
-      .values({ key: dbKey(key), value: after, updatedByAdminId: adminId })
-      .onConflictDoUpdate({ target: storeSettings.key, set: { value: after, updatedByAdminId: adminId, updatedAt: new Date() } });
-    return { before, after };
+    if (row) {
+      await tx.update(storeSettings).set({ value: after, updatedByAdminId: adminId, updatedAt: new Date() }).where(and(eq(storeSettings.key, dbKey(key)), eq(storeSettings.version, row.version)));
+    } else {
+      const inserted = await tx.insert(storeSettings).values({ key: dbKey(key), value: after, updatedByAdminId: adminId }).onConflictDoNothing().returning({ key: storeSettings.key });
+      if (inserted.length === 0) throw staleRecord();
+    }
+    return { before, after, version: (row?.version ?? 0) + 1 };
   });
 }
 

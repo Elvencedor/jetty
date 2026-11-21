@@ -20,7 +20,7 @@ import {
   wishlistItems,
 } from '../../db/schema/index.js';
 import { decodeCursor, encodeCursor } from '../../lib/cursor.js';
-import { apiError, conflict, notFound, unprocessable } from '../../lib/errors.js';
+import { conflict, notFound, staleRecord, unprocessable } from '../../lib/errors.js';
 import type { ObjectStorage } from '../media/storage.js';
 import { withUrl, withUrls } from '../media/urls.js';
 import { likeContains, uniqueViolation } from '../../lib/sql.js';
@@ -248,7 +248,7 @@ export async function updateProduct(db: Db, id: string, patch: Partial<ProductFi
         // Compare-and-set on top of the row lock: the write only lands on the version that was checked.
         .where(and(eq(products.id, id), eq(products.version, current.version)))
         .returning();
-      if (!updated) throw apiError(412, 'PRECONDITION_FAILED', 'This record changed since you loaded it. Reload and try again.');
+      if (!updated) throw staleRecord();
       await setMemberships(tx, id, patch);
       return { before: current, after: updated! };
     });

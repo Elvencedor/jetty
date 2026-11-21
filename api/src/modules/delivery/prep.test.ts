@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { latestPrep, prepStart, type PrepTime } from './prep.js';
 
 const prep = (over: Partial<PrepTime> = {}): PrepTime => ({
-  id: 'p', name: 'Rush', active: true, mode: 'days', days: 10, deliversFrom: null, activeFrom: null, activeUntil: null, appliesTo: 'all', zoneIds: [],
+  id: 'p', name: 'Rush', active: true, mode: 'days', days: 10, deliversFrom: null, activeFrom: null, activeUntil: null, appliesTo: 'all', zoneIds: [], version: 1,
   createdAt: new Date(0), updatedAt: new Date(0), ...over,
 });
 

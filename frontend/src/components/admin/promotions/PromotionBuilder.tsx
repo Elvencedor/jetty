@@ -3,6 +3,7 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useConflictSave } from "../ConflictDialog";
 import { PageHeader } from "../PageHeader";
 import { onAmountChange } from "@/lib/admin/amount";
 import { GiftPicker } from "./GiftPicker";
@@ -36,7 +37,7 @@ export function PromotionBuilder({ id }: { id?: string }) {
       </>
     );
   }
-  return <Builder key={detail.data?.promotion.id ?? "new"} existing={detail.data} collections={collections.data ?? []} />;
+  return <Builder key={`${detail.data?.promotion.id ?? "new"}:${detail.data?.promotion.version ?? 0}`} existing={detail.data} collections={collections.data ?? []} />;
 }
 
 function Builder({ existing, collections }: { existing: PromotionDetail | undefined; collections: Collection[] }) {
@@ -78,21 +79,26 @@ function Builder({ existing, collections }: { existing: PromotionDetail | undefi
     requestAnimationFrame(() => goTo("promo-rule"));
   }
 
-  const save = useMutation({
-    mutationFn: async (activate: boolean) => {
+  const [mode, setMode] = useState<boolean | null>(null);
+  const save = useConflictSave<[boolean], PromotionDetail>({
+    noun: "promotion",
+    editing: !!existing,
+    save: async (version, activate) => {
       const input = toInput(form);
       const body = existing ? { ...input, ...(form.access === "code" && !existing.codes.length ? { codes: [{ code: form.code }] } : {}) } : { ...input, ...(form.access === "code" ? { codes: [{ code: form.code }] } : {}) };
-      const saved = existing ? await updateAdminPromotion(existing.promotion.id, body) : await createAdminPromotion(body);
+      const saved = existing ? await updateAdminPromotion(existing.promotion.id, version ?? existing.promotion.version, body) : await createAdminPromotion(body);
       if (activate && saved.promotion.status !== "active") return setPromotionActive(saved.promotion.id, true);
       return saved;
     },
-    onSuccess: (saved, activate) => {
+    onSaved: (saved, activate) => {
       void queryClient.invalidateQueries({ queryKey: adminKeys.resource("promotions") });
       const start = saved.promotion.startsAt;
       toast.success(existing ? "Promotion saved" : !activate ? `${saved.promotion.name} saved as a draft` : start && Date.parse(start) > now.getTime() ? `${saved.promotion.name} scheduled for ${formatDateTime(start)}` : `${saved.promotion.name} is live`);
       router.push("/admin/promotions");
     },
     onError: (err) => setProblem(adminErrorMessage(err)),
+    // The form starts again from what is saved: the page is keyed by version, so a fresh read remounts it.
+    onUseTheirs: () => queryClient.invalidateQueries({ queryKey: adminKeys.resource("promotions") }),
   });
 
   function submit(activate: boolean) {
@@ -101,7 +107,8 @@ function Builder({ existing, collections }: { existing: PromotionDetail | undefi
     const first = (Object.keys(found) as (keyof FormErrors)[]).sort((a, b) => ERROR_STEP[a] - ERROR_STEP[b])[0];
     if (first) return goTo(SECTION[ERROR_STEP[first]]!);
     setProblem(undefined);
-    save.mutate(activate);
+    setMode(activate);
+    save.run(activate);
   }
 
   const productIds = [...new Set([...form.productIds, ...form.excludeProductIds])];
@@ -118,6 +125,7 @@ function Builder({ existing, collections }: { existing: PromotionDetail | undefi
 
       <div className="grid items-start gap-[18px] pb-4 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="flex min-w-0 flex-col gap-[18px]">
+          {save.dialog}
           {ended ? <p role="status" className="rounded-lg bg-warning-bg px-3 py-2 text-body-sm text-warning">This promotion has ended. Move its end date to edit it again.</p> : null}
           {live ? <p role="status" className="rounded-lg bg-info-bg px-3 py-2 text-body-sm text-info">Changes apply to new baskets immediately.</p> : null}
           {problem ? <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-body-sm text-danger">{problem}</p> : null}
@@ -262,11 +270,11 @@ function Builder({ existing, collections }: { existing: PromotionDetail | undefi
       {chosen ? (
         <div className="sticky bottom-0 z-10 -mx-1 mt-2 flex flex-wrap items-center justify-end gap-2 border-t border-line bg-surface/95 px-1 py-3 backdrop-blur">
           <span className="mr-auto hidden text-caption text-muted sm:block">{dirty ? "You have unsaved changes." : editing ? "No changes yet." : ""}</span>
-          {!editing && canWrite ? <Button variant="outline" className="max-sm:flex-1" loading={save.isPending && save.variables === false} disabled={save.isPending} onClick={() => submit(false)}>Save as draft</Button> : null}
+          {!editing && canWrite ? <Button variant="outline" className="max-sm:flex-1" loading={save.pending && mode === false} disabled={save.pending} onClick={() => submit(false)}>Save as draft</Button> : null}
           {canWrite ? (editing ? (
-            <Button variant="dark" className="max-sm:flex-1" loading={save.isPending} disabled={save.isPending || !dirty} onClick={() => submit(false)}>Save changes</Button>
+            <Button variant="dark" className="max-sm:flex-1" loading={save.pending} disabled={save.pending || !dirty} onClick={() => submit(false)}>Save changes</Button>
           ) : (
-            <Button className="max-sm:flex-1" loading={save.isPending && save.variables !== false} disabled={save.isPending} onClick={() => submit(true)}>{submitLabel(form, editing, now)}</Button>
+            <Button className="max-sm:flex-1" loading={save.pending && mode !== false} disabled={save.pending} onClick={() => submit(true)}>{submitLabel(form, editing, now)}</Button>
           )) : null}
         </div>
       ) : null}

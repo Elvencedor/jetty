@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog";
+import { useConflictSave } from "../ConflictDialog";
 import { DataTable, type Column } from "../DataTable";
 import { FormSection } from "../FormSection";
 import { SideDrawer } from "../SideDrawer";
@@ -40,17 +41,15 @@ export function DeliverySection({ canWrite }: { canWrite: boolean }) {
     },
   });
 
-  const toggle = useMutation({
-    mutationFn: ({ zone, active }: { zone: DeliveryZone; active: boolean }) => saveZone({ id: zone.id, active }),
-    onSuccess: (next, { zone, active }) => {
+  const toggle = useConflictSave<[DeliveryZone, boolean], DeliveryZone[]>({
+    noun: "zone",
+    save: (version, zone, active) => saveZone({ id: zone.id, version: version ?? zone.version, active }),
+    onSaved: (next, zone, active) => {
       queryClient.setQueryData(key, next);
-      setSwitchOff(null);
       toast.success(active ? `Delivering to ${zone.name} again` : `${zone.name} switched off`);
     },
-    onError: (err) => {
-      setSwitchOff(null);
-      toast.error(adminErrorMessage(err));
-    },
+    onError: (err) => toast.error(adminErrorMessage(err)),
+    onUseTheirs: () => queryClient.invalidateQueries({ queryKey: key }),
   });
 
   const columns: Column<DeliveryZone>[] = [
@@ -88,7 +87,7 @@ export function DeliverySection({ canWrite }: { canWrite: boolean }) {
       header: "Delivering",
       cell: (z) => (
         <span className="flex items-center gap-2.5">
-          <Switch checked={z.active} label={`Deliver to ${z.name}`} disabled={!canWrite || toggle.isPending} onChange={(on) => (on ? toggle.mutate({ zone: z, active: true }) : setSwitchOff(z))} />
+          <Switch checked={z.active} label={`Deliver to ${z.name}`} disabled={!canWrite || toggle.pending} onChange={(on) => (on ? toggle.run(z, true) : setSwitchOff(z))} />
           <span className={cn("text-caption font-semibold", z.active ? "text-success" : "text-muted")}>{z.active ? "On" : "Off"}</span>
         </span>
       ),
@@ -143,7 +142,7 @@ export function DeliverySection({ canWrite }: { canWrite: boolean }) {
                     </span>
                     <span className="flex shrink-0 items-center gap-2">
                       <span className={cn("text-caption font-semibold", z.active ? "text-success" : "text-muted")}>{z.active ? "On" : "Off"}</span>
-                      <Switch checked={z.active} label={`Deliver to ${z.name}`} disabled={!canWrite || toggle.isPending} onChange={(on) => (on ? toggle.mutate({ zone: z, active: true }) : setSwitchOff(z))} />
+                      <Switch checked={z.active} label={`Deliver to ${z.name}`} disabled={!canWrite || toggle.pending} onChange={(on) => (on ? toggle.run(z, true) : setSwitchOff(z))} />
                     </span>
                   </div>
                   <dl className={cn("grid grid-cols-3 gap-2 text-body-sm", !z.active && "opacity-60")}>
@@ -164,23 +163,24 @@ export function DeliverySection({ canWrite }: { canWrite: boolean }) {
         ) : null}
       </FormSection>
 
-      {editing ? <ZoneDrawer zone={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={(next) => { queryClient.setQueryData(key, next); setEditing(null); toast.success("Delivery settings saved"); }} /> : null}
+      {toggle.dialog}
+      {editing ? <ZoneDrawer zone={editing === "new" ? null : editing} onClose={() => setEditing(null)} onUseTheirs={() => { setEditing(null); void queryClient.invalidateQueries({ queryKey: key }); }} onSaved={(next) => { queryClient.setQueryData(key, next); setEditing(null); toast.success("Delivery settings saved"); }} /> : null}
       <ConfirmDialog open={!!removing} title={`Delete ${removing?.name ?? "this zone"}?`} confirmLabel="Delete zone" tone="danger" busy={remove.isPending} onCancel={() => setRemoving(null)} onConfirm={() => removing && remove.mutate(removing)}>
         <p>{removing?.name} will be removed for good, and customers it served will not be able to check out with delivery unless another zone covers them. Orders already placed keep their details. To pause it instead, switch the zone off.</p>
       </ConfirmDialog>
-      <ConfirmDialog open={!!switchOff} title={`Switch off ${switchOff?.name ?? "this zone"}?`} confirmLabel="Switch off" tone="danger" busy={toggle.isPending} onCancel={() => setSwitchOff(null)} onConfirm={() => switchOff && toggle.mutate({ zone: switchOff, active: false })}>
+      <ConfirmDialog open={!!switchOff} title={`Switch off ${switchOff?.name ?? "this zone"}?`} confirmLabel="Switch off" tone="danger" busy={toggle.pending} onCancel={() => setSwitchOff(null)} onConfirm={() => { if (switchOff) { toggle.run(switchOff, false); setSwitchOff(null); } }}>
         Customers there will no longer be able to check out with delivery. Orders already placed are still delivered.
       </ConfirmDialog>
     </>
   );
 }
 
-function ZoneDrawer({ zone, onClose, onSaved }: { zone: DeliveryZone | null; onClose: () => void; onSaved: (zones: DeliveryZone[]) => void }) {
+function ZoneDrawer({ zone, onClose, onSaved, onUseTheirs }: { zone: DeliveryZone | null; onClose: () => void; onSaved: (zones: DeliveryZone[]) => void; onUseTheirs: () => void }) {
   const original = zone ? zoneToForm(zone) : emptyZone();
   const [form, setForm] = useState<ZoneForm>(original);
   const [errors, setErrors] = useState<ZoneErrors>({});
   const [problem, setProblem] = useState<string>();
-  const save = useMutation({ mutationFn: () => saveZone(zoneToInput(form, zone?.id)), onSuccess: onSaved, onError: (err) => setProblem(adminErrorMessage(err)) });
+  const save = useConflictSave<[], DeliveryZone[]>({ noun: "zone", editing: !!zone, save: (version) => saveZone(zoneToInput(form, zone?.id, version ?? zone?.version)), onSaved, onError: (err) => setProblem(adminErrorMessage(err)), onUseTheirs });
   const dirty = JSON.stringify(form) !== JSON.stringify(original);
   const set = <K extends keyof ZoneForm>(key: K, value: ZoneForm[K]) => { setForm((f) => ({ ...f, [key]: value })); setErrors((e) => ({ ...e, [key]: undefined })); };
 
@@ -188,7 +188,7 @@ function ZoneDrawer({ zone, onClose, onSaved }: { zone: DeliveryZone | null; onC
     const found = validateZone(form);
     setErrors(found);
     setProblem(undefined);
-    if (!Object.keys(found).length) save.mutate();
+    if (!Object.keys(found).length) save.run();
   }
 
   return (
@@ -197,8 +197,9 @@ function ZoneDrawer({ zone, onClose, onSaved }: { zone: DeliveryZone | null; onC
       onClose={onClose}
       title={zone ? `Edit ${zone.name}` : "Add delivery zone"}
       dirty={dirty}
-      footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button loading={save.isPending} disabled={!dirty} onClick={submit}>Save zone</Button></>}
+      footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button loading={save.pending} disabled={!dirty} onClick={submit}>Save zone</Button></>}
     >
+      {save.dialog}
       <div className="flex flex-col gap-4">
         {problem ? <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-body-sm text-danger">{problem}</p> : null}
         <TextField size="admin" label="Zone name" value={form.name} error={errors.name} onChange={(e) => set("name", e.target.value)} hint="Customers see this, like Lagos Mainland" />

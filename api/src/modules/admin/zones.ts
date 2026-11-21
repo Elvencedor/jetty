@@ -2,7 +2,7 @@ import { asc, eq, sql } from 'drizzle-orm';
 import Joi from 'joi';
 import type { Db } from '../../db/client.js';
 import { deliveryZones } from '../../db/schema/index.js';
-import { conflict, notFound, unprocessable } from '../../lib/errors.js';
+import { apiError, conflict, notFound, staleRecord, unprocessable } from '../../lib/errors.js';
 import { forgetZone } from './prep-times.js';
 import { canonicalState } from '../delivery/states.js';
 
@@ -11,6 +11,8 @@ const days = Joi.number().integer().min(0).max(60);
 
 export const zoneSchema = Joi.object({
   id: Joi.string().uuid(),
+  /** The version the edit was made against; required to change an existing zone. */
+  version: Joi.number().integer().min(1),
   name: Joi.string().trim().min(1).max(80),
   scope: Joi.string().valid('state', 'nationwide'),
   state: Joi.string().trim().min(1).max(80).allow(null),
@@ -33,6 +35,7 @@ export const zoneSchema = Joi.object({
 
 export type ZoneInput = {
   id?: string;
+  version?: number;
   name?: string;
   scope?: 'state' | 'nationwide';
   state?: string | null;
@@ -101,10 +104,12 @@ export async function upsertZones(db: Db, zones: ZoneInput[]) {
   return db.transaction(async (tx) => {
     const changes: { before: unknown; after: unknown }[] = [];
     for (const z of zones) {
-      const { id, ...fields } = z;
+      const { id, version, ...fields } = z;
       if (id) {
         const [before] = await tx.select().from(deliveryZones).where(eq(deliveryZones.id, id)).for('update');
         if (!before) throw notFound(`Delivery zone ${id} does not exist.`);
+        if (version === undefined) throw apiError(428, 'PRECONDITION_REQUIRED', 'Send the version of the zone you last read.');
+        if (version !== before.version) throw staleRecord(before.version);
         requireDurationOrder(fields.deliveryMinDays ?? before.deliveryMinDays, fields.deliveryMaxDays ?? before.deliveryMaxDays);
         const coverage = coverageOf(before, fields);
         await requireNoOverlap(tx, coverage, fields.active ?? before.active, id);

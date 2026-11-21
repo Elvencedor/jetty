@@ -1,9 +1,11 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button, SelectField, TextareaField, TextField } from "@/components/ui";
+import { useConflictSave } from "../ConflictDialog";
 import { adminErrorMessage } from "@/lib/admin/concurrency";
+import { adminKeys } from "@/lib/admin/keys";
 import { ImageField } from "./ImageField";
 import { emptyEntry, entryToForm, IMAGE_TYPES, entryToPayload, MAIN_LIMIT, TONES, validateEntry, type EntryErrors, type EntryForm } from "@/lib/admin/storefront";
 import { listAllAdminPromotions } from "@/lib/api/admin-promotions";
@@ -27,7 +29,8 @@ export function EntryFormPanel({ type, entry, nextSortOrder, onDone, onCancel }:
   const [form, setForm] = useState<EntryForm>(original);
   const [errors, setErrors] = useState<EntryErrors>({});
   const [problem, setProblem] = useState<string>();
-  const [busy, setBusy] = useState<"save" | "publish" | null>(null);
+  const queryClient = useQueryClient();
+  const [mode, setMode] = useState<"save" | "publish">("save");
   const dirty = JSON.stringify(form) !== JSON.stringify(original);
   useUnsavedGuard(dirty);
   const labels = LABELS[type]!;
@@ -36,29 +39,35 @@ export function EntryFormPanel({ type, entry, nextSortOrder, onDone, onCancel }:
 
   const promotions = useQuery({ queryKey: ["admin", "promotions", "for-flash"], queryFn: ({ signal }) => listAllAdminPromotions({ signal }), enabled: type === "flash", staleTime: 60_000 });
 
-  async function submit(publish: boolean) {
+  const save = useConflictSave<[boolean], ContentEntry>({
+    noun: "entry",
+    editing: !!entry,
+    save: (version, publish) => {
+      const payload = entryToPayload(type, form);
+      const status = publish ? ("published" as const) : undefined;
+      return entry
+        ? updateContent(entry.id, version ?? entry.version, { ...payload, ...(status ? { status } : {}) })
+        : createContent({ contentType: type, ...payload, status: status ?? "draft", sortOrder: nextSortOrder });
+    },
+    onSaved: (saved) => onDone(saved),
+    onError: (err) => setProblem(adminErrorMessage(err)),
+    onUseTheirs: () => { onCancel(); void queryClient.invalidateQueries({ queryKey: adminKeys.resource("content") }); },
+  });
+  const busy = save.pending ? mode : null;
+
+  function submit(publish: boolean) {
     const found = validateEntry(type, form);
     setErrors(found);
     if (Object.keys(found).length) return;
-    setBusy(publish ? "publish" : "save");
+    setMode(publish ? "publish" : "save");
     setProblem(undefined);
-    try {
-      const payload = entryToPayload(type, form);
-      const status = publish ? ("published" as const) : undefined;
-      const saved = entry
-        ? await updateContent(entry.id, { ...payload, ...(status ? { status } : {}) })
-        : await createContent({ contentType: type, ...payload, status: status ?? "draft", sortOrder: nextSortOrder });
-      onDone(saved);
-    } catch (err) {
-      setProblem(adminErrorMessage(err));
-    } finally {
-      setBusy(null);
-    }
+    save.run(publish);
   }
 
   const count = form.main.trim().length;
   return (
-    <form onSubmit={(e) => { e.preventDefault(); void submit(false); }} className="flex flex-col gap-3.5">
+    <form onSubmit={(e) => { e.preventDefault(); submit(false); }} className="flex flex-col gap-3.5">
+      {save.dialog}
       {problem ? <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-body-sm text-danger">{problem}</p> : null}
 
       {type === "flash" ? (

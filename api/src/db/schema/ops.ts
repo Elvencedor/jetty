@@ -80,6 +80,7 @@ export const deliveryZones = pgTable('delivery_zones', {
   pickupEnabled: boolean('pickup_enabled').notNull().default(false),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
+  version: integer('version').notNull().default(1),
 });
 
 /**
@@ -101,6 +102,7 @@ export const deliveryPrepTimes = pgTable('delivery_prep_times', {
   zoneIds: jsonb('zone_ids').notNull().default(sql`'[]'::jsonb`),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
+  version: integer('version').notNull().default(1),
 });
 
 export const storeSettings = pgTable('store_settings', {
@@ -108,6 +110,7 @@ export const storeSettings = pgTable('store_settings', {
   value: jsonb('value').notNull(),
   updatedByAdminId: uuid('updated_by_admin_id').references(() => adminUsers.id),
   updatedAt: updatedAt(),
+  version: integer('version').notNull().default(1),
 });
 
 export const contentEntries = pgTable(
@@ -125,6 +128,7 @@ export const contentEntries = pgTable(
     createdByAdminId: uuid('created_by_admin_id').references(() => adminUsers.id),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
+    version: integer('version').notNull().default(1),
   },
   (t) => [
     check('content_entries_window_valid', sql`${t.startsAt} is null or ${t.endsAt} is null or ${t.startsAt} < ${t.endsAt}`),

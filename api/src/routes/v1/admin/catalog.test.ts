@@ -7,6 +7,7 @@ import { createLogger } from '../../../lib/logger.js';
 import { S3Storage } from '../../../modules/media/storage.js';
 import { createServer } from '../../../server.js';
 import { adminTestEnv, signInAdmin } from '../../../testing/admin.js';
+import { withVersion } from '../../../testing/versions.js';
 import { createTestDatabase, TEST_DATABASE_URL, type TestDatabase } from '../../../testing/database.js';
 import { FakeStorage } from '../../../testing/fake-storage.js';
 
@@ -27,7 +28,8 @@ describe('admin catalog, media and inventory', { skip: !TEST_DATABASE_URL && 'TE
       const current = await api.inject({ url: `/api/v1${url.replace(/\/variants$/, '')}`, headers: who.headers });
       headers = { ...headers, 'if-match': current.headers.etag as string };
     }
-    const res = await api.inject({ method: method as 'GET', url: `/api/v1${url}`, ...(payload ? { payload } : {}), headers: { ...who.headers, ...headers } });
+    const v = await withVersion(t.db, method, url, payload, { ...who.headers, ...headers });
+    const res = await api.inject({ method: method as 'GET', url: `/api/v1${url}`, ...(v.payload ? { payload: v.payload } : {}), headers: v.headers });
     return { status: res.statusCode, body: res.result as Json, etag: res.headers.etag as string | undefined };
   };
 

@@ -5,11 +5,12 @@ import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button, Media, Segmented, Skeleton } from "@/components/ui";
 import { adminErrorMessage, isStaleRecord } from "@/lib/admin/concurrency";
+import { useConflictChoice } from "../ConflictDialog";
 import { adminKeys } from "@/lib/admin/keys";
 import { fromDetail, isChanged, toPayload, type MatrixDraft } from "@/lib/admin/matrix";
 import { basicsFrom, changedFields, validateBasics, type Basics } from "@/lib/admin/productForm";
-import { overlapWithRemote } from "@/lib/admin/rebase";
 import { useUrlState } from "@/lib/admin/useUrlState";
+import { versionTag } from "@/lib/api/client";
 import { deleteAdminProduct, getAdminProduct, listAdminCategories, putMatrix, setAdminProductStatus, updateAdminProduct, type AdminProductDetail, type Versioned } from "@/lib/api/admin-catalog";
 import { toast } from "@/lib/stores/toast";
 import { ConfirmDialog } from "../ConfirmDialog";
@@ -59,6 +60,7 @@ function ProductEditor({ initial, categories, onClose, canWrite, reload }: Props
   const [problem, setProblem] = useState<{ message: string; stale: boolean } | null>(null);
   const [showErrors, setShowErrors] = useState(false);
   const [deleting, setDeleting] = useState<"asking" | "busy" | null>(null);
+  const { offer, dialog: conflictDialog } = useConflictChoice({ noun: "product", onUseTheirs: () => reloadAndDiscard() });
 
   const product = base.detail.product;
   const fields = changedFields(base.basics, basics, product.categoryIds);
@@ -77,39 +79,31 @@ function ProductEditor({ initial, categories, onClose, canWrite, reload }: Props
       setTab("basics");
       return;
     }
+    // A failure has already been shown (as a problem, or as the choice); nothing more to do with it here.
+    await attempt(base.etag).catch(() => undefined);
+  }
+
+  /**
+   * One save: each step uses the version the one before it produced. Whether the product moved on is the API's call,
+   * not ours: when it refuses with a version conflict the admin chooses, and "keep my changes" runs this again on the
+   * version the API named.
+   */
+  async function attempt(etag: string | null): Promise<void> {
     setSaving(true);
     setProblem(null);
-    let latest: Versioned<AdminProductDetail> = { data: base.detail, etag: base.etag };
-    // Each step uses the version the one before it produced, so one save is one run through them.
-    const run = async (from: Versioned<AdminProductDetail>) => {
-      latest = from;
+    let latest: Versioned<AdminProductDetail> = { data: base.detail, etag };
+    try {
       if (fields) latest = await updateAdminProduct(product.id, latest.etag, fields);
       if (matrixChanged) latest = await putMatrix(product.id, latest.etag, toPayload(matrix));
       if (statusChanged) latest = await setAdminProductStatus(product.id, basics.status === "active" ? "publish" : "archive", latest.etag);
-    };
-    try {
-      try {
-        await run(latest);
-      } catch (err) {
-        if (!(isStaleRecord(err) && latest.data === base.detail)) throw err;
-        // The product moved on since it was opened. If the other change touched different things, put this edit on top
-        // of it without bothering anyone; if both touched the same thing, say what, rather than overwrite it.
-        const fresh = ((await reload()) as { data?: Versioned<AdminProductDetail> }).data;
-        if (!fresh) throw err;
-        const clash = overlapWithRemote({ base: { basics: base.basics, matrix: base.matrix, categoryIds: product.categoryIds }, mine: { fields, matrixChanged, status: basics.status }, fresh: fresh.data });
-        if (clash.length) {
-          setBase((b) => ({ ...b, detail: fresh.data, etag: fresh.etag, basics: basicsFrom(fresh.data), matrix: fromDetail(fresh.data) }));
-          setProblem({ message: `Someone else changed ${clash.join(", ")} while you were editing. Your edits are still here; reload to see theirs, or save again to replace them.`, stale: true });
-          return;
-        }
-        await run(fresh);
-      }
       commit(latest);
       toast.success("Saved");
     } catch (err) {
       // Whatever was saved before the failure is kept as the new starting point; the rest stays as typed.
       if (latest.data !== base.detail) setBase((b) => ({ ...b, detail: latest.data, etag: latest.etag }));
+      if (offer(err, (version) => attempt(versionTag(version)))) return;
       setProblem({ message: adminErrorMessage(err), stale: isStaleRecord(err) });
+      throw err;
     } finally {
       setSaving(false);
     }
@@ -191,6 +185,7 @@ function ProductEditor({ initial, categories, onClose, canWrite, reload }: Props
 
   return (
     <FullScreenModal open onClose={onClose} title="Edit product" dirty={dirty} toolbar={toolbar} footer={footer}>
+      {conflictDialog}
       {problem ? (
         <div role="alert" className="mx-auto mt-4 flex w-full max-w-2xl items-center justify-between gap-3 rounded-lg bg-danger-bg p-3 text-body-sm text-danger">
           <span>{problem.message}</span>

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog";
+import { useConflictSave } from "../ConflictDialog";
 import { FormSection } from "../FormSection";
 import { SideDrawer } from "../SideDrawer";
 import { Button, EmptyState, Segmented, SelectField, StatusPill, Switch, TextField } from "@/components/ui";
@@ -59,10 +60,12 @@ export function PrepTimeSection({ canWrite }: { canWrite: boolean }) {
   const [removing, setRemoving] = useState<PrepTime | null>(null);
   const zoneName = (id: string) => zones.data?.find((z) => z.id === id)?.name ?? "A deleted zone";
 
-  const toggle = useMutation({
-    mutationFn: ({ prep, active }: { prep: PrepTime; active: boolean }) => updatePrepTime(prep.id, { active }),
-    onSuccess: (next) => queryClient.setQueryData(key, next),
+  const toggle = useConflictSave<[PrepTime, boolean], PrepTime[]>({
+    noun: "prep time",
+    save: (version, prep, active) => updatePrepTime(prep.id, version ?? prep.version, { active }),
+    onSaved: (next) => queryClient.setQueryData(key, next),
     onError: (err) => toast.error(adminErrorMessage(err)),
+    onUseTheirs: () => queryClient.invalidateQueries({ queryKey: key }),
   });
   const remove = useMutation({
     mutationFn: (prep: PrepTime) => deletePrepTime(prep.id),
@@ -87,7 +90,7 @@ export function PrepTimeSection({ canWrite }: { canWrite: boolean }) {
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
                   <StatusPill tone={p.active ? "success" : "neutral"}>{p.active ? "On" : "Off"}</StatusPill>
-                  <Switch checked={p.active} label={`${p.name} is on`} disabled={!canWrite || toggle.isPending} onChange={(on) => toggle.mutate({ prep: p, active: on })} />
+                  <Switch checked={p.active} label={`${p.name} is on`} disabled={!canWrite || toggle.pending} onChange={(on) => toggle.run(p, on)} />
                 </span>
               </div>
               {canWrite ? (
@@ -100,7 +103,8 @@ export function PrepTimeSection({ canWrite }: { canWrite: boolean }) {
           ))}
         </ul>
       </FormSection>
-      {editing ? <PrepDrawer prep={editing === "new" ? null : editing} zones={zones.data ?? []} onClose={() => setEditing(null)} onSaved={(next) => { queryClient.setQueryData(key, next); setEditing(null); toast.success("Prep time saved"); }} /> : null}
+      {toggle.dialog}
+      {editing ? <PrepDrawer prep={editing === "new" ? null : editing} zones={zones.data ?? []} onClose={() => setEditing(null)} onUseTheirs={() => { setEditing(null); void queryClient.invalidateQueries({ queryKey: key }); }} onSaved={(next) => { queryClient.setQueryData(key, next); setEditing(null); toast.success("Prep time saved"); }} /> : null}
       <ConfirmDialog open={!!removing} title={`Delete ${removing?.name ?? "this prep time"}?`} confirmLabel="Delete" tone="danger" busy={remove.isPending} onCancel={() => setRemoving(null)} onConfirm={() => removing && remove.mutate(removing)}>
         <p>Customers will no longer be told deliveries are held back by it. Orders already placed keep the delivery start they were promised. To pause it instead, switch it off.</p>
       </ConfirmDialog>
@@ -108,12 +112,12 @@ export function PrepTimeSection({ canWrite }: { canWrite: boolean }) {
   );
 }
 
-function PrepDrawer({ prep, zones, onClose, onSaved }: { prep: PrepTime | null; zones: DeliveryZone[]; onClose: () => void; onSaved: (preps: PrepTime[]) => void }) {
+function PrepDrawer({ prep, zones, onClose, onSaved, onUseTheirs }: { prep: PrepTime | null; zones: DeliveryZone[]; onClose: () => void; onSaved: (preps: PrepTime[]) => void; onUseTheirs: () => void }) {
   const original = prep ? toForm(prep) : emptyForm();
   const [form, setForm] = useState<Form>(original);
   const [errors, setErrors] = useState<Errors>({});
   const [problem, setProblem] = useState<string>();
-  const save = useMutation({ mutationFn: () => (prep ? updatePrepTime(prep.id, toInput(form)) : createPrepTime({ ...toInput(form), active: true })), onSuccess: onSaved, onError: (err) => setProblem(adminErrorMessage(err)) });
+  const save = useConflictSave<[], PrepTime[]>({ noun: "prep time", editing: !!prep, save: (version) => (prep ? updatePrepTime(prep.id, version ?? prep.version, toInput(form)) : createPrepTime({ ...toInput(form), active: true })), onSaved, onError: (err) => setProblem(adminErrorMessage(err)), onUseTheirs });
   const dirty = JSON.stringify(form) !== JSON.stringify(original);
   const set = <K extends keyof Form>(k: K, v: Form[K]) => { setForm((f) => ({ ...f, [k]: v })); setErrors((e) => ({ ...e, [k]: undefined })); };
   const chosen = new Set(form.zoneIds);
@@ -122,11 +126,12 @@ function PrepDrawer({ prep, zones, onClose, onSaved }: { prep: PrepTime | null; 
     const found = validatePrep(form);
     setErrors(found);
     setProblem(undefined);
-    if (!Object.keys(found).length) save.mutate();
+    if (!Object.keys(found).length) save.run();
   }
 
   return (
-    <SideDrawer open onClose={onClose} title={prep ? `Edit ${prep.name}` : "Add prep time"} dirty={dirty} footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button loading={save.isPending} disabled={!dirty} onClick={submit}>Save prep time</Button></>}>
+    <SideDrawer open onClose={onClose} title={prep ? `Edit ${prep.name}` : "Add prep time"} dirty={dirty} footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button loading={save.pending} disabled={!dirty} onClick={submit}>Save prep time</Button></>}>
+      {save.dialog}
       <div className="flex flex-col gap-4">
         {problem ? <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-body-sm text-danger">{problem}</p> : null}
         <TextField size="admin" label="Name" value={form.name} error={errors.name} onChange={(e) => set("name", e.target.value)} hint="For you, like December rush" />

@@ -9,6 +9,7 @@ import { S3Storage } from '../../modules/media/storage.js';
 import { createServer } from '../../server.js';
 import { adminTestEnv, signInAdmin } from '../../testing/admin.js';
 import { makeProduct } from '../../testing/catalog-fixtures.js';
+import { withVersion } from '../../testing/versions.js';
 import { createTestDatabase, TEST_DATABASE_URL, type TestDatabase } from '../../testing/database.js';
 import { FakeStorage } from '../../testing/fake-storage.js';
 
@@ -119,7 +120,7 @@ describe('home sections, customer segments and CDN URLs', { skip: !TEST_DATABASE
       assert.equal((await create('home_layout', { sections: [{ type: 'hero' }] })).statusCode, 409, 'a second layout is a conflict');
 
       const id = ((layout.result as Json).id) as string;
-      const bad = (sections: Json[]) => api.inject({ method: 'PATCH', url: `/api/v1/admin/content/${id}`, payload: { body: { sections } }, headers: owner.headers });
+      const bad = async (sections: Json[]) => api.inject({ method: 'PATCH', url: `/api/v1/admin/content/${id}`, payload: { body: { sections } }, headers: (await withVersion(t.db, 'PATCH', `/admin/content/${id}`, undefined, owner.headers)).headers });
       assert.equal((await bad([{ type: 'carousel' }])).statusCode, 422);
       assert.equal((await bad([{ type: 'hero' }, { type: 'hero' }])).statusCode, 422, 'each block at most once');
       assert.equal((await bad([{ type: 'trust' }])).statusCode, 200);

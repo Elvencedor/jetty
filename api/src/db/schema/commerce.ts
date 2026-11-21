@@ -50,6 +50,7 @@ export const promotions = pgTable(
     createdByAdminId: uuid('created_by_admin_id').references(() => adminUsers.id),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
+    version: integer('version').notNull().default(1),
   },
   (t) => [
     check('promotions_window_valid', sql`${t.startsAt} is null or ${t.endsAt} is null or ${t.startsAt} < ${t.endsAt}`),

@@ -68,3 +68,7 @@ const STATUS_CODES: Record<number, string> = {
 export function codeForStatus(statusCode: number): string {
   return STATUS_CODES[statusCode] ?? (statusCode >= 500 ? 'INTERNAL_ERROR' : 'REQUEST_FAILED');
 }
+
+/** A compare-and-set found the record at a different version than the edit was made against. */
+export const staleRecord = (currentVersion?: number) =>
+  apiError(412, 'PRECONDITION_FAILED', 'This record changed since you loaded it. Reload and try again.', currentVersion === undefined ? undefined : [{ currentVersion }]);

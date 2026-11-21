@@ -270,8 +270,8 @@ export const adminCatalogRoutes: ServerRoute[] = [
       validate: { params: uuidParam('id'), payload: Joi.object({ name: text(80), slug: slugSchema, parentId: Joi.string().uuid().allow(null), sortOrder: Joi.number().integer().min(0).max(10_000), active: Joi.boolean() }).min(1) },
     },
     handler: async (request, h) => {
-      const { after } = await audited(request, (tx) => updateCategory(tx, (request.params as { id: string }).id, request.payload as never), ({ before, after }) => ({ action: 'category.update', resourceType: 'category', resourceId: after.id, before, after }));
-      return h.response(after).header('Cache-Control', NO_STORE);
+      const { after } = await audited(request, (tx) => updateCategory(tx, (request.params as { id: string }).id, request.payload as never, (version) => assertIfMatch(request, version)), ({ before, after }) => ({ action: 'category.update', resourceType: 'category', resourceId: after.id, before, after }));
+      return h.response(after).header('ETag', etagFor(after.version)).header('Cache-Control', NO_STORE);
     },
   },
   {
@@ -304,8 +304,8 @@ export const adminCatalogRoutes: ServerRoute[] = [
       validate: { params: uuidParam('id'), payload: Joi.object({ name: text(80), slug: slugSchema, description: nullableText(1000), sortOrder: Joi.number().integer().min(0).max(10_000), active: Joi.boolean() }).min(1) },
     },
     handler: async (request, h) => {
-      const { after } = await audited(request, (tx) => updateCollection(tx, (request.params as { id: string }).id, blankToNull(request.payload as never)), ({ before, after }) => ({ action: 'collection.update', resourceType: 'collection', resourceId: after.id, before, after }));
-      return h.response(after).header('Cache-Control', NO_STORE);
+      const { after } = await audited(request, (tx) => updateCollection(tx, (request.params as { id: string }).id, blankToNull(request.payload as never), (version) => assertIfMatch(request, version)), ({ before, after }) => ({ action: 'collection.update', resourceType: 'collection', resourceId: after.id, before, after }));
+      return h.response(after).header('ETag', etagFor(after.version)).header('Cache-Control', NO_STORE);
     },
   },
   {

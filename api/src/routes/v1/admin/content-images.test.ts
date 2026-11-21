@@ -4,6 +4,7 @@ import type { Server } from '@hapi/hapi';
 import { createLogger } from '../../../lib/logger.js';
 import { createServer } from '../../../server.js';
 import { adminTestEnv, signInAdmin } from '../../../testing/admin.js';
+import { withVersion } from '../../../testing/versions.js';
 import { createTestDatabase, TEST_DATABASE_URL, type TestDatabase } from '../../../testing/database.js';
 import { FakeStorage } from '../../../testing/fake-storage.js';
 
@@ -18,7 +19,8 @@ describe('pictures on content (hero cards, story circles, tiles)', { skip: !TEST
   let support: Awaited<ReturnType<typeof signInAdmin>>;
 
   const call = async (method: string, url: string, payload?: Json, who = editor, server = api) => {
-    const res = await server.inject({ method: method as 'GET', url: `/api/v1${url}`, ...(payload ? { payload } : {}), headers: who.headers });
+    const v = await withVersion(t.db, method, url, payload, who.headers);
+    const res = await server.inject({ method: method as 'GET', url: `/api/v1${url}`, ...(v.payload ? { payload: v.payload } : {}), headers: v.headers });
     return { status: res.statusCode, body: res.result as Json };
   };
 

@@ -3,7 +3,7 @@ import Joi from 'joi';
 import type { Db, Tx } from '../../db/client.js';
 import { collections, productVariants, products, promotionCodes, promotionHolds, promotions } from '../../db/schema/index.js';
 import { decodeCursor, encodeCursor } from '../../lib/cursor.js';
-import { conflict, notFound, unprocessable } from '../../lib/errors.js';
+import { conflict, notFound, staleRecord, unprocessable } from '../../lib/errors.js';
 import { normaliseCode } from '../pricing/load-promotions.js';
 import { CONFIG_SCHEMAS, SCOPE_SCHEMA, type PromotionKind } from '../pricing/promotions.js';
 import { uniqueViolation } from '../../lib/sql.js';
@@ -120,11 +120,12 @@ export async function createPromotion(db: Db, adminId: string, input: PromotionI
 
 export type PromotionPatch = Partial<Omit<PromotionInput, 'kind'>> & { kind?: PromotionInput['kind'] };
 
-export async function updatePromotion(db: Db, id: string, patch: PromotionPatch) {
+export async function updatePromotion(db: Db, id: string, patch: PromotionPatch, check: (version: number) => void = () => undefined) {
   try {
     return await db.transaction(async (tx) => {
       const [before] = await tx.select().from(promotions).where(eq(promotions.id, id)).for('update');
       if (!before) throw notFound('Promotion not found.');
+      check(before.version);
       // An ended promotion can only be edited by moving its end date, which revives it.
       const ended = before.status === 'expired' || (before.endsAt !== null && before.endsAt <= new Date());
       if (ended && patch.endsAt === undefined) throw conflict('PROMOTION_ENDED', 'This promotion has ended. Extend its end date to edit it.');
@@ -180,9 +181,10 @@ export async function updatePromotion(db: Db, id: string, patch: PromotionPatch)
           ...(patch.minimumSubtotalMinor !== undefined ? { minimumSubtotalMinor: patch.minimumSubtotalMinor } : {}),
           updatedAt: new Date(),
         })
-        .where(eq(promotions.id, id))
+        .where(and(eq(promotions.id, id), eq(promotions.version, before.version)))
         .returning();
-      return { before, after: after! };
+      if (!after) throw staleRecord();
+      return { before, after };
     });
   } catch (err) {
     if (uniqueViolation(err)) throw conflict('CODE_TAKEN', 'One of these codes is already used by another promotion.');
@@ -191,10 +193,11 @@ export async function updatePromotion(db: Db, id: string, patch: PromotionPatch)
 }
 
 /** Activate/deactivate. The schedule is still enforced by the server on every quote, so activating a future promotion only arms it. */
-export async function setPromotionState(db: Db, id: string, to: 'active' | 'inactive') {
+export async function setPromotionState(db: Db, id: string, to: 'active' | 'inactive', check: (version: number) => void = () => undefined) {
   return db.transaction(async (tx) => {
     const [before] = await tx.select().from(promotions).where(eq(promotions.id, id)).for('update');
     if (!before) throw notFound('Promotion not found.');
+    check(before.version);
     if (to === 'active' && before.endsAt && before.endsAt <= new Date()) throw conflict('PROMOTION_ENDED', 'This promotion has already ended. Move its end date first.');
     const [after] = await tx.update(promotions).set({ status: to, updatedAt: new Date() }).where(eq(promotions.id, id)).returning();
     return { before, after: after! };
@@ -214,7 +217,7 @@ export async function listAdminPromotions(
     after = sql`and (p.created_at, p.id) < (${at}::timestamptz, ${id}::uuid)`;
   }
   const rows = (await db.execute(sql`
-    select p.id, p.name, p.kind, p.status, (${lifecycleSql}) as lifecycle, p.starts_at, p.ends_at, p.priority, p.stackable,
+    select p.id, p.name, p.kind, p.status, p.version, (${lifecycleSql}) as lifecycle, p.starts_at, p.ends_at, p.priority, p.stackable,
       p.total_usage_limit, p.per_customer_limit, p.usage_count, p.created_at, p.created_at::text as cur_at,
       (select count(*)::int from promotion_codes pc where pc.promotion_id = p.id) as code_count,
       (select count(*)::int from promotion_holds h where h.promotion_id = p.id) as holds
@@ -235,6 +238,7 @@ export async function listAdminPromotions(
       priority: r.priority as number,
       stackable: r.stackable as boolean,
       type: (r.code_count as number) > 0 ? 'code' : 'automatic',
+      version: r.version as number,
       usage: { redemptions: r.usage_count as number, openHolds: r.holds as number, limit: (r.total_usage_limit as number | null) ?? null },
       createdAt: iso(r.created_at),
     })),
