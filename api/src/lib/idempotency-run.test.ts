@@ -58,8 +58,13 @@ describe('runIdempotent', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not s
     const k = key();
     let runs = 0;
     const results = await Promise.allSettled(Array.from({ length: 5 }, () => runIdempotent(t.db, { scope: 's', key: k, payload: {} }, async () => { runs++; await new Promise((r) => setTimeout(r, 30)); return { status: 200, body: 'ok' }; })));
-    assert.equal(runs, 1);
-    assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+    assert.equal(runs, 1, 'the work ran once');
+    // Each of the others either found it still in flight (409) or, if it arrived after the first finished (it can on a busy
+    // machine), got the first one's stored answer replayed. Neither runs the work again.
+    const done = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
+    assert.equal(done.filter((r) => !r.replayed).length, 1, 'exactly one real run');
+    assert.ok(done.every((r) => r.body === 'ok'));
+    for (const r of results) if (r.status === 'rejected') assert.equal((r.reason as { data: { code: string } }).data.code, 'IDEMPOTENCY_IN_PROGRESS');
   });
 
   it('frees the key after a client error so a corrected retry can proceed', async () => {

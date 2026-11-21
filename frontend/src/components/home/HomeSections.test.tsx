@@ -18,7 +18,8 @@ describe("HomeSections: shop by length", () => {
     const list = within(screen.getByRole("region", { name: "Shop by length" })).getByRole("list");
     const links = within(list).getAllByRole("link");
     expect(links.map((l) => l.getAttribute("href"))).toEqual(["/shop?length=10,12,14", "/shop?length=30,32"]);
-    expect(links[0]).toHaveAccessibleName('10–14" wigs, Shoulder length');
+    // The name is the visible words in order (WCAG "label in name"), then the context. jsdom joins them without the spaces a browser adds.
+    expect(links[0]).toHaveAccessibleName(/10–14".*Shoulder.*Shop.*wigs, Shoulder length/);
   });
 
   it("shows the label as given, without doubling the inch mark", () => {

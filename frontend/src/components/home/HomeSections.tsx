@@ -108,7 +108,6 @@ function LengthCards({ section }: { section: Extract<HomeSection, { type: "lengt
           <li key={item.label} className="w-[148px] shrink-0 snap-start lg:w-auto">
             <Link
               href={`/shop?length=${item.lengths.join(",")}`}
-              aria-label={`${item.label} wigs, ${item.hint} length`}
               className="group flex h-full flex-col gap-4 rounded-card border border-line bg-surface p-4 transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-primary hover:shadow-md focus-visible:border-primary"
             >
               {/* One segment per length band, filled up to this one: a longer wig fills more of the meter. */}
@@ -125,6 +124,8 @@ function LengthCards({ section }: { section: Extract<HomeSection, { type: "lengt
                 Shop
                 <ArrowRight aria-hidden="true" size={16} strokeWidth={2.2} className="transition-transform group-hover:translate-x-0.5" />
               </span>
+              {/* The link's name is its visible text, in order, then this for context (WCAG "label in name"): "10–14" Shoulder Shop wigs, Shoulder length". */}
+              <span className="sr-only"> wigs, {item.hint} length</span>
             </Link>
           </li>
         ))}
