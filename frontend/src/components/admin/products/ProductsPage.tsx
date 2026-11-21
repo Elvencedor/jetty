@@ -2,25 +2,37 @@
 
 import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { Plus, Search } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { PageHeader } from "../PageHeader";
+import { countText, ReviewSelection, SelectAllToggle, SelectionBar, type Noun } from "../selection/SelectionControls";
+import { useBulkAction } from "../selection/useBulkAction";
 import { Button, EmptyState, Skeleton, TextField } from "@/components/ui";
 import { adminErrorMessage } from "@/lib/admin/concurrency";
 import { adminKeys } from "@/lib/admin/keys";
 import { permits } from "@/lib/admin/permissions";
 import { useDebounced } from "@/components/shell/useDebounced";
+import { MAX_SELECTION, rangeBetween, useSelection, type SelectionItem } from "@/lib/admin/selection";
 import { useUrlState } from "@/lib/admin/useUrlState";
-import { createAdminProduct, listAdminProducts, updateAdminProductNow, type AdminProductPage, type AdminProductRow, type AdminProductStatus } from "@/lib/api/admin-catalog";
+import { bulkProductStatus, createAdminProduct, listAdminProducts, updateAdminProductNow, type AdminProductPage, type AdminProductRow, type AdminProductStatus, type BulkProductResult } from "@/lib/api/admin-catalog";
 import { cn } from "@/lib/cn";
 import { useAdminSession } from "@/lib/stores/session";
 import { toast } from "@/lib/stores/toast";
-import { ProductCard } from "./ProductCard";
+import { ProductCard, productPill } from "./ProductCard";
 import { ProductDrawer } from "./ProductDrawer";
 
 type Filter = "all" | "active" | "draft" | "low" | "out";
 const FILTERS: { key: Filter; label: string }[] = [{ key: "all", label: "All" }, { key: "active", label: "Active" }, { key: "draft", label: "Draft" }, { key: "low", label: "Low stock" }, { key: "out", label: "Out of stock" }];
 const PAGE = 24;
+const NOUN: Noun = { one: "product", many: "products" };
+
+/** What each bulk action says before it runs, and after. */
+const BULK: Record<AdminProductStatus, { button: string; past: string; title: (n: string) => string; body: string; tone: "primary" | "danger" }> = {
+  active: { button: "Publish", past: "Published", title: (n) => `Publish ${n}?`, body: "They go live in the shop straight away. Any without an active variant are skipped, and you will see which.", tone: "primary" },
+  draft: { button: "Move to draft", past: "Moved to draft", title: (n) => `Move ${n} to draft?`, body: "They are hidden from shoppers until you publish them again.", tone: "primary" },
+  archived: { button: "Archive", past: "Archived", title: (n) => `Archive ${n}?`, body: "They are hidden from shoppers and can no longer be ordered. You can publish them again later.", tone: "danger" },
+};
+const itemOf = (r: AdminProductRow): SelectionItem => ({ id: r.id, label: r.title, detail: productPill(r).label });
 
 const paramsFor = (filter: Filter, q: string) => ({
   ...(q ? { q } : {}),
@@ -50,6 +62,42 @@ export function ProductsPage() {
   });
   const rows = list.data?.pages.flatMap((p) => p.data);
   const summary = list.data?.pages[0]?.summary;
+
+  // The selection lives outside the list, so loading more, searching and filtering never lose it.
+  const selection = useSelection("products");
+  const shown = rows ?? [];
+  const shownIds = shown.map((r) => r.id);
+  const hiddenCount = selection.count - shown.filter((r) => selection.has(r.id)).length;
+  const lastClicked = useRef<string | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [flagged, setFlagged] = useState<Record<string, string>>({});
+  const limitMessage = `You can select up to ${MAX_SELECTION} at a time.`;
+  function toggleChecked(row: AdminProductRow, shift: boolean) {
+    if (shift && lastClicked.current && lastClicked.current !== row.id) {
+      const on = !selection.has(row.id);
+      const range = rangeBetween(shownIds, lastClicked.current, row.id).flatMap((id) => shown.filter((r) => r.id === id).map(itemOf));
+      if (selection.setMany(range, on).limited) toast.error(limitMessage);
+    } else if (!selection.toggle(itemOf(row))) {
+      toast.error(limitMessage);
+    }
+    lastClicked.current = row.id;
+  }
+  const bulk = useBulkAction<AdminProductStatus, BulkProductResult>({
+    noun: NOUN,
+    ids: selection.ids,
+    plan: (status, n) => ({ title: BULK[status].title(countText(n, NOUN)), body: BULK[status].body, confirmLabel: `${BULK[status].button} ${n}`, tone: BULK[status].tone }),
+    run: (ids, status) => bulkProductStatus(ids, status),
+    summary: (status, o) => (o.updated.length === 0 ? "No products were changed." : `${BULK[status].past} ${countText(o.updated.length, NOUN)}.`),
+    // Each product goes back to the status it had, however mixed they were.
+    undo: async (o) => {
+      const byPrevious = new Map<AdminProductStatus, string[]>();
+      for (const u of o.updated) byPrevious.set(u.previousStatus, [...(byPrevious.get(u.previousStatus) ?? []), u.id]);
+      for (const [previous, ids] of byPrevious) await bulkProductStatus(ids, previous);
+    },
+    deselect: selection.remove,
+    onChanged: () => { setFlagged({}); void queryClient.invalidateQueries({ queryKey: adminKeys.resource("products") }); },
+    onSkipped: (skipped) => setFlagged(Object.fromEntries(skipped.map((x) => [x.id, x.reason]))),
+  });
 
   // The featured star changes at once and is put back if the server refuses.
   const feature = useMutation({
@@ -109,14 +157,28 @@ export function ProductsPage() {
         </EmptyState>
       ) : (
         <>
+          {canWrite ? <SelectAllToggle shown={shownIds} has={selection.has} noun={NOUN} onChange={(on) => { if (selection.setMany(shown.map(itemOf), on).limited) toast.error(limitMessage); }} /> : null}
           <div className="grid grid-cols-[repeat(auto-fill,minmax(min(200px,100%),1fr))] gap-3">
             {rows.map((row) => (
-              <ProductCard key={row.id} product={row} selected={openId === row.id} onOpen={() => setOpenId(row.id, { push: true })} {...(canWrite ? { onToggleFeatured: (featured: boolean) => feature.mutate({ row, featured }) } : {})} />
+              <ProductCard key={row.id} product={row} selected={openId === row.id} checked={selection.has(row.id)} onOpen={() => setOpenId(row.id, { push: true })} {...(canWrite ? { onToggleChecked: (shift: boolean) => toggleChecked(row, shift), onToggleFeatured: (featured: boolean) => feature.mutate({ row, featured }) } : {})} />
             ))}
           </div>
           {list.hasNextPage ? <Button variant="outline" className="self-center" loading={list.isFetchingNextPage} onClick={() => list.fetchNextPage()}>Show more</Button> : null}
         </>
       )}
+
+      {canWrite ? (
+        <>
+          <SelectionBar noun={NOUN} count={selection.count} hiddenCount={hiddenCount} busy={bulk.busy} onReview={() => setReviewing(true)} onClear={() => { selection.clear(); setFlagged({}); }}>
+            <Button size="sm" disabled={bulk.busy} onClick={() => bulk.request("active")}>Publish</Button>
+            <Button size="sm" variant="outline" disabled={bulk.busy} onClick={() => bulk.request("draft")}>Move to draft</Button>
+            <Button size="sm" variant="danger-soft" disabled={bulk.busy} onClick={() => bulk.request("archived")}>Archive</Button>
+          </SelectionBar>
+          {selection.count > 0 ? <div aria-hidden="true" className="h-20" /> : null}
+          <ReviewSelection open={reviewing && selection.count > 0} title="Selected products" items={selection.items} noun={NOUN} flagged={flagged} onRemove={(id) => selection.remove([id])} onClear={() => { selection.clear(); setFlagged({}); setReviewing(false); }} onClose={() => setReviewing(false)} />
+          {bulk.dialogs}
+        </>
+      ) : null}
 
       {openId ? <ProductDrawer productId={openId} onClose={() => setOpenId(null)} canWrite={canWrite} /> : null}
       <NewProductDialog open={creating} onCancel={() => setCreating(false)} onCreate={create} />

@@ -20,22 +20,33 @@ export function productPill(p: Pick<AdminProductRow, "status" | "availableQuanti
 
 type Props = {
   product: AdminProductRow;
+  /** This is the product open in the editor. */
   selected: boolean;
+  /** This product is ticked for a bulk action. */
+  checked?: boolean;
+  /** Absent when the admin cannot change the catalogue. Gets whether shift was held (to select a range). */
+  onToggleChecked?: (shift: boolean) => void;
   /** Absent when the admin cannot edit the catalogue. */
   onToggleFeatured?: (featured: boolean) => void;
   onOpen: () => void;
 };
 
 /** One product in the catalogue grid: photo with status and featured star, name, variants and price range, stock meter. */
-export function ProductCard({ product: p, selected, onToggleFeatured, onOpen }: Props) {
+export function ProductCard({ product: p, selected, checked = false, onToggleChecked, onToggleFeatured, onOpen }: Props) {
   const pill = productPill(p);
   const low = p.availableQuantity < LOW_TOTAL;
   const pct = Math.min(100, Math.round((p.availableQuantity / Math.max(p.variantCount * LOW_TOTAL, 1)) * 100));
   return (
-    <article className={cn("flex flex-col gap-2 rounded-card border-2 bg-surface p-2", selected ? "border-primary" : "border-transparent")}>
+    <article className={cn("flex flex-col gap-2 rounded-card border-2 p-2", checked ? "bg-surface-tint" : "bg-surface", selected || checked ? "border-primary" : "border-transparent")}>
       <div className="relative">
         <Media image={p.coverUrl ? { url: p.coverUrl } : null} alt="" aspect="1 / 0.9" className="rounded-md" sizes="200px" />
-        <span className={cn("absolute left-2 top-2 rounded-[9px] px-2 py-0.5 text-micro font-bold", PILL[pill.tone])}>{pill.label}</span>
+        <span className={cn("absolute bottom-2 left-2 rounded-[9px] px-2 py-0.5 text-micro font-bold", PILL[pill.tone])}>{pill.label}</span>
+        {onToggleChecked ? (
+          <label className="absolute left-0.5 top-0.5 inline-flex size-11 cursor-pointer items-center justify-center">
+            <span className="sr-only">Select {p.title}</span>
+            <input type="checkbox" checked={checked} onChange={() => undefined} onClick={(e) => onToggleChecked(e.shiftKey)} className="size-[22px] cursor-pointer rounded-xs border-2 border-line-strong bg-surface accent-primary" />
+          </label>
+        ) : null}
         {onToggleFeatured ? (
           <button type="button" aria-pressed={p.featured} aria-label={`Feature ${p.title} on homepage`} onClick={() => onToggleFeatured(!p.featured)} className="absolute right-0.5 top-0.5 inline-flex size-11 items-center justify-center">
             <span className="flex size-8 items-center justify-center rounded-full bg-surface"><Star aria-hidden="true" size={18} className={cn("text-primary", p.featured && "fill-primary")} /></span>

@@ -67,6 +67,25 @@ export async function updateCategory(db: Db, id: string, patch: Partial<Category
   }
 }
 
+/**
+ * Shows or hides many categories in one transaction (lock in id order, then one update). Same four-way result as
+ * `bulkSetProductStatus`: `updated`, `unchanged` (already that way), `missing`. Hiding a category hides only that one;
+ * its sub-categories and products keep their own settings.
+ */
+export async function bulkSetCategoriesActive(db: Db, ids: string[], active: boolean) {
+  const unique = [...new Set(ids)];
+  return db.transaction(async (tx) => {
+    const rows = await tx.select({ id: categories.id, name: categories.name, active: categories.active }).from(categories).where(inArray(categories.id, unique)).orderBy(asc(categories.id)).for('update');
+    const found = new Set(rows.map((r) => r.id));
+    const missing = unique.filter((id) => !found.has(id));
+    const unchanged = rows.filter((r) => r.active === active).map((r) => r.id);
+    const candidates = rows.filter((r) => r.active !== active);
+    const changed = candidates.length === 0 ? [] : await tx.update(categories).set({ active, version: sql`${categories.version}` }).where(inArray(categories.id, candidates.map((c) => c.id))).returning({ id: categories.id, version: categories.version });
+    const updated = changed.map((c) => ({ id: c.id, version: c.version, previousActive: !active }));
+    return { active, requested: unique.length, updated, unchanged, skipped: [] as never[], missing };
+  });
+}
+
 type CollectionInput = { name: string; slug?: string | undefined; description?: string | null | undefined; sortOrder?: number | undefined; active?: boolean | undefined };
 
 export const listCollections = (db: Db) =>

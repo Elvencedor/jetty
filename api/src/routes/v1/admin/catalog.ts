@@ -3,8 +3,9 @@ import Joi from 'joi';
 import { apiError } from '../../../lib/errors.js';
 import { changeStock, listInventory, STOCK_REASONS, type StockChange } from '../../../modules/admin/inventory.js';
 import { createContentUploadIntent, createUploadIntent, deleteMedia, finalizeMedia, MEDIA_ANGLES, MEDIA_TYPES, MAX_UPLOAD_BYTES, updateMedia, type MediaFields } from '../../../modules/admin/media.js';
-import { createProduct, deleteProduct, getAdminProduct, listAdminProducts, replaceMatrix, setProductStatus, updateProduct, type MatrixInput, type ProductFields, type ProductListInput } from '../../../modules/admin/products.js';
-import { createCategory, createCollection, listCategories, listCollectionProducts, listCollections, setCollectionProducts, updateCategory, updateCollection } from '../../../modules/admin/taxonomy.js';
+import { revalidateStorefront } from '../../../lib/revalidate.js';
+import { BULK_LIMIT, BULK_STATUSES, bulkSetProductStatus, createProduct, deleteProduct, getAdminProduct, listAdminProducts, replaceMatrix, setProductStatus, updateProduct, type BulkProductStatus, type MatrixInput, type ProductFields, type ProductListInput } from '../../../modules/admin/products.js';
+import { bulkSetCategoriesActive, createCategory, createCollection, listCategories, listCollectionProducts, listCollections, setCollectionProducts, updateCategory, updateCollection } from '../../../modules/admin/taxonomy.js';
 import { assertIfMatch, audited, db, etagFor, guard, NO_STORE, pageQuery, slugSchema, uuidParam } from './shared.js';
 
 const write = guard('catalog:write');
@@ -137,6 +138,22 @@ export const adminCatalogRoutes: ServerRoute[] = [
       return h.response().code(204);
     },
   },
+  {
+    method: 'POST',
+    path: '/admin/products/bulk-status',
+    options: {
+      ...write,
+      description: 'Move many products to one status in a single step; reports what changed, what already was, what was skipped and why, and what no longer exists',
+      tags: ['api', 'admin'],
+      validate: { payload: Joi.object({ ids: Joi.array().items(Joi.string().uuid()).min(1).max(BULK_LIMIT).required(), status: Joi.string().valid(...BULK_STATUSES).required() }) },
+    },
+    handler: async (request, h) => {
+      const body = request.payload as { ids: string[]; status: BulkProductStatus };
+      const result = await audited(request, (tx) => bulkSetProductStatus(tx, body.ids, body.status), (r) => (r.updated.length === 0 ? null : { action: 'product.bulk_status', resourceType: 'product', before: { statuses: Object.fromEntries(r.updated.map((u) => [u.id, u.previousStatus])) }, after: { status: r.status, updated: r.updated.map((u) => u.id), skipped: r.skipped.map((x) => x.id) } }));
+      if (result.updated.length > 0) void revalidateStorefront(request.server.app.env, request.server.app.logger, ['catalog']);
+      return h.response(result).header('Cache-Control', NO_STORE);
+    },
+  },
   ...(['publish', 'archive'] as const).map(
     (action): ServerRoute => ({
       method: 'POST',
@@ -258,6 +275,22 @@ export const adminCatalogRoutes: ServerRoute[] = [
     handler: async (request, h) => {
       const row = await audited(request, (tx) => createCategory(tx, request.payload as never), (row) => ({ action: 'category.create', resourceType: 'category', resourceId: row.id, after: row }));
       return h.response(row).code(201).header('Cache-Control', NO_STORE);
+    },
+  },
+  {
+    method: 'POST',
+    path: '/admin/categories/bulk-status',
+    options: {
+      ...write,
+      description: 'Show or hide many categories in a single step',
+      tags: ['api', 'admin'],
+      validate: { payload: Joi.object({ ids: Joi.array().items(Joi.string().uuid()).min(1).max(BULK_LIMIT).required(), active: Joi.boolean().required() }) },
+    },
+    handler: async (request, h) => {
+      const body = request.payload as { ids: string[]; active: boolean };
+      const result = await audited(request, (tx) => bulkSetCategoriesActive(tx, body.ids, body.active), (r) => (r.updated.length === 0 ? null : { action: 'category.bulk_status', resourceType: 'category', before: { active: !r.active, ids: r.updated.map((u) => u.id) }, after: { active: r.active, ids: r.updated.map((u) => u.id) } }));
+      if (result.updated.length > 0) void revalidateStorefront(request.server.app.env, request.server.app.logger, ['catalog']);
+      return h.response(result).header('Cache-Control', NO_STORE);
     },
   },
   {

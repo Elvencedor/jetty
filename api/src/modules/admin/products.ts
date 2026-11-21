@@ -274,6 +274,54 @@ export async function setProductStatus(db: Db, id: string, status: 'active' | 'a
   });
 }
 
+export const BULK_STATUSES = ['draft', 'active', 'archived'] as const;
+export type BulkProductStatus = (typeof BULK_STATUSES)[number];
+/** The most products one bulk change takes: enough for a whole catalogue page set, small enough for one transaction. */
+export const BULK_LIMIT = 500;
+
+/**
+ * Moves many products to one status in a single transaction: three queries however many there are (lock, check, update).
+ * Each product ends up in one of four places in the result, so the admin can see exactly what happened:
+ * - `updated`: changed (with its new version and what it was before, which is enough to put it back);
+ * - `unchanged`: already in that status, so asking again is harmless;
+ * - `skipped`: not changed, with the reason (publishing needs an active variant);
+ * - `missing`: no such product (deleted since the admin selected it).
+ * Rows are locked in id order, so two overlapping bulk changes queue up instead of deadlocking.
+ * This sets one field to a value regardless of what else changed, so it takes no version; the database still moves each
+ * product's version up, and an editor that has the product open is told it changed the next time it saves.
+ */
+export async function bulkSetProductStatus(db: Db, ids: string[], status: BulkProductStatus) {
+  const unique = [...new Set(ids)];
+  return db.transaction(async (tx) => {
+    const rows = await tx.select({ id: products.id, title: products.title, status: products.status }).from(products).where(inArray(products.id, unique)).orderBy(asc(products.id)).for('update');
+    const found = new Set(rows.map((r) => r.id));
+    const missing = unique.filter((id) => !found.has(id));
+    const unchanged = rows.filter((r) => r.status === status).map((r) => r.id);
+    let candidates = rows.filter((r) => r.status !== status);
+
+    const skipped: { id: string; title: string; code: 'NOT_PUBLISHABLE'; reason: string }[] = [];
+    if (status === 'active' && candidates.length > 0) {
+      const sellable = new Set(
+        (await tx.selectDistinct({ id: productVariants.productId }).from(productVariants).where(and(inArray(productVariants.productId, candidates.map((c) => c.id)), eq(productVariants.active, true)))).map((r) => r.id),
+      );
+      for (const c of candidates) if (!sellable.has(c.id)) skipped.push({ id: c.id, title: c.title, code: 'NOT_PUBLISHABLE', reason: 'It has no active variant. Add one before publishing.' });
+      candidates = candidates.filter((c) => sellable.has(c.id));
+    }
+
+    const before = new Map(candidates.map((c) => [c.id, c.status]));
+    const changed =
+      candidates.length === 0
+        ? []
+        : await tx
+            .update(products)
+            .set({ status, ...(status === 'active' ? { publishedAt: sql`coalesce(${products.publishedAt}, now())` } : {}), updatedAt: new Date() })
+            .where(inArray(products.id, candidates.map((c) => c.id)))
+            .returning({ id: products.id, version: products.version });
+    const updated = changed.map((c) => ({ id: c.id, version: c.version, previousStatus: before.get(c.id)! }));
+    return { status, requested: unique.length, updated, unchanged, skipped, missing };
+  });
+}
+
 // -------------------------------------------------------------- variant matrix
 
 /**
