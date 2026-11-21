@@ -111,7 +111,9 @@ test("a hero card takes a picture, asks what it shows, and keeps it", async ({ p
   await expect(panel.getByRole("button", { name: "Add a picture" })).toBeVisible();
 });
 
-test("the picks row is chosen product by product, in an order, or left to the featured flag", async ({ page }) => {
+test("the picks row is chosen product by product, in an order, or left to the featured flag", async ({ page, request }) => {
+  // The picks show product names read from the catalogue, which other specs edit: start from the standard fixture.
+  await request.post("http://localhost:4010/api/v1/__test/reset-products");
   await signIn(page, "/admin/storefront?section=products");
   const panel = page.getByRole("region", { name: "Jetty's picks" });
   await expect(panel.getByRole("radio", { name: /Products marked as featured/ })).toHaveAttribute("aria-checked", "true");

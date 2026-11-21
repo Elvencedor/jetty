@@ -14,6 +14,14 @@ async function addWigAndOpenCheckout(page: Page) {
   await page.waitForLoadState("networkidle");
 }
 
+/** Picks a card the way a person does: by its visible card (the radio itself is hidden for screen readers only). */
+async function pickCard(page: Page, name: RegExp) {
+  const radio = page.getByRole("radio", { name });
+  await page.locator("label").filter({ has: radio }).click();
+  await expect(radio).toBeChecked();
+}
+const chooseDelivery = (page: Page) => pickCard(page, /^Delivery/);
+
 async function fillDelivery(page: Page, name = "Ada Obi") {
   await page.getByLabel("Full name").fill(name);
   await page.getByLabel(/^Phone/).fill("0803 123 4567");
@@ -32,7 +40,7 @@ test("checking out with a bag walks the three steps and reaches payment", async 
   await expect(page.getByLabel("Full name")).toBeFocused();
 
   await fillDelivery(page);
-  await page.getByRole("radio", { name: /^Delivery/ }).check({ force: true });
+  await chooseDelivery(page);
   // Choosing a method asks for a new quote, and the totals are dimmed while it loads: scan once they have settled.
   await expect(page.locator('section[aria-label="Order summary"][aria-busy="true"]')).toHaveCount(0);
   const results = await new AxeBuilder({ page }).analyze();
@@ -40,7 +48,7 @@ test("checking out with a bag walks the three steps and reaches payment", async 
   await page.getByRole("button", { name: "Continue to payment" }).click();
 
   await expect(page.getByRole("heading", { name: "How would you like to pay?" })).toBeVisible();
-  await page.getByRole("radio", { name: /Card/ }).check({ force: true });
+  await pickCard(page, /Card/);
   await page.getByRole("button", { name: "Review order" }).click();
 
   await expect(page.getByRole("heading", { name: "Quick check" })).toBeVisible();
@@ -54,7 +62,7 @@ test("checking out with a bag walks the three steps and reaches payment", async 
 test("details survive a reload and a step can't be reached early", async ({ page }) => {
   await addWigAndOpenCheckout(page);
   await fillDelivery(page);
-  await page.getByRole("radio", { name: /^Delivery/ }).check({ force: true });
+  await chooseDelivery(page);
   await page.reload();
   await expect(page.getByLabel("Full name")).toHaveValue("Ada Obi");
   await page.goto("/checkout?step=review");
@@ -64,9 +72,9 @@ test("details survive a reload and a step can't be reached early", async ({ page
 test("returning from Paystack confirms with the server and lands on the confirmation", async ({ page }) => {
   await addWigAndOpenCheckout(page);
   await fillDelivery(page);
-  await page.getByRole("radio", { name: /^Delivery/ }).check({ force: true });
+  await chooseDelivery(page);
   await page.getByRole("button", { name: "Continue to payment" }).click();
-  await page.getByRole("radio", { name: /Card/ }).check({ force: true });
+  await pickCard(page, /Card/);
   await page.getByRole("button", { name: "Review order" }).click();
   await page.getByRole("button", { name: /^Pay ₦/ }).click();
   await expect(page).toHaveURL(/order=([0-9a-f-]{36})/);
@@ -89,9 +97,9 @@ test("returning from Paystack confirms with the server and lands on the confirma
 test("a failed payment says no money was taken and can be retried", async ({ page }) => {
   await addWigAndOpenCheckout(page);
   await fillDelivery(page, "Fail Test");
-  await page.getByRole("radio", { name: /^Delivery/ }).check({ force: true });
+  await chooseDelivery(page);
   await page.getByRole("button", { name: "Continue to payment" }).click();
-  await page.getByRole("radio", { name: /Card/ }).check({ force: true });
+  await pickCard(page, /Card/);
   await page.getByRole("button", { name: "Review order" }).click();
   await page.getByRole("button", { name: /^Pay ₦/ }).click();
   await expect(page.getByText("Your payment didn't go through. No money was taken.")).toBeVisible();

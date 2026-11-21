@@ -20,6 +20,11 @@ test.beforeEach(async ({ request, isMobile }) => {
   await request.post("http://localhost:4010/api/v1/__test/reset-products");
 });
 
+// These tests rename and edit the shared product, so each leaves it as it found it for whichever spec runs next.
+test.afterEach(async ({ request, isMobile }) => {
+  if (!isMobile) await request.post("http://localhost:4010/api/v1/__test/reset-products");
+});
+
 const drawer = (page: Page) => page.getByRole("dialog", { name: "Edit product" });
 
 test("the catalogue shows the summary, filters by status and opens a product in the drawer", async ({ page }) => {
@@ -29,11 +34,11 @@ test("the catalogue shows the summary, filters by status and opens a product in 
   await expect(page.getByText("4 variants · ₦125k–₦155k")).toBeVisible();
 
   await page.getByRole("button", { name: "Draft", exact: true }).click();
-  await expect(page.getByText("Silk Sleep Bonnet")).toBeVisible();
-  await expect(page.getByText("Bone Straight HD Frontal")).toHaveCount(0);
+  await expect(page.getByText("Silk Sleep Bonnet", { exact: true })).toBeVisible();
+  await expect(page.getByText("Bone Straight HD Frontal", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Low stock", exact: true }).click();
-  await expect(page.getByText("Bone Straight HD Frontal")).toBeVisible();
-  await expect(page.getByText("Silk Sleep Bonnet")).toHaveCount(0);
+  await expect(page.getByText("Bone Straight HD Frontal", { exact: true })).toBeVisible();
+  await expect(page.getByText("Silk Sleep Bonnet", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "All", exact: true }).click();
 
   await page.getByRole("button", { name: /^Bone Straight HD Frontal/ }).click();
@@ -126,7 +131,7 @@ test("changes in the drawer are guarded: closing asks first, and keeping edits k
   await expect(d.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
   await d.getByRole("button", { name: "Close" }).click();
   await expect(d).toBeHidden();
-  await expect(page.getByText("Bone Straight HD Frontal Wig")).toBeVisible();
+  await expect(page.getByText("Bone Straight HD Frontal Wig", { exact: true })).toBeVisible();
 });
 
 test("when someone else changed the product, the save offers a choice; keeping editing leaves the edit, and their version replaces it", async ({ page, request }) => {
