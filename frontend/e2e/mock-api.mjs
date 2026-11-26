@@ -46,10 +46,10 @@ const home = {
     { type: "hero", cards: [{ id: "h1", tag: "New in", headline: "Wigs you will love", subheadline: "Delivered fast.", tone: "pink", ctaLabel: "Shop now", ctaUrl: "/shop", endsAt: null }] },
     { type: "products", title: "Jetty's picks", tabs: [{ key: "featured", label: "Featured", products: PRODUCTS.map(card) }, { key: "deal", label: "On deal", products: [card(bone)] }] },
     { type: "length", title: "Shop by length", items: [{ label: "14–16", hint: "Shoulder", lengths: [14, 16] }, { label: "20–22", hint: "Bra strap", lengths: [20, 22] }] },
-    { type: "trust", items: [{ icon: "lock", title: "Secure pay", caption: "Card or transfer" }, { icon: "return", title: "7-day returns", caption: "No stress" }] },
+    { type: "trust", items: [{ icon: "lock", title: "Secure pay", caption: "Card or transfer" }, { icon: "return", title: "Return policy", caption: "Unworn, lace uncut" }] },
   ],
 };
-const settings = { store: { name: "Jetty's Hairs", contactEmail: "hello@example.com", contactPhone: "+2348000000000", whatsappNumber: "+2348000000000", showroomAddress: "Lekki, Lagos", showroomHours: "Mon–Sat 10–6" }, policies: { returnWindowDays: 7, podMaxOrderMinor: null }, payments: { enabledMethods: ["card", "bank_transfer"], cardHoldMinutes: 30, transferHoldMinutes: 120 } };
+const settings = { store: { name: "Jetty's Hairs", contactEmail: "hello@example.com", contactPhone: "+2348000000000", whatsappNumber: "+2348000000000", showroomAddress: "Lekki, Lagos", showroomHours: "Mon–Sat 10–6" }, policies: { podMaxOrderMinor: null }, payments: { enabledMethods: ["card", "bank_transfer"], cardHoldMinutes: 30, transferHoldMinutes: 120 } };
 
 function listing(url, onlyOffer) {
   const q = url.searchParams.get("q")?.toLowerCase();
@@ -64,6 +64,12 @@ function listing(url, onlyOffer) {
   const page = items.slice(start, start + limit);
   const next = start + limit < items.length ? String(start + limit) : null;
   return { data: page, page: { nextCursor: next, ...(start === 0 ? { total: items.length } : {}) } };
+}
+
+function giftOffer(subtotal) {
+  const minimum = 25000000;
+  const unlocked = subtotal >= minimum;
+  return { promotionId: "bonnet-offer", name: "Free bonnet", status: unlocked ? "unlocked" : "locked", needs: { signIn: false, qualifyingItem: false, spendMinor: unlocked ? 0 : minimum - subtotal }, firstOrderOnly: false, gift: { variantId: "bonnet", slug: "silk-bonnet", title: "Silk Sleep Bonnet", optionSummary: "", image: null, quantity: 1, valueMinor: 1200000 }, minimumSubtotalMinor: minimum, eligibleSubtotalMinor: subtotal, qualifying: { allProducts: true, collections: [], products: [] }, endsAt: null, leftCount: unlocked ? null : 4 };
 }
 
 function quote(items, codes = []) {
@@ -83,7 +89,9 @@ function quote(items, codes = []) {
   const applied = codes.filter((c) => c === "GIFTME").map(() => ({ promotionId: "gift", name: "Free gift", kind: "free_gift", code: "GIFTME", discountMinor: giftValue })).concat(codes.filter((c) => c === "SAVE10").map(() => ({ promotionId: "promo", name: "10% off", kind: "percentage", code: "SAVE10", discountMinor: Math.round(paidSubtotal / 10) })));
   const discount = applied.reduce((n, p) => n + p.discountMinor, 0);
   const rejectedCodes = codes.filter((c) => c !== "SAVE10" && c !== "GIFTME").map((code) => ({ code, reason: "INVALID_CODE" }));
-  return { currency: "NGN", lines, promotions: { applied, rejectedCodes }, warnings: [], subtotalMinor: subtotal, discountMinor: discount, delivery: null, deliveryFeeMinor: 0, taxMinor: 0, totalMinor: subtotal - discount, quoteId: "q", quoteExpiresAt: "2099-01-01T00:00:00Z" };
+  // A free gift over ₦250,000 (the code fixture above brings its own gift, so it has no offer to earn).
+  const giftOffers = codes.includes("GIFTME") || !lines.length ? [] : [giftOffer(subtotal)];
+  return { currency: "NGN", lines, giftOffers, promotions: { applied, rejectedCodes }, warnings: [], subtotalMinor: subtotal, discountMinor: discount, delivery: null, deliveryFeeMinor: 0, taxMinor: 0, totalMinor: subtotal - discount, quoteId: "q", quoteExpiresAt: "2099-01-01T00:00:00Z" };
 }
 
 // Accounts: reset code 123456 and password "correct-horse-1" are accepted; taken@example.com already has an account.
@@ -171,7 +179,7 @@ const orderRow = (o) => ({
 const allowedFor = (o) => (o.paymentStatus !== "paid" ? [] : o.status === "placed" ? ["packed"] : o.status === "packed" ? [o.deliveryMethod === "pickup" ? "delivered" : "out_for_delivery"] : o.status === "out_for_delivery" ? ["delivered"] : []);
 const orderDetail = (o) => ({
   order: { id: o.id, orderNumber: o.number, status: o.status, paymentStatus: o.paymentStatus, email: o.email, phoneE164: o.phone, currency: "NGN", subtotalMinor: o.subtotal, discountMinor: o.discount, deliveryFeeMinor: o.fee, taxMinor: 0, totalMinor: orderTotal(o), deliveryMethod: o.deliveryMethod,
-    deliveryAddressSnapshot: { recipientName: o.recipient, line1: "14 Admiralty Way", area: o.area, city: o.state ?? "Lagos", state: o.state ?? "Lagos" }, appliedPromotions: o.promos, placedAt: o.paymentStatus === "paid" ? o.createdAt : null, createdAt: o.createdAt, updatedAt: o.createdAt },
+    deliveryAddressSnapshot: { recipientName: o.recipient, addressLine1: "14 Admiralty Way", riderNote: "Please call when you get to the gate", area: o.area, city: o.state ?? "Lagos", state: o.state ?? "Lagos" }, appliedPromotions: o.promos, placedAt: o.paymentStatus === "paid" ? o.createdAt : null, createdAt: o.createdAt, updatedAt: o.createdAt },
   customer: { id: null, phone: o.phone, email: o.email, status: null, paidOrders: 3, lifetimeValueMinor: 61_200_000 },
   items: o.items.map((i, n) => ({ id: `${o.id}-i${n}`, titleSnapshot: i.title, skuSnapshot: i.sku, optionsSnapshot: i.options, quantity: i.qty, unitPriceMinor: i.unit, discountMinor: 0, lineTotalMinor: i.unit * i.qty, image: null })),
   timeline: o.timeline.map(([from, to, note], n) => ({ id: `${o.id}-t${n}`, fromStatus: from, toStatus: to, actorType: "system", actorId: null, note: note ?? null, createdAt: EVENT_TIMES[Math.min(n, 2)] })),
@@ -190,7 +198,7 @@ const ACCOUNTS = { "0123456789": "JETTY HAIR LTD" };
 function seedAdminSettings() {
   payout = null;
   adminSettings.store = { name: "Jetty's Hairs", contactEmail: "hello@example.com", contactPhone: "+2348031234567", whatsappNumber: "+2348031234567", showroomAddress: "Lekki Phase 1, Lagos", showroomHours: "Mon–Sat, 9am–7pm" };
-  adminSettings.policies = { returnWindowDays: 7, podMaxOrderMinor: null };
+  adminSettings.policies = { podMaxOrderMinor: null };
   adminSettings.payments = { enabledMethods: ["card", "bank_transfer"], cardHoldMinutes: 30, transferHoldMinutes: 120 };
   const zone = (n, over) => ({ id: id(700 + n), timezone: "Africa/Lagos", scope: "state", state: null, states: [], deliveryFeeMinor: null, deliveryMinDays: 1, deliveryMaxDays: 3, pickupEnabled: false, active: true, areas: [], ...over });
   adminZones = [
@@ -229,7 +237,7 @@ let promos = [];
 const day = 86_400_000;
 const isoOffset = (offset) => new Date(Date.now() + offset * day).toISOString();
 function seedPromos() {
-  const p = (n, over) => ({ id: id(970 + n), name: "Promo", kind: "percentage", status: "active", configuration: { version: 1, percent: 10 }, scope: {}, startsAt: null, endsAt: null, priority: 0, stackable: false, totalUsageLimit: null, perCustomerLimit: 1, usageCount: 0, firstOrderOnly: false, minimumSubtotalMinor: null, codes: [], createdAt: isoOffset(-20 + n), ...over });
+  const p = (n, over) => ({ id: id(970 + n), name: "Promo", kind: "percentage", status: "active", configuration: { version: 1, percent: 10 }, scope: {}, startsAt: null, endsAt: null, priority: 0, totalUsageLimit: null, perCustomerLimit: 1, usageCount: 0, firstOrderOnly: false, minimumSubtotalMinor: null, codes: [], createdAt: isoOffset(-20 + n), ...over });
   promos = [
     p(1, { name: "BOGO · Bob wigs", kind: "buy_x_get_y", configuration: { version: 1, buy: 1, get: 1, percentOff: 100 }, startsAt: isoOffset(-3), endsAt: isoOffset(5), usageCount: 74 }),
     p(2, { name: "FLASH15 · Frontals", status: "active", startsAt: isoOffset(2), endsAt: isoOffset(4), codes: [{ id: "c1", code: "FLASH15", maxRedemptions: null, active: true }] }),
@@ -238,7 +246,7 @@ function seedPromos() {
   ];
 }
 const lifecycle = (x) => (x.status === "draft" ? "draft" : x.status === "inactive" ? "inactive" : x.endsAt && Date.parse(x.endsAt) <= Date.now() ? "ended" : x.startsAt && Date.parse(x.startsAt) > Date.now() ? "scheduled" : "live");
-const promoRow = (x) => ({ id: x.id, name: x.name, kind: x.kind, status: lifecycle(x), startsAt: x.startsAt, endsAt: x.endsAt, priority: x.priority, stackable: x.stackable, type: x.codes.length ? "code" : "automatic", usage: { redemptions: x.usageCount, openHolds: 0, limit: x.totalUsageLimit }, createdAt: x.createdAt });
+const promoRow = (x) => ({ id: x.id, name: x.name, kind: x.kind, status: lifecycle(x), startsAt: x.startsAt, endsAt: x.endsAt, priority: x.priority, type: x.codes.length ? "code" : "automatic", usage: { redemptions: x.usageCount, openHolds: 0, limit: x.totalUsageLimit }, createdAt: x.createdAt });
 const promoDetail = (x) => ({ promotion: { ...x, lifecycle: lifecycle(x), codes: undefined }, codes: x.codes, stats: { redemptions: x.usageCount, discountMinor: x.usageCount * 1_500_000, orderRevenueMinor: x.usageCount * 21_000_000, openHolds: 0 } });
 seedPromos();
 
@@ -246,7 +254,7 @@ seedPromos();
 // product editor's tests can attach, remove and create them while those screens are being tested in parallel.
 let productPromos = [];
 function seedProductPromos() {
-  const base = { status: "active", kind: "percentage", configuration: { version: 1, percent: 15 }, priority: 0, stackable: false, startsAt: null, endsAt: null, totalUsageLimit: null, perCustomerLimit: null, usageCount: 0, firstOrderOnly: false, minimumSubtotalMinor: null, createdAt: new Date().toISOString(), codes: [] };
+  const base = { status: "active", kind: "percentage", configuration: { version: 1, percent: 15 }, priority: 0, startsAt: null, endsAt: null, totalUsageLimit: null, perCustomerLimit: null, usageCount: 0, firstOrderOnly: false, minimumSubtotalMinor: null, createdAt: new Date().toISOString(), codes: [] };
   productPromos = [
     { ...base, id: id(960), name: "Bone Straight sale", scope: { include: { productIds: [id(2001), id(2002)] } } },
     { ...base, id: id(961), name: "Bonnet offer", status: "draft", configuration: { version: 1, percent: 20 }, scope: { include: { productIds: [id(2002)] } } },
@@ -279,7 +287,7 @@ function seedContent() {
     c("banner", "Wigs you will love", { headline: "Wigs you will love", tone: "pink", ctaLabel: "Shop now", ctaUrl: "/shop" }),
     c("banner", "New bobs", { headline: "New bobs", tone: "blush" }),
     c("story", "New in", { title: "New in", linkUrl: "/shop?sort=newest" }),
-    c("page", "Returns policy", { markdown: "# Returns\n\nYou have **7 days** to return an unworn wig." }, { slug: "returns" }),
+    c("page", "Returns policy", { markdown: "# Returns\n\nYou can return an **unworn wig**." }, { slug: "returns" }),
     c("page", "Delivery", { markdown: "# Delivery\n\nNext-day in Lagos." }, { slug: "delivery" }),
     c("page", "Terms", { markdown: "# Terms\n\nDraft." }, { slug: "terms", status: "draft" }),
   ];
@@ -464,7 +472,7 @@ const server = createServer(async (req, res) => {
     if (path === "/storefront/settings") return send(200, { data: settings });
     const pageMatch = path.match(/^\/content\/pages\/([^/]+)$/);
     if (pageMatch) {
-      const pages = { returns: { title: "Returns and refunds", markdown: "## Returning an item\n\nYou can return an item within **7 days** of delivery.\n\n[Track an order](/track) or read the [FAQs](https://example.com/faqs).\n\n<script>alert(1)</script>" }, contact: { title: "Contact us", markdown: "We are happy to help." } };
+      const pages = { returns: { title: "Returns and refunds", markdown: "## Returning an item\n\nYou can return an item that is **unworn**.\n\n[Track an order](/track) or read the [FAQs](https://example.com/faqs).\n\n<script>alert(1)</script>" }, contact: { title: "Contact us", markdown: "We are happy to help." } };
       const found = pages[pageMatch[1]];
       return found ? send(200, { data: { slug: pageMatch[1], ...found, updatedAt: "2026-10-01T00:00:00Z" } }) : send(404, { error: { code: "NOT_FOUND", message: "Not found", requestId: "r" } });
     }

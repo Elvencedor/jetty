@@ -216,6 +216,7 @@ function OrderView({ detail, onClose }: { detail: AdminOrderDetail; onClose: () 
           <span className="font-bold">{order.deliveryMethod === "pickup" ? "Pickup" : "Delivery"}{delivery?.zone ? ` · ${delivery.zone}` : ""}</span>
           <span>{order.deliveryMethod === "pickup" ? "Collected from the studio" : addressLines(a) || "No address"}</span>
           {a.landmark ? <span className="text-muted">Near {a.landmark}</span> : null}
+          {a.riderNote ? <p className="break-words"><span className="font-semibold">Customer note:</span> {a.riderNote}</p> : null}
           {order.deliveryMethod !== "pickup" ? (
             canFulfil && !closed ? (
               <form onSubmit={submitRider} className="mt-1 flex flex-col gap-1.5">

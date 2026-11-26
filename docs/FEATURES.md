@@ -129,9 +129,9 @@ IDs are stable so tickets can reference them (e.g. `PROMO-04`).
 | PROMO-05 | Free delivery by zone and/or minimum spend | P0 |
 | PROMO-06 | Automatic promotions vs code-based coupons | P0 |
 | PROMO-07 | Scope: all products, collections, specific products, exclusions | P0 |
-| PROMO-08 | Eligibility: minimum spend, first order only, customer segment | P0 (min spend, first order) / P1 (segments) |
+| PROMO-08 | Eligibility: minimum spend (not for automatic item discounts), first order only, customer segment | P0 (min spend, first order) / P1 (segments) |
 | PROMO-09 | Usage limits: total and per customer | P0 |
-| PROMO-10 | Stacking rules (what combines with what), resolved deterministically | P0 |
+| PROMO-10 | Combining rules: the best automatic discount on each item, plus at most one promo code per order, resolved deterministically | P0 |
 | PROMO-11 | Scheduling (start/end, auto-activate/expire) and a countdown for flash deals | P0 (schedule) / P1 (countdown) |
 | PROMO-12 | Single pricing service: the storefront badge, the bag and the charged total always agree | P0 |
 | PROMO-13 | Code generator and bulk/unique codes | P2 |
@@ -167,7 +167,7 @@ IDs are stable so tickets can reference them (e.g. `PROMO-04`).
 | ORD-05 | Tracking page (with guest lookup by order number + phone) | P0 |
 | ORD-06 | Rider details and call button; live map | P1 (rider) / P2 (map) |
 | ORD-07 | Customer can edit or cancel within a 30-minute window | P2 |
-| ORD-08 | Returns/exchange request flow (7 days, unworn, lace uncut) | P1 |
+| ORD-08 | Returns/exchange request flow (unworn, lace uncut) | P1 |
 | ORD-09 | Post-purchase content (install video, care guide) | P1 |
 | ORD-10 | Checkout satisfaction rating | P2 |
 
@@ -278,7 +278,7 @@ IDs are stable so tickets can reference them (e.g. `PROMO-04`).
 | SET-02 | Delivery zones (one state or nationwide), one price and duration per zone, pickup locations | P0 |
 | SET-03 | Payment method configuration | P0 |
 | SET-04 | Notification templates (email, WhatsApp, SMS) | P1 |
-| SET-05 | Policies (returns window, POD limits) | P0 |
+| SET-05 | Policies (POD limits) | P0 |
 | SET-06 | Tax/VAT settings | P1 |
 
 ## 13. Notifications

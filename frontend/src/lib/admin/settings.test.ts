@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DeliveryZone } from "@/lib/api/admin-settings";
-import { missingStoreDetails, canSwitchOff, changedFields, deliveryDaysLabel, holdChoices, parseAreas, returnWindowChoices, storeToForm, storeToSettings, validateStore, validateZone, zoneCoverage, zoneOptions, zoneToForm, zoneToInput } from "./settings";
+import { missingStoreDetails, canSwitchOff, changedFields, deliveryDaysLabel, holdChoices, parseAreas, storeToForm, storeToSettings, validateStore, validateZone, zoneCoverage, zoneOptions, zoneToForm, zoneToInput } from "./settings";
 
 describe("changedFields", () => {
   it("returns only what differs, and null when nothing does", () => {
@@ -37,7 +37,6 @@ describe("payments and policies", () => {
   it("keeps an unusual stored value selectable", () => {
     expect(holdChoices(45).map((o) => o.minutes)).toEqual([30, 45, 120, 240, 480]);
     expect(holdChoices(60).map((o) => o.minutes)).toEqual([30, 45, 60, 120, 240, 480]);
-    expect(returnWindowChoices(10)).toEqual([0, 7, 10, 14, 30]);
   });
 });
 

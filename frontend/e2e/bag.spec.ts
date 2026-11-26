@@ -53,6 +53,9 @@ test("the bag prices the server's way: quantity, codes and removal with undo", a
   await page.getByLabel("Promotion code").fill("save10");
   await page.getByRole("button", { name: "Apply" }).click();
   await expect(page.getByText("You’re saving ₦36,000")).toBeVisible();
+  // One code per order: the box comes back once the code is removed.
+  await expect(page.getByLabel("Promotion code")).toHaveCount(0);
+  await page.getByRole("button", { name: "Remove code SAVE10" }).click();
   await page.getByLabel("Promotion code").fill("nope");
   await page.getByRole("button", { name: "Apply" }).click();
   await expect(page.getByText("That code isn't valid.")).toBeVisible();
@@ -69,6 +72,27 @@ test("the bag prices the server's way: quantity, codes and removal with undo", a
   await expect(page.getByRole("heading", { name: "Your bag is empty" })).toHaveCount(0);
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(page.getByRole("group", { name: /Quantity of Bone Straight/ }).getByRole("status")).toHaveText("2");
+});
+
+test("a free gift shows how close it is, on the bag and at checkout, and unlocks", async ({ page }) => {
+  await addWig(page);
+  await page.goto("/bag");
+  const gifts = page.getByRole("region", { name: /free gift/i });
+  await expect(gifts.getByRole("heading", { name: "You’re ₦70,000 away from a free gift" })).toBeVisible();
+  await expect(gifts.getByRole("progressbar")).toHaveAttribute("aria-valuetext", "₦180,000 of ₦250,000");
+  await expect(gifts.getByText("Only 4 left")).toBeVisible();
+  await expect(gifts.getByRole("link", { name: "Add more items" })).toHaveAttribute("href", "/shop");
+
+  await page.goto("/checkout");
+  await expect(gifts.getByText("Your delivery details are saved.")).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+
+  await page.goto("/bag");
+  await page.getByRole("button", { name: /Increase quantity of Bone Straight/ }).click();
+  await expect(gifts.getByRole("heading", { name: "You’ve unlocked a free gift!" })).toBeVisible();
+  await expect(gifts.getByText("Unlocked", { exact: true })).toBeVisible();
+  await expect(gifts.getByRole("progressbar")).toHaveCount(0);
 });
 
 test("the bag survives a reload", async ({ page }) => {

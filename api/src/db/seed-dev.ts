@@ -471,7 +471,7 @@ async function seedOrdersAndReviews(db: Db, customerIds: string[], log: SeedLogg
           subtotalMinor: subtotal,
           deliveryFeeMinor: fee,
           totalMinor: subtotal + fee,
-          deliveryAddressSnapshot: { recipientName: customer.name, phoneE164: customer.phone, line1: '12 Admiralty Way', city: customer.city, state: customer.state, country: 'NG', ...(o.method === 'delivery' ? { deliveryMinDays: 1, deliveryMaxDays: 2 } : {}) },
+          deliveryAddressSnapshot: { recipientName: customer.name, phoneE164: customer.phone, addressLine1: '12 Admiralty Way', city: customer.city, state: customer.state, country: 'NG', ...(o.method === 'delivery' ? { deliveryMinDays: 1, deliveryMaxDays: 2 } : {}) },
           deliveryMethod: o.method,
           termsAcceptedAt: when,
           reservationExpiresAt: o.status === 'pending_payment' ? new Date(Date.now() + 30 * 60_000) : null,

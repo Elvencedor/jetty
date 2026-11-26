@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Quote, QuoteLine } from "@/lib/api/types";
-import { useCartStore, API_MAX_CODES } from "@/lib/stores/cart";
+import { useCartStore } from "@/lib/stores/cart";
 import type { LineView } from "@/lib/cart/model";
 import { BagLine, GiftLine } from "./BagLine";
 import { CodeEntry } from "./CodeEntry";
@@ -127,12 +127,12 @@ describe("CodeEntry", () => {
   const quote = (over: Partial<Quote["promotions"]> = {}) => ({ promotions: { applied: [], rejectedCodes: [], ...over } }) as Quote;
   const box = () => screen.getByRole("textbox", { name: "Promotion code" });
 
-  it("adds an upper-cased code and clears the box", async () => {
+  it("adds an upper-cased code and shows it in place of the box", async () => {
     render(<CodeEntry quote={undefined} />);
     await userEvent.type(box(), "  save10 ");
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(useCartStore.getState().promotionCodes).toEqual(["SAVE10"]);
-    expect(box()).toHaveValue("");
+    expect(screen.queryByRole("textbox", { name: "Promotion code" })).toBeNull();
     expect(screen.getByText("SAVE10")).toBeInTheDocument();
   });
   it("keeps Apply disabled until there is something to apply", async () => {
@@ -144,39 +144,25 @@ describe("CodeEntry", () => {
     await userEvent.type(box(), "x");
     expect(apply).toBeEnabled();
   });
-  it("refuses a duplicate code with a note", async () => {
+  it("takes one code at a time: the box is gone until the code is removed", async () => {
     useCartStore.setState({ promotionCodes: ["SAVE10"] });
     render(<CodeEntry quote={undefined} />);
-    await userEvent.type(box(), "save10{enter}");
-    expect(screen.getByRole("alert")).toHaveTextContent("already added");
-    expect(useCartStore.getState().promotionCodes).toEqual(["SAVE10"]);
-  });
-  it("stops at the maximum number of codes", async () => {
-    useCartStore.setState({ promotionCodes: Array.from({ length: API_MAX_CODES }, (_, i) => `CODE${i}`) });
-    render(<CodeEntry quote={undefined} />);
-    await userEvent.type(box(), "ONEMORE{enter}");
-    expect(screen.getByRole("alert")).toHaveTextContent(`up to ${API_MAX_CODES}`);
-    expect(useCartStore.getState().promotionCodes).toHaveLength(API_MAX_CODES);
-  });
-  it("marks codes the server applied, and explains the ones it turned down", () => {
-    useCartStore.setState({ promotionCodes: ["GOOD", "OLD"] });
-    render(<CodeEntry quote={quote({ applied: [{ promotionId: "a", name: "n", kind: "percentage", code: "good", discountMinor: 1 }], rejectedCodes: [{ code: "OLD", reason: "EXPIRED" }] })} />);
-    expect(screen.getByText("Applied")).toBeInTheDocument();
-    expect(screen.getAllByRole("alert")).toHaveLength(1);
-    expect(screen.getByRole("alert")).toHaveTextContent(/expired/i);
-  });
-  it("removes a code", async () => {
-    useCartStore.setState({ promotionCodes: ["SAVE10", "OTHER"] });
-    render(<CodeEntry quote={undefined} />);
+    expect(screen.queryByRole("textbox", { name: "Promotion code" })).toBeNull();
+    expect(screen.getByText(/One code per order/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Remove code SAVE10" }));
-    expect(useCartStore.getState().promotionCodes).toEqual(["OTHER"]);
+    expect(useCartStore.getState().promotionCodes).toEqual([]);
+    expect(box()).toHaveValue("");
   });
-  it("clears the note as soon as the shopper edits the box again", async () => {
-    useCartStore.setState({ promotionCodes: ["SAVE10"] });
-    render(<CodeEntry quote={undefined} />);
-    await userEvent.type(box(), "save10{enter}");
-    expect(screen.getByRole("alert")).toBeInTheDocument();
-    await userEvent.type(box(), "2");
+  it("marks a code the server applied", () => {
+    useCartStore.setState({ promotionCodes: ["GOOD"] });
+    render(<CodeEntry quote={quote({ applied: [{ promotionId: "a", name: "n", kind: "percentage", code: "good", discountMinor: 1 }], rejectedCodes: [] })} />);
+    expect(screen.getByText("Applied")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+  it("explains why a code was turned down", () => {
+    useCartStore.setState({ promotionCodes: ["OLD"] });
+    render(<CodeEntry quote={quote({ applied: [], rejectedCodes: [{ code: "OLD", reason: "EXPIRED" }] })} />);
+    expect(screen.queryByText("Applied")).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent(/expired/i);
   });
 });

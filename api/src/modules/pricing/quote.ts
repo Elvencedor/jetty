@@ -35,7 +35,7 @@ export async function quote(db: Db, input: Common & { deliveryAddress?: Destinat
     }
   }
 
-  const cart = await priceCart(db, { items: input.items, promotionCodes: input.promotionCodes, zoneId: zone?.id, customerId: input.customerId, now });
+  const cart = await priceCart(db, { items: input.items, promotionCodes: input.promotionCodes, zoneId: zone?.id, customerId: input.customerId, now, withGiftOffers: true });
   const deliveryFeeMinor = option ? feeFor(option, cart) : 0;
   const taxMinor = 0; // Tax/VAT settings are P1 (SET-06).
   const totalMinor = cart.subtotalMinor - cart.discountMinor + deliveryFeeMinor + taxMinor;
@@ -46,6 +46,7 @@ export async function quote(db: Db, input: Common & { deliveryAddress?: Destinat
     lines: cart.lines,
     promotions: cart.promotions,
     warnings: cart.warnings,
+    giftOffers: cart.giftOffers,
     subtotalMinor: cart.subtotalMinor,
     discountMinor: cart.discountMinor,
     delivery:

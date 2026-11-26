@@ -12,7 +12,7 @@ Shows what the shopper is getting and why it's a good deal. Promotions are visib
 3. **Line items** (white cards, `rounded-lg`): 84×100 image, name (700, 2 lines), variant summary (`muted`), badge (FREE · Buy 1 Get 1 / Buy 1 Get 1 ✓ / "Add 1 more bob → 1 free"), QuantityStepper, price (struck "was" when discounted). Trash IconButton top-right. **Gift lines** (free bonnet) have no stepper or trash, a "FREE GIFT" badge and "₦0".
 4. **Offers for you**: CouponTicket list (from `/promotions/available`) + free-text code entry.
 5. **Summary** card: PriceSummary `bag` with the savings banner.
-6. Reassurance line: "Secure checkout · 7-day returns · Help on WhatsApp".
+6. Reassurance line: "Secure checkout · Return policy · Help on WhatsApp".
 7. **Sticky checkout bar** (floating ink pill): "Total ₦251,050" + primary "Checkout →".
 
 ## States and interactions
@@ -20,7 +20,7 @@ Shows what the shopper is getting and why it's a good deal. Promotions are visib
 |---|---|---|
 | Quantity +/− | Change | Optimistic update → re-quote (debounce 300ms) → reconcile. On a stock error, revert and show an inline note on the line |
 | Trash | Remove | Remove the line with a 5s "Removed · Undo" inline row in its place |
-| Coupon ticket | Apply | Re-quote with the code; success → ticket selected; failure → inline reason from the API (`PROMO_NOT_ELIGIBLE`, `PROMO_EXPIRED`, `PROMO_NOT_COMBINABLE`) |
+| Coupon ticket | Apply | Re-quote with the code; success → ticket selected; failure → inline reason from the API (`PROMO_NOT_ELIGIBLE`, `PROMO_EXPIRED`) |
 | Code input | Submit | Same as above; Enter submits; uppercase on display |
 | Gift line | Eligibility lost (wig removed) | The gift disappears with the quote; the DealTracker row flips to "Add a frontal wig for a free bonnet" |
 | Summary | Re-quoting | Numbers dim to 50%, `aria-busy` |
@@ -31,7 +31,8 @@ Shows what the shopper is getting and why it's a good deal. Promotions are visib
 - **Price changed since added**: the quote returns `priceChanged`; show a `warning` note on the line: "Price updated from ₦215,000".
 - **Item no longer sold / out of stock**: line greyed, "No longer available" + Remove; checkout disabled until resolved.
 - **Quote expired** (`expiresAt`): silently re-quote on focus or visibility change.
-- **Stacking conflict**: the ticket for a non-combinable code shows "Can't be combined with Buy 1 Get 1" and stays unapplied.
+- **Gift rewards**: a card above the code box (and above the checkout steps) shows the free gifts earned, the nearest one to earn with its progress bar, next step and button, and any more behind "See more". Urgency shows only a real end date or low remaining count.
+- **One code per order**: while a code is on the bag the entry box is hidden; removing the code brings it back. Automatic item discounts always apply alongside it.
 
 ## Accessibility
 - Each line is an `<article>` labelled by the product name.

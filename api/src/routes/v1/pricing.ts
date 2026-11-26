@@ -17,7 +17,8 @@ const items = Joi.array()
   .max(50)
   .required();
 
-const promotionCodes = Joi.array().items(Joi.string().trim().min(1).max(64)).max(5).default([]);
+// One promo code per order.
+const promotionCodes = Joi.array().items(Joi.string().trim().min(1).max(64)).max(1).default([]);
 
 // Only the fields needed to resolve a zone; the full address is validated at checkout.
 const deliveryAddress = Joi.object({

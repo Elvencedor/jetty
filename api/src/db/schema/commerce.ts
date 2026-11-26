@@ -40,7 +40,6 @@ export const promotions = pgTable(
     startsAt: tstz('starts_at'),
     endsAt: tstz('ends_at'),
     priority: integer('priority').notNull().default(0),
-    stackable: boolean('stackable').notNull().default(false),
     totalUsageLimit: integer('total_usage_limit'),
     perCustomerLimit: integer('per_customer_limit'),
     usageCount: integer('usage_count').notNull().default(0),

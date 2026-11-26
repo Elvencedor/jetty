@@ -83,13 +83,12 @@ describe("settings: when a save finds the setting changed", () => {
     return sent;
   }
   const change = async () => {
-    await userEvent.click(await screen.findByRole("combobox", { name: /Return window/ }));
-    await userEvent.click(await screen.findByRole("option", { name: /14 days/ }));
+    await userEvent.type(await screen.findByLabelText("Pay on delivery limit"), "14000");
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
   };
 
   it("sends the version from the ETag it read", async () => {
-    const sent = setup(() => HttpResponse.json({ returnWindowDays: 14, podMaxOrderMinor: null }, { headers: { ETag: '"4"' } }), () => ({ value: { returnWindowDays: 7, podMaxOrderMinor: null }, version: 3 }));
+    const sent = setup(() => HttpResponse.json({ podMaxOrderMinor: 1_400_000 }, { headers: { ETag: '"4"' } }), () => ({ value: { podMaxOrderMinor: null }, version: 3 }));
     renderAdmin(<PoliciesForm canWrite />);
     await change();
     await waitFor(() => expect(sent).toHaveLength(1));
@@ -98,25 +97,25 @@ describe("settings: when a save finds the setting changed", () => {
   });
 
   it("'keep my changes' sends the same change on the current version, and the form shows it saved", async () => {
-    const sent = setup((call) => (call === 1 ? staleResponse(8) : HttpResponse.json({ returnWindowDays: 14, podMaxOrderMinor: null }, { headers: { ETag: '"9"' } })), () => ({ value: { returnWindowDays: 7, podMaxOrderMinor: null }, version: 3 }));
+    const sent = setup((call) => (call === 1 ? staleResponse(8) : HttpResponse.json({ podMaxOrderMinor: 1_400_000 }, { headers: { ETag: '"9"' } })), () => ({ value: { podMaxOrderMinor: null }, version: 3 }));
     renderAdmin(<PoliciesForm canWrite />);
     await change();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     await userEvent.click(await screen.findByRole("button", { name: "Keep my changes" }));
     await waitFor(() => expect(sent).toHaveLength(2));
     expect(sent.map((s) => s.version)).toEqual(['"3"', '"8"']);
-    expect(sent[1]!.body).toMatchObject({ returnWindowDays: 14 });
+    expect(sent[1]!.body).toMatchObject({ podMaxOrderMinor: 1_400_000 });
     expect(sent[1]!.body).toEqual(sent[0]!.body);
     await waitFor(() => expect(screen.queryByText("Someone else changed this setting")).not.toBeInTheDocument());
   });
 
   it("'use their version' reads the setting again and shows theirs", async () => {
-    let stored = { returnWindowDays: 7, podMaxOrderMinor: null as number | null };
-    const sent = setup(() => { stored = { returnWindowDays: 30, podMaxOrderMinor: null }; return staleResponse(8); }, () => ({ value: stored, version: stored.returnWindowDays === 7 ? 3 : 8 }));
+    let stored = { podMaxOrderMinor: null as number | null };
+    const sent = setup(() => { stored = { podMaxOrderMinor: 3_000_000 }; return staleResponse(8); }, () => ({ value: stored, version: stored.podMaxOrderMinor === null ? 3 : 8 }));
     renderAdmin(<PoliciesForm canWrite />);
     await change();
     await userEvent.click(await screen.findByRole("button", { name: "Use their version" }));
-    await waitFor(() => expect(screen.getByRole("combobox", { name: /Return window/ })).toHaveTextContent("30 days"));
+    await waitFor(() => expect(screen.getByLabelText("Pay on delivery limit")).toHaveValue("30,000"));
     expect(sent).toHaveLength(1);
   });
 });

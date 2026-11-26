@@ -8,7 +8,11 @@ export const withUrl = <T extends Keyed>(storage: ObjectStorage | undefined, ima
 
 export const withUrls = <T extends Keyed>(storage: ObjectStorage | undefined, images: T[]) => images.map((i) => withUrl(storage, i)!);
 
-/** Adds image URLs to the lines of a priced cart (quote or checkout response). */
-export function withLineImages<T extends { lines: { image: Keyed | null }[] }>(storage: ObjectStorage | undefined, cart: T): T {
-  return { ...cart, lines: cart.lines.map((l) => ({ ...l, image: withUrl(storage, l.image) })) };
+/** Adds image URLs to the lines of a priced cart (quote or checkout response), and to any gift offers with it. */
+export function withLineImages<T extends { lines: { image: Keyed | null }[]; giftOffers?: { gift: { image: Keyed | null } }[] }>(storage: ObjectStorage | undefined, cart: T): T {
+  return {
+    ...cart,
+    lines: cart.lines.map((l) => ({ ...l, image: withUrl(storage, l.image) })),
+    ...(cart.giftOffers ? { giftOffers: cart.giftOffers.map((o) => ({ ...o, gift: { ...o.gift, image: withUrl(storage, o.gift.image) } })) } : {}),
+  };
 }

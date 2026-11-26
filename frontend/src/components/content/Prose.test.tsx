@@ -5,9 +5,9 @@ import { Prose } from "./Prose";
 
 describe("Prose", () => {
   it("renders headings, emphasis and lists", () => {
-    render(<Prose>{"## Returns\n\nYou have **7 days**.\n\n- Unworn\n- Lace uncut"}</Prose>);
+    render(<Prose>{"## Returns\n\nItems must be **unused**.\n\n- Unworn\n- Lace uncut"}</Prose>);
     expect(screen.getByRole("heading", { level: 2, name: "Returns" })).toBeInTheDocument();
-    expect(screen.getByText("7 days").tagName).toBe("STRONG");
+    expect(screen.getByText("unused").tagName).toBe("STRONG");
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
   });
   it("renders tables", () => {

@@ -115,7 +115,6 @@ a{color:#A3134F}a:hover{color:#7E0E3D}
         <div style="padding: 20px; border-radius: 24px; background: #FFFFFF; border: 1px solid #F3D6E2; display: flex; flex-direction: column; gap: 14px">
           <h2 style="margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 22px">Returns &amp; policies</h2>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px">
-            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Return window<select style="height: 46px; padding: 0 12px; border-radius: 14px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"><option>7 days after delivery</option><option>14 days</option><option>No returns</option></select></label>
             <label style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600">Refund as<select style="height: 46px; padding: 0 12px; border-radius: 14px; border: 1.5px solid #EAC9D6; background: #FFFFFF; font: inherit; font-weight: 400"><option>Original payment or store credit (customer picks)</option><option>Store credit only</option></select></label>
           </div>
           <span style="font-weight: 700">Conditions customers must confirm</span>
@@ -150,7 +149,7 @@ class Component extends DCLogic {
       { label: 'Delivery & pickup', note: 'Zones, prices, cutoffs', icon: 'M3 7h11v9H3z M14 10h4l3 3v3h-7' },
       { label: 'Payments', note: 'Methods and payouts', icon: 'M3 6h18v12H3z M3 10h18' },
       { label: 'Notifications', note: 'WhatsApp and email', icon: 'M21 12a8 8 0 0 1-12 7l-5 1 1-4.5A8 8 0 1 1 21 12z' },
-      { label: 'Returns & policies', note: 'Windows and pages', icon: 'M4 9h12a4 4 0 0 1 0 8H8 M4 9l4-4 M4 9l4 4' },
+      { label: 'Returns & policies', note: 'Conditions and pages', icon: 'M4 9h12a4 4 0 0 1 0 8H8 M4 9l4-4 M4 9l4 4' },
       { label: 'Tax & currency', note: 'VAT, Naira', icon: 'M12 3v18 M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6' }
     ];
     const zones = [

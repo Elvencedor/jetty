@@ -68,7 +68,7 @@ export type AdminOrderDetail = {
     taxMinor: number;
     totalMinor: number;
     deliveryMethod: string;
-    deliveryAddressSnapshot: { recipientName?: string; line1?: string; line2?: string | null; area?: string | null; city?: string; state?: string; landmark?: string | null };
+    deliveryAddressSnapshot: { recipientName?: string; addressLine1?: string; addressLine2?: string | null; area?: string | null; city?: string; state?: string; landmark?: string | null; riderNote?: string | null };
     appliedPromotions: { name?: string; code?: string | null }[];
     placedAt: string | null;
     createdAt: string;

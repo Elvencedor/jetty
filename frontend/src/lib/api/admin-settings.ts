@@ -3,7 +3,7 @@ import { apiFetch, apiRequest, versionTag, type RequestOptions } from "./client"
 type Init = Pick<RequestOptions, "signal">;
 
 export type StoreSettings = { name: string; contactEmail: string; contactPhone: string; whatsappNumber: string; showroomAddress: string; showroomHours: string };
-export type PolicySettings = { returnWindowDays: number; podMaxOrderMinor: number | null };
+export type PolicySettings = { podMaxOrderMinor: number | null };
 export type PaymentMethodKey = "card" | "bank_transfer";
 export type PaymentSettings = { enabledMethods: PaymentMethodKey[]; cardHoldMinutes: number; transferHoldMinutes: number };
 

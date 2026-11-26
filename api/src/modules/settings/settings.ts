@@ -17,8 +17,8 @@ export const SETTINGS = {
     public: true,
   },
   policies: {
-    defaults: { returnWindowDays: 7, podMaxOrderMinor: null as number | null },
-    schema: Joi.object({ returnWindowDays: Joi.number().integer().min(0).max(90), podMaxOrderMinor: Joi.number().integer().min(0).allow(null) }),
+    defaults: { podMaxOrderMinor: null as number | null },
+    schema: Joi.object({ podMaxOrderMinor: Joi.number().integer().min(0).allow(null) }),
     public: true,
   },
   payments: {

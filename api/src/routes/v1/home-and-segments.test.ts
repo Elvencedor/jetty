@@ -49,7 +49,7 @@ describe('home sections, customer segments and CDN URLs', { skip: !TEST_DATABASE
       const length = await section('length');
       assert.equal(length!.items.length, 5);
       assert.deepEqual(length!.items[0], { label: '10–14"', hint: 'Shoulder', lengths: [10, 12, 14] });
-      assert.deepEqual((await section('trust'))!.items.map((i: Json) => i.title), ['Secure pay', '7-day returns', 'Real reviews']);
+      assert.deepEqual((await section('trust'))!.items.map((i: Json) => i.title), ['Secure pay', 'Return policy', 'Real reviews']);
     });
 
     it('renders hero cards, stories, tiles and announcements from content, in the default order', async () => {

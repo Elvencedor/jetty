@@ -126,7 +126,7 @@ export type HomeContent = { announcements: Announcement[]; sections: HomeSection
 
 export type StoreSettings = {
   store: { name: string; contactEmail: string; contactPhone: string; whatsappNumber: string; showroomAddress: string; showroomHours: string };
-  policies: { returnWindowDays: number; podMaxOrderMinor: number | null };
+  policies: { podMaxOrderMinor: number | null };
   payments: { enabledMethods: PaymentMethod[]; cardHoldMinutes: number; transferHoldMinutes: number };
 };
 
@@ -167,11 +167,29 @@ export type QuoteWarning =
   | { code: "GIFT_UNAVAILABLE"; promotionId: string; variantId: string }
   | { code: "SIGN_IN_FOR_OFFERS" };
 
+/** A free gift this order has earned or could still earn, as the server judged it. */
+export type GiftOffer = {
+  promotionId: string;
+  name: string;
+  status: "unlocked" | "locked";
+  /** What a locked offer is still missing. */
+  needs: { signIn: boolean; qualifyingItem: boolean; spendMinor: number };
+  firstOrderOnly: boolean;
+  gift: { variantId: string; slug: string; title: string; optionSummary: string; image: { url: string | null; objectKey: string } | null; quantity: number; valueMinor: number };
+  minimumSubtotalMinor: number | null;
+  eligibleSubtotalMinor: number;
+  qualifying: { allProducts: boolean; collections: { slug: string; name: string }[]; products: { slug: string; title: string }[] };
+  endsAt: string | null;
+  /** Set only when few are left. */
+  leftCount: number | null;
+};
+
 export type Quote = {
   currency: string;
   lines: QuoteLine[];
   promotions: { applied: AppliedPromotion[]; rejectedCodes: RejectedCode[] };
   warnings: QuoteWarning[];
+  giftOffers?: GiftOffer[];
   subtotalMinor: number;
   discountMinor: number;
   delivery: { method: DeliveryMethod; zoneId: string; zoneName: string; baseFeeMinor: number; feeMinor: number; freeDeliveryPromotionId: string | null; estimate: DeliveryEstimate | null } | null;

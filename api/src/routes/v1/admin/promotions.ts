@@ -26,7 +26,6 @@ const fields = {
   startsAt: Joi.date().iso().allow(null),
   endsAt: Joi.date().iso().allow(null),
   priority: Joi.number().integer().min(-1000).max(1000),
-  stackable: Joi.boolean(),
   totalUsageLimit: Joi.number().integer().min(1).allow(null),
   perCustomerLimit: Joi.number().integer().min(1).allow(null),
   firstOrderOnly: Joi.boolean(),

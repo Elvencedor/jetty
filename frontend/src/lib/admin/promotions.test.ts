@@ -37,14 +37,27 @@ describe("validateForm", () => {
     expect(validateForm(form({ startsAt: "2026-10-25T10:00", endsAt: "2026-10-26T09:00" }))).toEqual({});
   });
   it("checks the limits and the minimum spend", () => {
-    expect(validateForm(form({ minSpend: "abc", totalUses: "0", perCustomer: "x" }))).toMatchObject({ minSpend: expect.any(String), totalUses: expect.any(String), perCustomer: expect.any(String) });
+    expect(validateForm(form({ access: "code", code: "SAVE10", minSpend: "abc", totalUses: "0", perCustomer: "x" }))).toMatchObject({ minSpend: expect.any(String), totalUses: expect.any(String), perCustomer: expect.any(String) });
   });
 });
 
 describe("toInput", () => {
+  it("starts with no per-customer limit, and keeps one that is typed, automatic or not", () => {
+    expect(toInput(form({})).perCustomerLimit).toBeNull();
+    expect(toInput(form({ perCustomer: "2" })).perCustomerLimit).toBe(2);
+    expect(toInput(form({ perCustomer: "2", access: "code" })).perCustomerLimit).toBe(2);
+  });
+  it("sends a minimum spend only where it counts: not for an automatic discount", () => {
+    for (const kind of ["percentage", "fixed_amount", "buy_x_get_y"] as const) {
+      expect(toInput(form({ kind, amount: "5000", minSpend: "50,000" })).minimumSubtotalMinor).toBeNull();
+      expect(toInput(form({ kind, amount: "5000", minSpend: "50,000", access: "code" })).minimumSubtotalMinor).toBe(5_000_000);
+    }
+    for (const kind of ["free_gift", "free_delivery"] as const) expect(toInput(form({ kind, minSpend: "50,000" })).minimumSubtotalMinor).toBe(5_000_000);
+    expect(validateForm(form({ minSpend: "abc" })).minSpend).toBeUndefined();
+  });
   it("builds what the API takes for each kind", () => {
-    expect(toInput(form({ percent: "15", scope: "collections", collectionIds: ["c1"], minSpend: "50,000", totalUses: "100", perCustomer: "", firstOrderOnly: true, startsAt: "2026-10-25T00:00" }))).toEqual({
-      name: "Flash sale", kind: "percentage", configuration: { version: 1, percent: 15 }, scope: { include: { collectionIds: ["c1"] } }, startsAt: "2026-10-24T23:00:00.000Z", endsAt: null, stackable: false, totalUsageLimit: 100, perCustomerLimit: null, firstOrderOnly: true, minimumSubtotalMinor: 5_000_000,
+    expect(toInput(form({ access: "code", percent: "15", scope: "collections", collectionIds: ["c1"], minSpend: "50,000", totalUses: "100", perCustomer: "", firstOrderOnly: true, startsAt: "2026-10-25T00:00" }))).toEqual({
+      name: "Flash sale", kind: "percentage", configuration: { version: 1, percent: 15 }, scope: { include: { collectionIds: ["c1"] } }, startsAt: "2026-10-24T23:00:00.000Z", endsAt: null, totalUsageLimit: 100, perCustomerLimit: null, firstOrderOnly: true, minimumSubtotalMinor: 5_000_000,
     });
     expect(toInput(form({ kind: "fixed_amount", amount: "5000" })).configuration).toEqual({ version: 1, amountMinor: 500_000 });
     expect(toInput(form({ kind: "buy_x_get_y", buy: "2", get: "1", percentOff: "50" })).configuration).toEqual({ version: 1, buy: 2, get: 1, percentOff: 50 });
@@ -70,7 +83,7 @@ describe("scope and zones", () => {
     expect(toInput(form({ kind: "free_delivery" })).configuration).toEqual({ version: 1 });
   });
   it("reads them back, keeping a promotion that had both collections and products as it was", () => {
-    const detail = (scope: object, configuration: object = { version: 1, percent: 10 }) => ({ promotion: { name: "P", kind: "percentage", configuration, scope, usageCount: 0, startsAt: null, endsAt: null, stackable: false, totalUsageLimit: null, perCustomerLimit: null, firstOrderOnly: false, minimumSubtotalMinor: null }, codes: [], stats: {} }) as never;
+    const detail = (scope: object, configuration: object = { version: 1, percent: 10 }) => ({ promotion: { name: "P", kind: "percentage", configuration, scope, usageCount: 0, startsAt: null, endsAt: null, totalUsageLimit: null, perCustomerLimit: null, firstOrderOnly: false, minimumSubtotalMinor: null }, codes: [], stats: {} }) as never;
     expect(formFromPromotion(detail({ include: { productIds: ["p1"] }, excludeProductIds: ["p2"] }))).toMatchObject({ scope: "products", productIds: ["p1"], excludeProductIds: ["p2"] });
     expect(formFromPromotion(detail({ include: { collectionIds: ["c1"], productIds: ["p1"] } })).scope).toBe("mixed");
     expect(formFromPromotion(detail({}, { version: 1, zoneIds: ["z1"] }))).toMatchObject({ zones: "chosen", zoneIds: ["z1"] });
@@ -103,7 +116,7 @@ describe("free gifts", () => {
     expect(bagPreview(gift())).toEqual({ quantity: 1, subtotal: "₦150,000", discount: { label: "Free gift: Silk Bonnet (Champagne)", value: "Free" }, total: "₦150,000" });
   });
   it("reads a saved gift back into the form", () => {
-    const d = { promotion: { name: "G", kind: "free_gift", configuration: { version: 1, variantId: "v1", quantity: 2 }, scope: {}, usageCount: 0, startsAt: null, endsAt: null, stackable: false, totalUsageLimit: null, perCustomerLimit: null, firstOrderOnly: false, minimumSubtotalMinor: null }, gift: { variantId: "v1", productId: "p", productTitle: "Silk Bonnet", sku: "SB", optionSummary: "Champagne", priceMinor: 2_000_000, quantity: 2 }, codes: [], stats: {} } as never;
+    const d = { promotion: { name: "G", kind: "free_gift", configuration: { version: 1, variantId: "v1", quantity: 2 }, scope: {}, usageCount: 0, startsAt: null, endsAt: null, totalUsageLimit: null, perCustomerLimit: null, firstOrderOnly: false, minimumSubtotalMinor: null }, gift: { variantId: "v1", productId: "p", productTitle: "Silk Bonnet", sku: "SB", optionSummary: "Champagne", priceMinor: 2_000_000, quantity: 2 }, codes: [], stats: {} } as never;
     expect(formFromPromotion(d)).toMatchObject({ kind: "free_gift", giftVariantId: "v1", giftQuantity: "2", giftLabel: "Silk Bonnet (Champagne)", giftPriceMinor: 2_000_000 });
   });
 });
@@ -112,7 +125,8 @@ describe("the rule in words", () => {
   it("reads each kind back", () => {
     const read = (f: PromoForm) => sentenceParts(f, collections).map((p) => p.text).join("");
     expect(read(form({ percent: "15" }))).toBe("Take 15% off all products.");
-    expect(read(form({ kind: "fixed_amount", amount: "5000", scope: "collections", collectionIds: ["c1", "c2"] }))).toBe("Take ₦5000 off products in Bob wigs and Frontals.");
+    expect(read(form({ kind: "fixed_amount", amount: "5000", scope: "collections", collectionIds: ["c1", "c2"] }))).toBe("Take ₦5000 off products in Bob wigs and Frontals, on each item.");
+    expect(read(form({ kind: "fixed_amount", amount: "5000", access: "code" }))).toBe("Take ₦5000 off all products, once per order.");
     expect(read(form({ kind: "buy_x_get_y", scope: "collections", collectionIds: ["c1"] }))).toBe("Buy 1 from products in Bob wigs, get 1 free (the cheaper ones).");
     expect(read(form({ kind: "buy_x_get_y", percentOff: "50" }))).toBe("Buy 1 from all products, get 1 at 50% off.");
     expect(read(form({ kind: "free_delivery" }))).toBe("Delivery is free on the order.");
@@ -147,7 +161,7 @@ describe("codes and labels", () => {
 });
 
 describe("list and calendar", () => {
-  const row = (over: Partial<PromotionRow>): PromotionRow => ({ id: "a", name: "A", kind: "percentage", status: "live", startsAt: null, endsAt: null, priority: 0, stackable: false, type: "automatic", usage: { redemptions: 0, openHolds: 0, limit: null }, createdAt: null, ...over });
+  const row = (over: Partial<PromotionRow>): PromotionRow => ({ id: "a", name: "A", kind: "percentage", status: "live", startsAt: null, endsAt: null, priority: 0, type: "automatic", usage: { redemptions: 0, openHolds: 0, limit: null }, createdAt: null, ...over });
   it("counts by status", () => {
     expect(summaryText([row({}), row({ status: "live" }), row({ status: "scheduled" }), row({ status: "ended" }), row({ status: "draft" })])).toBe("2 live · 1 scheduled · 1 ended · 1 not running");
   });

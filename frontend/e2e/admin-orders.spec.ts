@@ -49,6 +49,9 @@ test("the list shows counts per status, filters by pill and search, and opens an
   await expect(drawer(page).getByText("#JH-10481")).toBeVisible();
   await expect(drawer(page).getByText("3rd order · ₦612k lifetime")).toBeVisible();
   await expect(drawer(page).getByText("−₦10,000")).toBeVisible();
+  const delivery = drawer(page).getByRole("region", { name: "Delivery" });
+  await expect(delivery.getByText(/14 Admiralty Way/)).toBeVisible();
+  await expect(delivery.getByText("Please call when you get to the gate")).toBeVisible();
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
   await page.reload();

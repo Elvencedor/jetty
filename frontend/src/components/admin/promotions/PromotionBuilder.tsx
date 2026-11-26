@@ -11,7 +11,7 @@ import { ProductPicker } from "../ProductPicker";
 import { Button, Dropdown, Skeleton, StatusPill, Switch, TextField } from "@/components/ui";
 import { adminErrorMessage } from "@/lib/admin/concurrency";
 import { adminKeys } from "@/lib/admin/keys";
-import { type Lookups, announcementText, bagPreview, emptyForm, ERROR_STEP, formFromPromotion, generateCode, KIND_LABEL, normaliseCodeText, sentenceParts, submitLabel, toInput, TYPES, validateForm, type FormErrors, type PromoForm } from "@/lib/admin/promotions";
+import { type Lookups, announcementText, bagPreview, emptyForm, ERROR_STEP, formFromPromotion, generateCode, KIND_LABEL, normaliseCodeText, sentenceParts, submitLabel, takesMinSpend, toInput, TYPES, validateForm, type FormErrors, type PromoForm } from "@/lib/admin/promotions";
 import { permits } from "@/lib/admin/permissions";
 import { useUnsavedGuard } from "@/lib/admin/useUnsavedGuard";
 import { getAdminProduct } from "@/lib/api/admin-catalog";
@@ -236,13 +236,9 @@ function Builder({ existing, collections }: { existing: PromotionDetail | undefi
               <label className="flex flex-col gap-1 text-label font-semibold">Who
                 <Dropdown value={form.firstOrderOnly ? "first" : "everyone"} onChange={(e) => set("firstOrderOnly", e.target.value === "first")} className="h-11 gap-2 rounded-md border-[1.5px] border-line-strong bg-surface px-3 font-normal leading-normal"><option value="everyone">Everyone</option><option value="first">First order only</option></Dropdown>
               </label>
-              <TextField size="admin" label="Minimum spend (₦)" inputMode="decimal" placeholder="None" value={form.minSpend} error={errors.minSpend} onChange={onAmountChange(form.minSpend, (v) => set("minSpend", v))} />
+              {takesMinSpend(form) ? <TextField size="admin" label="Minimum spend (₦)" inputMode="decimal" placeholder="None" value={form.minSpend} error={errors.minSpend} onChange={onAmountChange(form.minSpend, (v) => set("minSpend", v))} /> : null}
               <TextField size="admin" label="Total uses" inputMode="numeric" placeholder="Unlimited" value={form.totalUses} error={errors.totalUses} onChange={(e) => set("totalUses", e.target.value)} />
-              <TextField size="admin" label="Per customer" inputMode="numeric" placeholder="Unlimited" value={form.perCustomer} error={errors.perCustomer} onChange={(e) => set("perCustomer", e.target.value)} />
-              <div className="col-span-full flex items-center justify-between gap-3 rounded-[18px] bg-surface-tint px-3.5 py-3">
-                <span className="flex flex-col leading-[1.3]"><span className="font-bold">Can combine with other promotions</span><span className="text-caption text-muted">Off means it applies on its own, or not at all if another one already has.</span></span>
-                <Switch checked={form.stackable} label="Can combine with other promotions" onChange={(v) => set("stackable", v)} />
-              </div>
+              <TextField size="admin" label="Per customer" inputMode="numeric" placeholder="Unlimited" hint="With a limit, customers must be signed in to get it." value={form.perCustomer} error={errors.perCustomer} onChange={(e) => set("perCustomer", e.target.value)} />
             </div>
               </Section>
 

@@ -16,6 +16,7 @@ import { usePaymentSession } from "@/lib/stores/payment-session";
 import { BagLine, GiftLine } from "./BagLine";
 import { giftLines } from "@/lib/cart/model";
 import { CodeEntry } from "./CodeEntry";
+import { GiftRewards } from "./GiftRewards";
 import { PriceSummary } from "./PriceSummary";
 import { UnavailableNotice } from "./UnavailableNotice";
 
@@ -93,9 +94,10 @@ export function Bag() {
 
             {lines.length ? (
               <>
+                {unavailable.length === 0 ? <GiftRewards offers={quote?.giftOffers} busy={busy} returnTo="/bag" /> : null}
                 <CodeEntry quote={quote} />
                 {quote ? <PriceSummary quote={quote} busy={busy} /> : unavailable.length === 0 ? <Skeleton className="h-40 w-full" /> : null}
-                <p className="text-center text-caption text-muted">Secure checkout · 7-day returns · Help on WhatsApp</p>
+                <p className="text-center text-caption text-muted">Secure checkout · Return policy · Help on WhatsApp</p>
                 {/* The total is announced here once it settles; the sticky bar below is not a live region. */}
                 <p role="status" className="sr-only">{quote && !busy ? `Total ${formatNaira(quote.totalMinor)}.${quote.discountMinor > 0 ? ` You're saving ${formatNaira(quote.discountMinor)}.` : ""}` : ""}</p>
 

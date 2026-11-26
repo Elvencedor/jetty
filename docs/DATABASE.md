@@ -122,7 +122,7 @@ price, not an independently recomputed storefront value.
 
 | Table | Required columns and constraints | Phase |
 |---|---|---|
-| `promotions` | `id`, `name`, `status`, `kind` (`percentage`, `fixed_amount`, `buy_x_get_y`, `free_delivery`, `free_gift`), `configuration` JSONB, `scope` JSONB, `starts_at`, `ends_at`, `priority`, `stackable`, `total_usage_limit`, `per_customer_limit`, `usage_count`, `first_order_only`, `minimum_subtotal_minor`, `currency`, `created_by_admin_id`; check start < end | P0 core types; P1 free gift/reporting |
+| `promotions` | `id`, `name`, `status`, `kind` (`percentage`, `fixed_amount`, `buy_x_get_y`, `free_delivery`, `free_gift`), `configuration` JSONB, `scope` JSONB, `starts_at`, `ends_at`, `priority`, `total_usage_limit`, `per_customer_limit`, `usage_count`, `first_order_only`, `minimum_subtotal_minor`, `currency`, `created_by_admin_id`; check start < end | P0 core types; P1 free gift/reporting |
 | `promotion_codes` | `id`, `promotion_id`, unique normalized `code`, nullable `max_redemptions`, `redemption_count`, `active`; code required only for code-based promotions | P0 |
 | `promotion_redemptions` | `id`, `promotion_id`, nullable `promotion_code_id`, nullable `customer_id`, `order_id`, `discount_minor`, `created_at`; unique `(promotion_id, order_id)` | P0 |
 | `promotion_holds` | `id`, `promotion_id`, nullable `promotion_code_id`, nullable `customer_id`, `order_id`, `created_at`; unique `(promotion_id, order_id)` | P0 |

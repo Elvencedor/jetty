@@ -55,12 +55,8 @@ describe('store settings', () => {
 });
 
 describe('policy settings', () => {
-  it('bounds the return window to 0-90 whole days', () => {
-    assert.equal(ok('policies', { returnWindowDays: 0 }), true);
-    assert.equal(ok('policies', { returnWindowDays: 90 }), true);
-    assert.equal(ok('policies', { returnWindowDays: 91 }), false);
-    assert.equal(ok('policies', { returnWindowDays: -1 }), false);
-    assert.equal(ok('policies', { returnWindowDays: 7.5 }), false);
+  it('has no return window setting', () => {
+    assert.equal(ok('policies', { returnWindowDays: 7 }), false);
   });
   it('allows the pay-on-delivery limit to be a non-negative integer or null (off)', () => {
     assert.equal(ok('policies', { podMaxOrderMinor: null }), true);
@@ -69,9 +65,8 @@ describe('policy settings', () => {
     assert.equal(ok('policies', { podMaxOrderMinor: -1 }), false);
     assert.equal(ok('policies', { podMaxOrderMinor: 10.5 }), false);
   });
-  it('defaults to no pay-on-delivery limit and a 7-day window', () => {
-    assert.equal(SETTINGS.policies.defaults.podMaxOrderMinor, null);
-    assert.equal(SETTINGS.policies.defaults.returnWindowDays, 7);
+  it('defaults to no pay-on-delivery limit', () => {
+    assert.deepEqual(SETTINGS.policies.defaults, { podMaxOrderMinor: null });
   });
 });
 

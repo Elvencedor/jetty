@@ -142,7 +142,7 @@ test("delivery zones show what checkout charges, can be switched off with a warn
   await expect(table.getByRole("row", { name: /Northern states/ })).toHaveCount(0);
 });
 
-test("payments keep one method on, and policies change the return window", async ({ page }) => {
+test("payments keep one method on, and policies save a pay-on-delivery limit", async ({ page }) => {
   await signIn(page, "owner", "/admin/settings/payments");
   await page.getByRole("switch", { name: "Accept card payments" }).click();
   const transfer = page.getByRole("switch", { name: "Accept bank transfer payments" });
@@ -155,7 +155,6 @@ test("payments keep one method on, and policies change the return window", async
   await expect(page.getByLabel("Cancel unpaid transfer orders after")).toHaveText("4 hours");
 
   await page.getByRole("link", { name: /^Returns & policies/ }).click();
-  await choose(page.getByLabel("Return window"), "14 days after delivery");
   // An amount box takes only digits, so letters never get in, and thousands are separated as you type.
   const limit = page.getByLabel("Pay on delivery limit");
   await limit.fill("abc");

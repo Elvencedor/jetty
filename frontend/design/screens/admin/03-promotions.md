@@ -12,7 +12,7 @@ Lets a non-technical owner create coupons, discounts, BOGO, gifts and free deliv
    - Wizard steps as pills: **1 Type · 2 Rule · 3 Who & limits · 4 Schedule** (each clickable; current = ink).
    - **Type**: 5 radio cards with a large glyph: % Percentage off · ₦ Fixed amount · 1+1 Buy X get Y · ♡ Free gift · → Free delivery.
    - **Rule**: a **plain-English sentence** with editable tokens, e.g. "Buy **1 bob wig**, get **1 bob wig** free (the cheaper one)." Tapping a token opens a small picker (collection/product/quantity/amount). Below: "Customers get it" SegmentedControl Automatically / With a code (+ code input with Generate).
-   - **Who & limits**: Who (Everyone, First order only, Returning, VIP segment [P1]), Minimum spend, Total uses, Per customer, "Can stack with" checkboxes (Other codes, Free delivery, Gifts, Sale prices).
+   - **Who & limits**: Who (Everyone, First order only, Returning, VIP segment [P1]), Minimum spend (codes, free gifts and free delivery only; hidden for automatic item discounts), Total uses, Per customer (blank by default, meaning unlimited; any limit is enforced, on automatic discounts too, and requires sign-in).
    - **Schedule**: Starts / Ends (date-time, WAT) and "Promote it on the storefront" placement chips (Announcement bar, Home hero card, Story circle, Product badge, In-feed shop card), which create linked storefront content.
    - Footer: Back · Next / "Schedule promotion" (or "Start now" when the start time ≤ now).
    - **Preview** updates live: announcement bar text, hero card, bag line with struck price and the discount line, generated from the same rule.
@@ -20,7 +20,6 @@ Lets a non-technical owner create coupons, discounts, BOGO, gifts and free deliv
 
 ## Validation
 - Percentage 1–90; fixed amount > 0 and < the cheapest eligible product (warn otherwise).
-- End after start; warn if it overlaps a non-stackable promotion on the same products (show which one).
 - Code: A–Z, 0–9, 4–20 characters, unique.
 
 ## States

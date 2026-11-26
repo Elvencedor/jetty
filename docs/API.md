@@ -99,7 +99,7 @@ another request has already updated the cart.
 | `GET, POST /me/wishlist/items` | List/add wishlist item | P1 |
 | `DELETE /me/wishlist/items/{variantId}` | Remove wishlist item | P1 |
 | `POST /me/wishlist/items/{variantId}/move-to-cart` | Move saved variant to cart; validate current price and stock | P1 |
-| `POST /me/orders/{orderId}/returns` | Request eligible return/exchange; enforce seven-day policy and product condition requirements | P1 |
+| `POST /me/orders/{orderId}/returns` | Request eligible return/exchange; enforce the return policy and product condition requirements | P1 |
 | `POST /me/data-export` | Create NDPR data export request | P1 |
 | `POST /me/data-erasure` | Submit erasure request; preserve legally required financial/order records | P1 |
 | `POST /products/{productId}/stock-notifications` | Subscribe by email/phone for a selected unavailable variant | P1 |
@@ -188,10 +188,29 @@ example above, the response includes:
 - `delivery` (`method`, `zoneName`, `baseFeeMinor`, `feeMinor`,
   `freeDeliveryPromotionId`, `estimate`) when a destination was supplied.
 
-Promotions resolve deterministically by priority (descending), then creation
-time. Line discounts after the first apply only if every involved promotion is
-`stackable`; free delivery targets the delivery fee and always combines.
-Minimum spend is measured on a promotion's eligible lines before discounts.
+Promotions resolve deterministically, in two steps:
+
+1. **Automatic discounts** (percentage, fixed amount, buy X get Y without a
+   code) are worked out on each unit, and every unit takes the one that saves it
+   most. They never add up on a unit. A percentage (with its cap) or a fixed
+   amount applies to every eligible unit.
+2. **At most one promo code** (`promotionCodes` takes one entry; more is a `422`)
+   applies on top, on what is left. A code's percentage cap or fixed amount is
+   taken once per order.
+
+Free delivery and free gifts, automatic or by code, apply alongside item
+discounts; when delivery is already free automatically, a free delivery code is
+`NOT_APPLICABLE`. Ties go to the higher priority, then the older promotion.
+A minimum spend counts only for codes, free delivery and free gifts, and is
+measured on the promotion's eligible lines before discounts. Automatic item
+discounts ignore it.
+The quote also returns `giftOffers`: the free gifts the order has earned
+(`status: "unlocked"`) or could still earn (`"locked"`, with `needs.signIn`,
+`needs.qualifyingItem` and `needs.spendMinor`), with the gift, the minimum spend,
+what qualifies, `endsAt`, and `leftCount` (only when 10 or fewer claims, or 5 or
+fewer gifts, remain). It covers automatic offers and the entered code's offer; a
+code nobody entered is never revealed.
+
 Unavailable or unpublished variants return `422 VARIANT_UNAVAILABLE` with the
 offending `variantId`s.
 

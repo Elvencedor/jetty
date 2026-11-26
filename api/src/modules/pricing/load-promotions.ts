@@ -8,6 +8,9 @@ export type CodeRejection = {
   reason: 'INVALID_CODE' | 'EXPIRED' | 'USAGE_LIMIT_REACHED' | 'NOT_ELIGIBLE';
 };
 
+/** The limits of a promotion that a shopper may be told about. */
+export type PromotionTerms = { endsAt: Date | null; totalUsageLimit: number | null; usageCount: number; firstOrderOnly: boolean };
+
 export const normaliseCode = (code: string) => code.trim().toUpperCase();
 
 type Row = typeof promotions.$inferSelect;
@@ -19,7 +22,6 @@ const toEngine = (row: Row, code: string | null): EnginePromotion => ({
   configuration: row.configuration,
   scope: row.scope,
   priority: row.priority,
-  stackable: row.stackable,
   minimumSubtotalMinor: row.minimumSubtotalMinor,
   currency: row.currency,
   createdAt: row.createdAt,
@@ -34,7 +36,14 @@ const toEngine = (row: Row, code: string | null): EnginePromotion => ({
 export async function loadPromotions(
   db: Db,
   input: { codes: string[]; now: Date; customerId?: string | undefined },
-): Promise<{ promotions: EnginePromotion[]; rejections: CodeRejection[]; withheldForGuests: boolean }> {
+): Promise<{
+  promotions: EnginePromotion[];
+  rejections: CodeRejection[];
+  withheldForGuests: boolean;
+  /** Automatic promotions withheld only because the shopper is not signed in. Never one that needs a code. */
+  signInOnly: EnginePromotion[];
+  terms: Map<string, PromotionTerms>;
+}> {
   const { now } = input;
   const inWindow = and(
     eq(promotions.status, 'active'),
@@ -110,6 +119,7 @@ export async function loadPromotions(
   // Offers tied to who the buyer is (first order only, per-customer limits) cannot be verified for a guest,
   // so guests never get them; a submitted code for one is rejected, and the quote tells the client to sign in.
   let withheldForGuests = false;
+  const signInOnly: EnginePromotion[] = [];
   if (!input.customerId) {
     for (const [id, p] of [...chosen]) {
       const row = rows.find((r) => r.id === id)!;
@@ -117,6 +127,7 @@ export async function loadPromotions(
       chosen.delete(id);
       withheldForGuests = true;
       if (p.code) rejections.push({ code: p.code, reason: 'NOT_ELIGIBLE' });
+      else signInOnly.push(p);
     }
   }
 
@@ -157,5 +168,7 @@ export async function loadPromotions(
     promotions: [...chosen.values()],
     rejections,
     withheldForGuests,
+    signInOnly,
+    terms: new Map(rows.map((r) => [r.id, { endsAt: r.endsAt, totalUsageLimit: r.totalUsageLimit, usageCount: r.usageCount, firstOrderOnly: r.firstOrderOnly }])),
   };
 }
