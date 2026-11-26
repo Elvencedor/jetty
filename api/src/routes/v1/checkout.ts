@@ -20,7 +20,8 @@ const payload = Joi.object({
     .min(1)
     .max(50)
     .required(),
-  promotionCodes: Joi.array().items(text(64)).max(5).default([]),
+  // One promo code per order.
+  promotionCodes: Joi.array().items(text(64)).max(1).default([]),
   contact: Joi.object({
     email: Joi.string().trim().lowercase().email().max(254),
     phone: Joi.string().trim().pattern(/^\+[1-9]\d{7,14}$/).required().messages({ 'string.pattern.base': 'phone must be in E.164 format, e.g. +2348012345678' }),

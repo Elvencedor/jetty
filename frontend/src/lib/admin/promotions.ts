@@ -24,7 +24,7 @@ export function promotionSummary(kind: PromotionKind, c: { percent?: number; amo
 
 /** The form behind "create a promotion for this product": a percentage or fixed amount off this one product, applying automatically. */
 export function quickPromoForm(productId: string, productTitle: string): PromoForm {
-  return { ...emptyForm(), name: `${productTitle} offer`, scope: "products", productIds: [productId], perCustomer: "" };
+  return { ...emptyForm(), name: `${productTitle} offer`, scope: "products", productIds: [productId] };
 }
 
 export const KIND_LABEL: Record<PromotionKind, string> = { percentage: "Percentage off", fixed_amount: "Fixed amount off", buy_x_get_y: "Buy X get Y", free_delivery: "Free delivery", free_gift: "Free gift" };
@@ -58,13 +58,12 @@ export type PromoForm = {
   minSpend: string;
   totalUses: string;
   perCustomer: string;
-  stackable: boolean;
   /** `YYYY-MM-DDTHH:mm`, Lagos time (what a datetime-local field holds). */
   startsAt: string;
   endsAt: string;
 };
 
-export const emptyForm = (): PromoForm => ({ kind: "percentage", name: "", percent: "10", amount: "", buy: "1", get: "1", percentOff: "100", scope: "all", collectionIds: [], productIds: [], excludeProductIds: [], zones: "all", zoneIds: [], giftVariantId: "", giftQuantity: "1", giftLabel: "", giftPriceMinor: 0, access: "automatic", code: "", firstOrderOnly: false, minSpend: "", totalUses: "", perCustomer: "1", stackable: false, startsAt: "", endsAt: "" });
+export const emptyForm = (): PromoForm => ({ kind: "percentage", name: "", percent: "10", amount: "", buy: "1", get: "1", percentOff: "100", scope: "all", collectionIds: [], productIds: [], excludeProductIds: [], zones: "all", zoneIds: [], giftVariantId: "", giftQuantity: "1", giftLabel: "", giftPriceMinor: 0, access: "automatic", code: "", firstOrderOnly: false, minSpend: "", totalUses: "", perCustomer: "", startsAt: "", endsAt: "" });
 
 // ------------------------------------------------------------------ dates (Lagos is UTC+1, all year)
 
@@ -122,11 +121,13 @@ export function formFromPromotion(d: PromotionDetail): PromoForm {
     minSpend: p.minimumSubtotalMinor ? minorToAmountText(p.minimumSubtotalMinor) : "",
     totalUses: p.totalUsageLimit ? String(p.totalUsageLimit) : "",
     perCustomer: p.perCustomerLimit ? String(p.perCustomerLimit) : "",
-    stackable: p.stackable,
     startsAt: toLagosInput(p.startsAt),
     endsAt: toLagosInput(p.endsAt),
   };
 }
+
+/** A minimum spend counts for codes, free gifts and free delivery. An automatic discount goes on every eligible item. */
+export const takesMinSpend = (f: Pick<PromoForm, "kind" | "access">) => f.access === "code" || f.kind === "free_gift" || f.kind === "free_delivery";
 
 export type FormErrors = Partial<Record<"name" | "percent" | "amount" | "buy" | "get" | "percentOff" | "collections" | "products" | "zones" | "gift" | "giftQuantity" | "code" | "minSpend" | "totalUses" | "perCustomer" | "startsAt" | "endsAt", string>>;
 /** Which step each error belongs to, so a refused save can send the person back to it. */
@@ -155,7 +156,7 @@ export function validateForm(f: PromoForm): FormErrors {
   if (f.kind !== "free_delivery" && (f.scope === "products" || f.scope === "mixed") && f.productIds.length === 0) e.products = "Choose at least one product, or use all products";
   if (f.kind === "free_delivery" && f.zones === "chosen" && f.zoneIds.length === 0) e.zones = "Choose at least one delivery zone, or use everywhere";
   if (f.access === "code" && !/^[A-Z0-9]{4,20}$/.test(f.code)) e.code = "Use 4 to 20 letters and numbers";
-  if (f.minSpend.trim() && parseNairaToMinor(f.minSpend) === null) e.minSpend = "Enter an amount like 50,000, or leave blank";
+  if (takesMinSpend(f) && f.minSpend.trim() && parseNairaToMinor(f.minSpend) === null) e.minSpend = "Enter an amount like 50,000, or leave blank";
   if (f.totalUses.trim() && !((int(f.totalUses) ?? 0) >= 1)) e.totalUses = "Enter a whole number, or leave blank for unlimited";
   if (f.perCustomer.trim() && !((int(f.perCustomer) ?? 0) >= 1)) e.perCustomer = "Enter a whole number, or leave blank";
   if (f.startsAt && !fromLagosInput(f.startsAt)) e.startsAt = "Enter a date and time";
@@ -186,11 +187,10 @@ export function toInput(f: PromoForm): PromotionInput {
     scope: { ...(Object.keys(include).length ? { include } : {}), ...(goods && f.excludeProductIds.length ? { excludeProductIds: f.excludeProductIds } : {}) },
     startsAt: fromLagosInput(f.startsAt),
     endsAt: fromLagosInput(f.endsAt),
-    stackable: f.stackable,
     totalUsageLimit: optionalInt(f.totalUses),
     perCustomerLimit: optionalInt(f.perCustomer),
     firstOrderOnly: f.firstOrderOnly,
-    minimumSubtotalMinor: f.minSpend.trim() ? parseNairaToMinor(f.minSpend) : null,
+    minimumSubtotalMinor: takesMinSpend(f) && f.minSpend.trim() ? parseNairaToMinor(f.minSpend) : null,
   };
 }
 
@@ -220,7 +220,8 @@ export function sentenceParts(f: PromoForm, collections: Collection[], lookups?:
   const num = (v: string, dflt: string) => v.trim() || dflt;
   switch (f.kind) {
     case "percentage": return [{ text: "Take " }, { text: `${num(f.percent, "10")}%`, field: "percent" }, { text: " off " }, { text: scopeText(f, names, lookups), field: "scope" }, { text: "." }];
-    case "fixed_amount": return [{ text: "Take " }, { text: `₦${num(f.amount, "0")}`, field: "amount" }, { text: " off " }, { text: scopeText(f, names, lookups), field: "scope" }, { text: "." }];
+    // An automatic amount comes off every unit; a code takes it once.
+    case "fixed_amount": return [{ text: "Take " }, { text: `₦${num(f.amount, "0")}`, field: "amount" }, { text: " off " }, { text: scopeText(f, names, lookups), field: "scope" }, { text: f.access === "code" ? ", once per order." : ", on each item." }];
     case "buy_x_get_y": return [{ text: "Buy " }, { text: num(f.buy, "1"), field: "buy" }, { text: ` from ${scopeText(f, names, lookups)}, get ` }, { text: num(f.get, "1"), field: "get" }, { text: Number(f.percentOff) === 100 ? " free (the cheaper ones)." : ` at ${num(f.percentOff, "100")}% off.` }];
     case "free_gift": return [{ text: "Give " }, { text: f.giftQuantity.trim() || "1", field: "giftQuantity" }, { text: ` free ${f.giftLabel || "gift"} when someone buys ` }, { text: scopeText(f, names, lookups), field: "scope" }, { text: "." }];
     case "free_delivery": return [{ text: f.zones === "chosen" && f.zoneIds.length ? `Delivery is free to ${join(f.zoneIds.map((id) => lookups?.zones.get(id) ?? "a zone"))}.` : "Delivery is free on the order." }];

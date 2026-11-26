@@ -50,7 +50,7 @@ export function deliveryLine(row: Pick<AdminOrderRow, "deliveryMethod" | "area" 
 }
 
 export const addressLines = (a: AdminOrderDetail["order"]["deliveryAddressSnapshot"]): string =>
-  [a.line1, a.line2, a.area, a.city, a.state].filter((part): part is string => !!part && part.trim() !== "").join(", ");
+  [a.addressLine1, a.addressLine2, a.area, a.city, a.state].filter((part): part is string => !!part && part.trim() !== "").join(", ");
 
 /** wa.me wants digits only. */
 export const whatsappLink = (e164: string) => `https://wa.me/${e164.replace(/\D/g, "")}`;

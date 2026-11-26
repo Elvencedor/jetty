@@ -22,7 +22,6 @@ const promo = (over: Partial<EnginePromotion> & Pick<EnginePromotion, 'kind' | '
   name: `promo-${n}`,
   scope: {},
   priority: 0,
-  stackable: false,
   minimumSubtotalMinor: null,
   currency: 'NGN',
   createdAt: new Date(2026, 0, n),
@@ -89,6 +88,15 @@ describe('promotion engine', () => {
     assert.equal(excluded.allocations[0]!.length, 0);
   });
 
+  it('gives an automatic discount whatever its stored minimum spend', () => {
+    const configs = [
+      promo({ kind: 'percentage', configuration: { version: 1, percent: 10 }, minimumSubtotalMinor: 1_000_000 }),
+      promo({ kind: 'fixed_amount', configuration: { version: 1, amountMinor: 100 }, minimumSubtotalMinor: 1_000_000 }),
+      promo({ kind: 'buy_x_get_y', configuration: { version: 1, buy: 1, get: 1 }, minimumSubtotalMinor: 1_000_000 }),
+    ];
+    for (const p of configs) assert.deepEqual(run([line('a', P1, 1000, 2)], [p]).applied.map((a) => a.promotionId), [p.id], p.kind);
+  });
+
   it('measures minimum spend on eligible lines', () => {
     const p = promo({ kind: 'percentage', configuration: { version: 1, percent: 10 }, minimumSubtotalMinor: 5000, code: 'MIN', scope: { include: { productIds: [P1] } } });
     const r = run([line('a', P1, 2000), line('b', P2, 9000)], [p]);
@@ -96,19 +104,88 @@ describe('promotion engine', () => {
     assert.deepEqual(r.rejectedCodes, [{ code: 'MIN', reason: 'MIN_SPEND_NOT_MET' }]);
   });
 
-  it('does not stack non-stackable promotions; higher priority wins', () => {
-    const low = promo({ kind: 'percentage', configuration: { version: 1, percent: 50 }, priority: 1, code: 'LOW' });
-    const high = promo({ kind: 'fixed_amount', configuration: { version: 1, amountMinor: 100 }, priority: 5 });
-    const r = run([line('a', P1, 1000)], [low, high]);
-    assert.deepEqual(r.applied.map((a) => a.promotionId), [high.id]);
-    assert.deepEqual(r.rejectedCodes, [{ code: 'LOW', reason: 'NOT_APPLICABLE' }]);
+  /** Per line, the [promotion, amount] pairs taken off it. */
+  const taken = (r: ReturnType<typeof run>) => r.allocations.map((a) => a.map((x) => [x.promotionId, x.amountMinor]));
+  const only = (productId: string) => ({ include: { productIds: [productId] } });
+
+  it('gives every item its own automatic discount', () => {
+    const first = promo({ kind: 'percentage', configuration: { version: 1, percent: 20 }, scope: only(P1) });
+    const second = promo({ kind: 'fixed_amount', configuration: { version: 1, amountMinor: 500 }, scope: only(P2) });
+    assert.deepEqual(taken(run([line('a', P1, 10000), line('b', P2, 4000)], [first, second])), [[[first.id, 2000]], [[second.id, 500]]]);
   });
 
-  it('stacks only when every involved promotion is stackable, on the reduced amount', () => {
-    const a = promo({ kind: 'percentage', configuration: { version: 1, percent: 10 }, stackable: true, priority: 2 });
-    const b = promo({ kind: 'percentage', configuration: { version: 1, percent: 10 }, stackable: true, priority: 1 });
-    const r = run([line('x', P1, 10000)], [b, a]);
-    assert.deepEqual(r.applied.map((p) => p.discountMinor), [1000, 900]);
+  it('takes an automatic fixed amount off every unit, never more than its price', () => {
+    const off = promo({ kind: 'fixed_amount', configuration: { version: 1, amountMinor: 500 } });
+    const r = run([line('a', P1, 10000, 3), line('b', P2, 300, 2)], [off]);
+    assert.deepEqual(taken(r), [[[off.id, 1500]], [[off.id, 600]]]);
+    assert.equal(r.applied[0]!.discountMinor, 2100);
+  });
+
+  it('applies the cap of an automatic percentage to each unit', () => {
+    const capped = promo({ kind: 'percentage', configuration: { version: 1, percent: 50, maxDiscountMinor: 1000 } });
+    assert.deepEqual(taken(run([line('a', P1, 10000, 2), line('b', P2, 1000)], [capped])), [[[capped.id, 2000]], [[capped.id, 500]]]);
+  });
+
+  it('gives each item the biggest of the automatic discounts that cover it, never the sum, whatever their priority', () => {
+    const percent = promo({ kind: 'percentage', configuration: { version: 1, percent: 20 }, priority: 5 });
+    const fixed = promo({ kind: 'fixed_amount', configuration: { version: 1, amountMinor: 1500 } });
+    const r = run([line('dear', P1, 10000), line('cheap', P2, 4000)], [percent, fixed]);
+    assert.deepEqual(taken(r), [[[percent.id, 2000]], [[fixed.id, 1500]]]);
+    assert.deepEqual(r.applied.map((a) => [a.promotionId, a.discountMinor]), [[percent.id, 2000], [fixed.id, 1500]]);
+  });
+
+  it('breaks a tie by priority and leaves the loser out', () => {
+    const low = promo({ kind: 'percentage', configuration: { version: 1, percent: 10 }, priority: 1 });
+    const high = promo({ kind: 'fixed_amount', configuration: { version: 1, amountMinor: 100 }, priority: 5 });
+    assert.deepEqual(run([line('a', P1, 1000)], [low, high]).applied.map((a) => a.promotionId), [high.id]);
+  });
+
+  it('lets an automatic buy X get Y and a percentage each win the units they save most on', () => {
+    const bogo = promo({ kind: 'buy_x_get_y', configuration: { version: 1, buy: 1, get: 1 } });
+    const percent = promo({ kind: 'percentage', configuration: { version: 1, percent: 10 } });
+    const r = run([line('a', P1, 10000), line('b', P2, 4000)], [bogo, percent]);
+    assert.deepEqual(taken(r), [[[percent.id, 1000]], [[bogo.id, 4000]]]);
+  });
+
+  it('takes the code off what is left after the automatic discounts', () => {
+    const auto = promo({ kind: 'percentage', configuration: { version: 1, percent: 20 } });
+    const code = promo({ kind: 'percentage', configuration: { version: 1, percent: 10 }, code: 'TEN', priority: 9 });
+    const r = run([line('a', P1, 100000)], [code, auto]);
+    assert.deepEqual(taken(r), [[[auto.id, 20000], [code.id, 8000]]]);
+    assert.deepEqual(r.applied.map((a) => a.code), [null, 'TEN']);
+  });
+
+  it('takes a fixed or capped code once for the order, spread over the reduced prices', () => {
+    const auto = promo({ kind: 'percentage', configuration: { version: 1, percent: 50 }, scope: only(P1) });
+    const fixed = promo({ kind: 'fixed_amount', configuration: { version: 1, amountMinor: 900 }, code: 'OFF' });
+    assert.deepEqual(taken(run([line('a', P1, 10000), line('b', P2, 4000)], [auto, fixed])), [[[auto.id, 5000], [fixed.id, 500]], [[fixed.id, 400]]]);
+    const capped = promo({ kind: 'percentage', configuration: { version: 1, percent: 50, maxDiscountMinor: 900 }, code: 'CAP' });
+    assert.equal(run([line('a', P1, 10000, 2)], [capped]).applied[0]!.discountMinor, 900);
+  });
+
+  it('rewards a buy X get Y code at the reduced price, ignoring units that are already free', () => {
+    const auto = promo({ kind: 'percentage', configuration: { version: 1, percent: 50 }, scope: only(P1) });
+    const bogo = promo({ kind: 'buy_x_get_y', configuration: { version: 1, buy: 1, get: 1 }, code: 'BOGO' });
+    const r = run([line('a', P1, 6000), line('b', P2, 4000)], [auto, bogo]);
+    assert.deepEqual(taken(r), [[[auto.id, 3000], [bogo.id, 3000]], []]);
+    const free = promo({ kind: 'percentage', configuration: { version: 1, percent: 100 }, scope: only(P1) });
+    assert.deepEqual(run([line('a', P1, 6000), line('b', P2, 4000)], [free, bogo]).rejectedCodes, [{ code: 'BOGO', reason: 'NOT_APPLICABLE' }]);
+  });
+
+  it('allows only one code, turning down any other', () => {
+    const first = promo({ kind: 'percentage', configuration: { version: 1, percent: 10 }, code: 'FIRST', priority: 2 });
+    const second = promo({ kind: 'percentage', configuration: { version: 1, percent: 20 }, code: 'SECOND', priority: 1 });
+    const r = run([line('a', P1, 1000)], [second, first]);
+    assert.deepEqual(r.applied.map((a) => a.code), ['FIRST']);
+    assert.deepEqual(r.rejectedCodes, [{ code: 'SECOND', reason: 'NOT_APPLICABLE' }]);
+  });
+
+  it('turns down a free delivery code when delivery is already free', () => {
+    const auto = promo({ kind: 'free_delivery', configuration: { version: 1 } });
+    const code = promo({ kind: 'free_delivery', configuration: { version: 1 }, code: 'SHIP', priority: 9 });
+    const r = run([line('a', P1, 1000)], [code, auto]);
+    assert.equal(r.freeDelivery?.promotionId, auto.id);
+    assert.deepEqual(r.rejectedCodes, [{ code: 'SHIP', reason: 'NOT_APPLICABLE' }]);
   });
 
   it('is deterministic regardless of input order', () => {

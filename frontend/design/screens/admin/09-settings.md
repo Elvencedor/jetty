@@ -11,7 +11,7 @@ Reference: [`reference/PinkAdminSettings.dc.html`](../../reference/PinkAdminSett
 - **Delivery & pickup**: zone cards (auto-fit, min 260): name + on/off switch, areas, delivery options (name, note, price; editable inline in P1). "+ Add zone". Below: Same-day order cutoff (select), Free delivery over (₦), Pay on delivery switch ("Lagos only, orders under ₦300,000"). Helper: "Customers only see options that apply to their address. Prices here are what checkout charges."
 - **Payments**: Paystack connection card (status "Connected · live mode", payout bank, Manage). Method switches: Card, Bank transfer, USSD, Instalments (needs a partner; P2). "Cancel unpaid transfer orders after" (2h/6h/24h). In the canvas the provider shows as "[Payment gateway]"; use Paystack.
 - **Notifications**: message table (Message + trigger, WhatsApp checkbox, Email checkbox) for Order confirmed, Transfer details, Out for delivery, Delivered, Review request, Abandoned bag. Clicking a message shows a **WhatsApp preview** bubble on the right with `{variables}`; "Edit wording" (P1). WhatsApp templates need Meta approval, so show the template status (Approved / Pending) once integrated.
-- **Returns & policies**: Return window, Refund as, condition chips (Unworn, Lace uncut, Original packaging, + Add), policy page links (Returns, Delivery info [auto-filled from zones], Terms, Privacy (NDPR), FAQs).
+- **Returns & policies**: Refund as, condition chips (Unworn, Lace uncut, Original packaging, + Add), policy page links (Returns, Delivery info [auto-filled from zones], Terms, Privacy (NDPR), FAQs).
 - **Tax & currency**: Prices include/exclude VAT, VAT rate (placeholder until confirmed with an accountant), Currency (₦ only).
 
 ## States

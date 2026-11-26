@@ -23,7 +23,7 @@ Sections in their default order (each is a `HomeSection` keyed by `type`):
 | 6 | `length` | 5 bars rising in height (62→150px), each a link: label "24–26"" + "Waist". Colours step from blush to ink | Links to `/shop?length=…`. Bars are `<a>` with full text labels |
 | 7 | `tiles` | Bento: tall tile left (Frontal wigs, "From ₦145,000"), two stacked tiles right (Glueless; Hair care on ink) | |
 | 8 | `ugc` | "#JettysHair girls" + subtitle; 140×200 photos with a white caption chip naming the product | From approved photo reviews; each links to its product |
-| 9 | `trust` | `surface-tint` card, 2×2: icon tile + title + caption (Secure pay, 7-day returns, Same-day Lagos, Real reviews) | |
+| 9 | `trust` | `surface-tint` card, 2×2: icon tile + title + caption (Secure pay, Return policy, Same-day Lagos, Real reviews) | |
 | — | Footer | Ink card: "Need a hand choosing?", WhatsApp CTA, links (Track order, Returns, Cap size guide, FAQs, email), payment methods line | Static content from settings |
 | — | BottomTabBar | Home active | |
 

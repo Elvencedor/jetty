@@ -6,7 +6,7 @@ test("an info page renders its markdown safely, links inside the site normally a
   await expect(page).toHaveTitle(/Returns and refunds/);
   await expect(page.getByRole("heading", { level: 1, name: "Returns and refunds" })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: "Returning an item" })).toBeVisible();
-  await expect(page.getByText("7 days")).toBeVisible();
+  await expect(page.getByText("unworn")).toBeVisible();
   // Raw HTML from the CMS is never run or shown as markup.
   await expect(page.locator("main script")).toHaveCount(0);
   await expect(page.locator("article").getByRole("link", { name: "Track an order" })).toHaveAttribute("href", "/track");

@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { API_MAX_CODES, API_MAX_LINES, API_MAX_LINE_QUANTITY, normaliseCode, useCartCount, useCartStore } from "./cart";
+import { API_MAX_LINES, API_MAX_LINE_QUANTITY, normaliseCode, useCartCount, useCartStore } from "./cart";
 import { rehydrateAll } from "./persisted";
 
 const A = "11111111-1111-4111-8111-111111111111";
@@ -50,15 +50,15 @@ describe("cart store", () => {
     expect(cart().remove("33333333-3333-4333-8333-333333333333")).toBeUndefined();
   });
 
-  it("keeps promotion codes upper-case, unique and limited", () => {
+  it("keeps a single promotion code, upper-case, replaced by a newer one", () => {
     cart().addCode(" welcome10 ");
     cart().addCode("WELCOME10");
     cart().addCode("   ");
     expect(cart().promotionCodes).toEqual(["WELCOME10"]);
-    for (let i = 0; i < 10; i++) cart().addCode(`CODE${i}`);
-    expect(cart().promotionCodes).toHaveLength(API_MAX_CODES);
-    cart().removeCode("welcome10");
-    expect(cart().promotionCodes).not.toContain("WELCOME10");
+    cart().addCode("save5");
+    expect(cart().promotionCodes).toEqual(["SAVE5"]);
+    cart().removeCode("save5");
+    expect(cart().promotionCodes).toEqual([]);
     expect(normaliseCode(" ab-1 ")).toBe("AB-1");
   });
 
@@ -101,14 +101,18 @@ describe("cart persistence", () => {
     expect(cart().promotionCodes).toEqual([]);
   });
 
-  it("drops a stored bag with more lines or codes than the API accepts", () => {
+  it("drops a stored bag with more lines than the API accepts", () => {
     const lines = Array.from({ length: API_MAX_LINES + 1 }, (_, i) => ({ variantId: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`, quantity: 1 }));
     window.localStorage.setItem("jh.cart.v1", JSON.stringify({ version: 1, state: { lines, promotionCodes: [] } }));
     rehydrateAll();
     expect(cart().lines).toEqual([]);
-    window.localStorage.setItem("jh.cart.v1", JSON.stringify({ version: 1, state: { lines: [], promotionCodes: Array.from({ length: API_MAX_CODES + 1 }, (_, i) => `C${i}`) } }));
+  });
+
+  it("keeps the items and the newest code of a bag saved with several codes", () => {
+    window.localStorage.setItem("jh.cart.v1", JSON.stringify({ version: 1, state: { lines: [{ variantId: A, quantity: 2 }], promotionCodes: ["FIRST", "LAST"] } }));
     rehydrateAll();
-    expect(cart().promotionCodes).toEqual([]);
+    expect(cart().lines).toEqual([{ variantId: A, quantity: 2 }]);
+    expect(cart().promotionCodes).toEqual(["LAST"]);
   });
 
   it("accepts upper-case UUIDs, which are the same identifier", () => {

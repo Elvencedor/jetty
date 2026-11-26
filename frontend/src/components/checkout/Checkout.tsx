@@ -21,6 +21,7 @@ import { useCustomerSession } from "@/lib/stores/session";
 import { DeliveryStep } from "./DeliveryStep";
 import { FailureNotice } from "./FailureNotice";
 import { PaymentStep } from "./PaymentStep";
+import { GiftRewards } from "@/components/bag/GiftRewards";
 import { PriceSummary } from "@/components/bag/PriceSummary";
 import { UnavailableNotice } from "@/components/bag/UnavailableNotice";
 import { ReviewStep } from "./ReviewStep";
@@ -183,6 +184,7 @@ export function Checkout() {
         ) : null}
         <UnavailableNotice items={quoteState.unavailable} />
         {failure ? <FailureNotice failure={failure} onChange={(to) => { setFailure(null); go(to); }} /> : null}
+        {quoteState.unavailable.length === 0 ? <GiftRewards offers={quote?.giftOffers} busy={busy} returnTo="/checkout" leaveNote="Your delivery details are saved." /> : null}
 
         <form onSubmit={(e) => { e.preventDefault(); next(); }} noValidate aria-busy={submitting} className="flex flex-col gap-5">
           <fieldset disabled={submitting} className="contents">

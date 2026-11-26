@@ -5,7 +5,7 @@ import { adminUsers, storeSettings } from '../../db/schema/index.js';
 import { createTestDatabase, TEST_DATABASE_URL, type TestDatabase } from '../../testing/database.js';
 import { SETTINGS, getSetting, publicSettings, updateSetting } from './settings.js';
 
-type Policies = { returnWindowDays: number; podMaxOrderMinor: number | null };
+type Policies = { podMaxOrderMinor: number | null };
 type Payments = { enabledMethods: string[]; cardHoldMinutes: number; transferHoldMinutes: number };
 
 describe('settings store', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not set' }, () => {
@@ -33,10 +33,9 @@ describe('settings store', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL not 
   });
 
   it('update merges a patch, reports before and after, and records who changed it', async () => {
-    const { before, after } = (await updateSetting(t.db, adminId, 'policies', { returnWindowDays: 14 })) as { before: Policies; after: Policies };
-    assert.equal(before.returnWindowDays, 7);
-    assert.equal(after.returnWindowDays, 14);
-    assert.equal(after.podMaxOrderMinor, null);
+    const { before, after } = (await updateSetting(t.db, adminId, 'policies', { podMaxOrderMinor: 2_000_000 })) as { before: Policies; after: Policies };
+    assert.equal(before.podMaxOrderMinor, null);
+    assert.equal(after.podMaxOrderMinor, 2_000_000);
     const [row] = await t.db.select().from(storeSettings).where(eq(storeSettings.key, 'app.policies'));
     assert.equal(row!.updatedByAdminId, adminId);
     assert.deepEqual(await getSetting(t.db, 'policies'), after);

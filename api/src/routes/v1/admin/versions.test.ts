@@ -83,13 +83,13 @@ describe('versioned admin records', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE
   it('setting: the first save is version 0, later saves need the one they read, and two first saves cannot both win', async () => {
     const read = await api.inject({ url: '/api/v1/admin/settings/policies', headers: owner.headers });
     assert.equal(read.headers.etag, '"0"', 'never saved yet');
-    assert.equal((await send('PATCH', '/admin/settings/policies', { returnWindowDays: 10 })).status, 428);
-    const first = await Promise.all([14, 21].map((d) => send('PATCH', '/admin/settings/policies', { returnWindowDays: d }, 0)));
+    assert.equal((await send('PATCH', '/admin/settings/policies', { podMaxOrderMinor: 1000 })).status, 428);
+    const first = await Promise.all([1400, 2100].map((d) => send('PATCH', '/admin/settings/policies', { podMaxOrderMinor: d }, 0)));
     assert.deepEqual(first.map((r) => r.status).sort(), [200, 412], 'only one first save lands');
     const winner = first.find((r) => r.status === 200)!;
     assert.equal(winner.etag, '"1"');
-    assert.equal((await send('PATCH', '/admin/settings/policies', { returnWindowDays: 7 }, 1)).etag, '"2"');
-    assert.equal((await send('PATCH', '/admin/settings/policies', { returnWindowDays: 9 }, 1)).status, 412);
+    assert.equal((await send('PATCH', '/admin/settings/policies', { podMaxOrderMinor: 700 }, 1)).etag, '"2"');
+    assert.equal((await send('PATCH', '/admin/settings/policies', { podMaxOrderMinor: 900 }, 1)).status, 412);
   });
 
   it('creating needs no version, and a version sent with a create is not checked: only edits are', async () => {

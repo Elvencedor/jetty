@@ -10,7 +10,7 @@ import { adminErrorMessage } from "@/lib/admin/concurrency";
 import { adminKeys } from "@/lib/admin/keys";
 import { minorToAmountText, onAmountChange } from "@/lib/admin/amount";
 import { parseNairaToMinor } from "@/lib/admin/orders";
-import { canSwitchOff, changedFields, holdChoices, PAYMENT_METHOD_ROWS, returnWindowChoices, returnWindowLabel, storeToForm, storeToSettings, validateStore, type StoreErrors } from "@/lib/admin/settings";
+import { canSwitchOff, changedFields, holdChoices, PAYMENT_METHOD_ROWS, storeToForm, storeToSettings, validateStore, type StoreErrors } from "@/lib/admin/settings";
 import { useUnsavedGuard } from "@/lib/admin/useUnsavedGuard";
 import { getSetting, patchSetting, type PaymentMethodKey, type SettingKey, type SettingsByKey } from "@/lib/api/admin-settings";
 import { toast } from "@/lib/stores/toast";
@@ -168,26 +168,20 @@ export function PoliciesForm({ canWrite }: { canWrite: boolean }) {
 }
 
 function PoliciesEditor({ initial, canWrite, save }: { initial: SettingsByKey["policies"]; canWrite: boolean; save: (patch: Partial<SettingsByKey["policies"]>) => Promise<unknown> }) {
-  const [days, setDays] = useState(initial.returnWindowDays);
   const [pod, setPod] = useState(initial.podMaxOrderMinor === null ? "" : minorToAmountText(initial.podMaxOrderMinor));
   const [podError, setPodError] = useState<string>();
   const { saving, error, run, setError } = useSaver();
   const podMinor = pod.trim() === "" ? null : parseNairaToMinor(pod);
-  const dirty = days !== initial.returnWindowDays || (podMinor ?? null) !== initial.podMaxOrderMinor;
+  const dirty = (podMinor ?? null) !== initial.podMaxOrderMinor;
   return (
     <>
       <FormSection title="Returns & policies">
-        <div className="max-w-sm">
-          <SelectField size="admin" label="Return window" value={days} disabled={!canWrite} onChange={(e) => setDays(Number(e.target.value))} hint="Shown to customers on product pages and in your return policy.">
-            {returnWindowChoices(days).map((d) => <option key={d} value={d}>{returnWindowLabel(d)}</option>)}
-          </SelectField>
-        </div>
         <div className="max-w-sm">
           <TextField size="admin" label="Pay on delivery limit" prefix="₦" inputMode="decimal" value={pod} disabled={!canWrite} error={podError} placeholder="No limit set" onChange={(e) => { onAmountChange(pod, setPod)(e); setPodError(undefined); }} hint="The largest order that can be paid for on delivery. Pay on delivery is not offered at checkout yet; this is kept for when it is." />
         </div>
         <p className="text-body-sm text-muted">The wording of the Returns, Delivery, Terms and Privacy pages is edited in <Link href="/admin/storefront" className="font-semibold text-primary-strong underline">Storefront › Pages</Link>.</p>
       </FormSection>
-      {canWrite ? <Footer dirty={dirty} saving={saving} error={error} onDiscard={() => { setDays(initial.returnWindowDays); setPod(initial.podMaxOrderMinor === null ? "" : minorToAmountText(initial.podMaxOrderMinor)); setPodError(undefined); setError(undefined); }} onSave={() => { if (pod.trim() !== "" && podMinor === null) return setPodError("Enter an amount like 300,000, or leave blank"); void run(() => save({ returnWindowDays: days, podMaxOrderMinor: podMinor })); }} /> : null}
+      {canWrite ? <Footer dirty={dirty} saving={saving} error={error} onDiscard={() => { setPod(initial.podMaxOrderMinor === null ? "" : minorToAmountText(initial.podMaxOrderMinor)); setPodError(undefined); setError(undefined); }} onSave={() => { if (pod.trim() !== "" && podMinor === null) return setPodError("Enter an amount like 300,000, or leave blank"); void run(() => save({ podMaxOrderMinor: podMinor })); }} /> : null}
     </>
   );
 }

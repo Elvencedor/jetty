@@ -12,7 +12,7 @@ export type CartLine = { variantId: string; quantity: number };
 /** Hard limits of the API (`/pricing/quote` and `/checkout` reject more). */
 export const API_MAX_LINES = 50;
 export const API_MAX_LINE_QUANTITY = 99;
-export const API_MAX_CODES = 5;
+export const API_MAX_CODES = 1;
 
 // Hand-written rather than a schema library: this store loads on every page, and a validator this small should not
 // add tens of kilobytes to the first load.
@@ -27,8 +27,9 @@ const isCode = (v: unknown): v is string => typeof v === "string" && v.length >=
 function parsePersisted(value: unknown): Pick<CartState, "lines" | "promotionCodes"> | null {
   const { lines, promotionCodes } = (value ?? {}) as { lines?: unknown; promotionCodes?: unknown };
   if (!Array.isArray(lines) || lines.length > API_MAX_LINES || !lines.every(isLine)) return null;
-  if (!Array.isArray(promotionCodes) || promotionCodes.length > API_MAX_CODES || !promotionCodes.every(isCode)) return null;
-  return { lines, promotionCodes };
+  if (!Array.isArray(promotionCodes) || !promotionCodes.every(isCode)) return null;
+  // A bag saved when several codes were allowed keeps its items and the code added last.
+  return { lines, promotionCodes: promotionCodes.slice(-API_MAX_CODES) };
 }
 
 export const normaliseCode = (code: string) => code.trim().toUpperCase();
@@ -44,6 +45,7 @@ type CartState = {
   /** Removes a line and returns it with its position, so the UI can offer "Undo". */
   remove: (variantId: string) => { line: CartLine; index: number } | undefined;
   restore: (line: CartLine, index: number) => void;
+  /** Sets the bag's promo code. There is only ever one, so a new code replaces the old. */
   addCode: (code: string) => void;
   removeCode: (code: string) => void;
   clear: () => void;
@@ -79,8 +81,8 @@ export const useCartStore = create<CartState>()(
       addCode: (code) =>
         set(({ promotionCodes }) => {
           const normalised = normaliseCode(code);
-          if (!normalised || promotionCodes.includes(normalised) || promotionCodes.length >= API_MAX_CODES) return {};
-          return { promotionCodes: [...promotionCodes, normalised] };
+          if (!normalised || promotionCodes.includes(normalised)) return {};
+          return { promotionCodes: [normalised] };
         }),
       removeCode: (code) => set(({ promotionCodes }) => ({ promotionCodes: promotionCodes.filter((c) => c !== normaliseCode(code)) })),
       clear: () => set({ lines: [], promotionCodes: [] }),

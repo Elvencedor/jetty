@@ -64,7 +64,7 @@ export function ReviewStep({ quote, busy, details, deliveryMethod, paymentMethod
       {quote ? <PriceSummary quote={quote} busy={busy} bordered /> : null}
 
       <p className="text-caption text-muted">
-        By placing your order you agree to our <Link href="/pages/terms" className="text-primary-strong underline">Terms</Link> and <Link href="/pages/returns" className="text-primary-strong underline">7-day returns policy</Link>.
+        By placing your order you agree to our <Link href="/pages/terms" className="text-primary-strong underline">Terms</Link> and <Link href="/pages/returns" className="text-primary-strong underline">return policy</Link>.
       </p>
     </div>
   );

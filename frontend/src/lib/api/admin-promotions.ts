@@ -13,7 +13,6 @@ export type PromotionRow = {
   startsAt: string | null;
   endsAt: string | null;
   priority: number;
-  stackable: boolean;
   type: "code" | "automatic";
   usage: { redemptions: number; openHolds: number; limit: number | null };
   createdAt: string | null;
@@ -42,7 +41,6 @@ export type PromotionDetail = {
     startsAt: string | null;
     endsAt: string | null;
     priority: number;
-    stackable: boolean;
     totalUsageLimit: number | null;
     perCustomerLimit: number | null;
     usageCount: number;
@@ -61,7 +59,6 @@ export type PromotionInput = {
   scope: PromotionScope;
   startsAt: string | null;
   endsAt: string | null;
-  stackable: boolean;
   totalUsageLimit: number | null;
   perCustomerLimit: number | null;
   firstOrderOnly: boolean;

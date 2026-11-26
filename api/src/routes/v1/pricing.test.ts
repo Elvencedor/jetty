@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import type { Server } from '@hapi/hapi';
+import { eq } from 'drizzle-orm';
 import { loadEnv } from '../../config/env.js';
 import {
   collections,
@@ -10,9 +11,12 @@ import {
   productCollections,
   productVariants,
   products,
+  orders,
   promotionCodes,
+  promotionRedemptions,
   promotions,
 } from '../../db/schema/index.js';
+import { priceCart } from '../../modules/pricing/cart.js';
 import { loadPromotions } from '../../modules/pricing/load-promotions.js';
 import { createLogger } from '../../lib/logger.js';
 import { createServer } from '../../server.js';
@@ -75,7 +79,7 @@ describe('pricing and delivery quotes', { skip: !TEST_DATABASE_URL && 'TEST_DATA
       (await t.db.insert(promotions).values({ name, kind, configuration, status: 'active', ...extra }).returning())[0]!;
 
     await promo('Auto 10%', 'percentage', { version: 1, percent: 10 }, { priority: 1 });
-    const welcome = await promo('Welcome', 'fixed_amount', { version: 1, amountMinor: 50000 }, { priority: 5, stackable: true });
+    const welcome = await promo('Welcome', 'fixed_amount', { version: 1, amountMinor: 50000 });
     await t.db.insert(promotionCodes).values({ promotionId: welcome.id, code: 'WELCOME' });
     const expired = await promo('Old', 'percentage', { version: 1, percent: 90 }, { endsAt: new Date('2026-02-01') });
     await t.db.insert(promotionCodes).values({ promotionId: expired.id, code: 'OLD' });
@@ -155,19 +159,25 @@ describe('pricing and delivery quotes', { skip: !TEST_DATABASE_URL && 'TEST_DATA
     assert.deepEqual(body.warnings[0], { code: 'INSUFFICIENT_STOCK', variantId: v.scarce, requestedQuantity: 5, availableQuantity: 2 });
   });
 
-  it('applies and stacks code promotions deterministically, normalising the code', async () => {
+  it('applies a code on top of the automatic discounts, normalising the code', async () => {
     const { body } = await post('/api/v1/pricing/quote', { items: [{ variantId: v.wig, quantity: 1 }], promotionCodes: [' welcome '] });
-    // WELCOME (priority 5, stackable) applies first; the non-stackable auto 10% then cannot combine with it.
-    assert.deepEqual(body.promotions.applied.map((p: Json) => p.name), ['Welcome']);
-    assert.equal(body.discountMinor, 50000);
+    assert.deepEqual(body.promotions.applied.map((p: Json) => p.name), ['Auto 10%', 'Welcome']);
+    assert.equal(body.discountMinor, 10000 + 50000);
     assert.deepEqual(body.promotions.rejectedCodes, []);
   });
 
+  it('accepts only one code', async () => {
+    const res = await post('/api/v1/pricing/quote', { items: [{ variantId: v.wig, quantity: 1 }], promotionCodes: ['WELCOME', 'FREESHIP'] });
+    assert.equal(res.status, 422);
+  });
+
   it('reports expired, exhausted and unknown codes without failing', async () => {
-    const { status, body } = await post('/api/v1/pricing/quote', { items: [{ variantId: v.wig, quantity: 1 }], promotionCodes: ['OLD', 'GONE', 'NOPE'] });
-    assert.equal(status, 200);
-    const reasons = Object.fromEntries(body.promotions.rejectedCodes.map((r: Json) => [r.code, r.reason]));
-    assert.deepEqual(reasons, { OLD: 'EXPIRED', GONE: 'USAGE_LIMIT_REACHED', NOPE: 'INVALID_CODE' });
+    for (const [code, reason] of [['OLD', 'EXPIRED'], ['GONE', 'USAGE_LIMIT_REACHED'], ['NOPE', 'INVALID_CODE']] as const) {
+      const { status, body } = await post('/api/v1/pricing/quote', { items: [{ variantId: v.wig, quantity: 1 }], promotionCodes: [code] });
+      assert.equal(status, 200);
+      assert.deepEqual(body.promotions.rejectedCodes, [{ code, reason }]);
+      assert.equal(body.discountMinor, 10000, 'the automatic discount stays');
+    }
   });
 
   it('does not apply first-order promotions to guests and tells the client to sign in', async () => {
@@ -189,6 +199,23 @@ describe('pricing and delivery quotes', { skip: !TEST_DATABASE_URL && 'TEST_DATA
     const loaded = await loadPromotions(t.db, { codes: ['LOYAL'], now: new Date(), customerId: customer!.id });
     assert.ok(loaded.promotions.some((p) => p.code === 'LOYAL'));
     assert.deepEqual(loaded.rejections, []);
+  });
+
+  it('respects the per-customer limit of an automatic discount', async () => {
+    const [limited] = await t.db.insert(promotions).values({ name: 'Once each', kind: 'percentage', configuration: { version: 1, percent: 50 }, status: 'active', perCustomerLimit: 1 }).returning();
+    const [customer] = await t.db.insert(customers).values({ email: 'once@example.com' }).returning();
+    const items = [{ variantId: v.wig!, quantity: 1 }];
+    const names = async (customerId?: string) => (await priceCart(t.db, { items, promotionCodes: [], customerId })).promotions.applied.map((p) => p.name);
+    try {
+      assert.deepEqual(await names(), ['Auto 10%'], 'a guest cannot be checked, so does not get it');
+      assert.deepEqual(await names(customer!.id), ['Once each']);
+      const [order] = await t.db.insert(orders).values({ orderNumber: 'JH-ONCE-1', customerId: customer!.id, phoneE164: '+2348011110000', subtotalMinor: 100000, totalMinor: 50000, deliveryAddressSnapshot: {}, deliveryMethod: 'delivery', termsAcceptedAt: new Date() }).returning();
+      await t.db.insert(promotionRedemptions).values({ promotionId: limited!.id, customerId: customer!.id, orderId: order!.id, discountMinor: 50000 });
+      assert.deepEqual(await names(customer!.id), ['Auto 10%'], 'once used, the next best automatic discount applies');
+    } finally {
+      await t.db.delete(promotionRedemptions).where(eq(promotionRedemptions.promotionId, limited!.id));
+      await t.db.delete(promotions).where(eq(promotions.id, limited!.id));
+    }
   });
 
   it('adds the admin-configured delivery fee to the total', async () => {

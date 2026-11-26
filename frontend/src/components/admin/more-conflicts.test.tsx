@@ -61,7 +61,7 @@ describe("collection: when a save finds the collection changed", () => {
 
 describe("promotion: when a save finds the promotion changed", () => {
   const detail = (over: Record<string, unknown> = {}): PromotionDetail => ({
-    promotion: { id: "pr1", name: "Ten off", kind: "percentage", status: "draft", lifecycle: "draft", version: 4, configuration: { version: 1, percent: 10 }, scope: {}, startsAt: null, endsAt: null, priority: 0, stackable: false, totalUsageLimit: null, perCustomerLimit: null, usageCount: 0, firstOrderOnly: false, minimumSubtotalMinor: null, ...over },
+    promotion: { id: "pr1", name: "Ten off", kind: "percentage", status: "draft", lifecycle: "draft", version: 4, configuration: { version: 1, percent: 10 }, scope: {}, startsAt: null, endsAt: null, priority: 0, totalUsageLimit: null, perCustomerLimit: null, usageCount: 0, firstOrderOnly: false, minimumSubtotalMinor: null, ...over },
     gift: null, codes: [], stats: { redemptions: 0, discountMinor: 0, orderRevenueMinor: 0, openHolds: 0 },
   });
   function setup(respond: (call: number) => Response, current: () => PromotionDetail = () => detail()) {

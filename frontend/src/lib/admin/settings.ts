@@ -8,7 +8,7 @@ export const SETTINGS_SECTIONS = [
   { key: "delivery", label: "Delivery & pickup", note: "Zones, prices, delivery times" },
   { key: "prep", label: "Prep time", note: "Hold back deliveries while you prepare" },
   { key: "payments", label: "Payments", note: "Methods and payment holds" },
-  { key: "policies", label: "Returns & policies", note: "Return window" },
+  { key: "policies", label: "Returns & policies", note: "Pay on delivery limit" },
 ] as const;
 export type SettingsSectionKey = (typeof SETTINGS_SECTIONS)[number]["key"];
 export const sectionByKey = (key: string) => SETTINGS_SECTIONS.find((s) => s.key === key);
@@ -81,12 +81,6 @@ export const PAYMENT_METHOD_ROWS: { key: PaymentMethodKey; label: string; note: 
 
 /** Switching a method off is refused when it would leave none. */
 export const canSwitchOff = (enabled: readonly PaymentMethodKey[], key: PaymentMethodKey) => !(enabled.length === 1 && enabled[0] === key);
-
-// --------------------------------------------------------------- policies
-
-export const RETURN_WINDOWS = [0, 7, 14, 30] as const;
-export const returnWindowChoices = (current: number) => (RETURN_WINDOWS.some((d) => d === current) ? [...RETURN_WINDOWS] : [...RETURN_WINDOWS, current].sort((a, b) => a - b));
-export const returnWindowLabel = (days: number) => (days === 0 ? "No returns" : `${days} days after delivery`);
 
 // ------------------------------------------------------------------ zones
 

@@ -1,5 +1,5 @@
 /**
- * Info pages every shop needs, written from policies the design already states (7-day returns, unworn with the lace
+ * Info pages every shop needs, written from policies the design already states (returns unworn with the lace
  * uncut, the cap measurements). Plain statements only: nothing here
  * promises a fee, a deadline or a legal position the owner has not set.
  *
@@ -15,7 +15,7 @@ export const STARTER_PAGES: StarterPage[] = [
     status: 'published',
     markdown: `## Returning an item
 
-You can return an item within **7 days of delivery** if it is **unworn and the lace is uncut**.
+You can return an item if it is **unworn and the lace is uncut**.
 
 1. Message us on WhatsApp or email with your order number.
 2. We will tell you how to send it back.

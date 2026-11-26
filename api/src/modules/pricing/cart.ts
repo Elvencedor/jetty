@@ -1,13 +1,15 @@
-import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
-import { inventory, productCollections, productMedia, productOptionValues, productOptions, productVariants, products, variantOptionValues } from '../../db/schema/index.js';
+import { productCollections, productOptionValues, productOptions, productVariants, products, variantOptionValues } from '../../db/schema/index.js';
 import { unprocessable } from '../../lib/errors.js';
+import { findGiftOffers, type GiftOffer } from './gift-offers.js';
 import { loadPromotions, type CodeRejection } from './load-promotions.js';
 import { applyPromotions, type EngineLine, type PromotionKind, type RejectedCode } from './promotions.js';
+import { availableOf, displayData, liveVariants, type LineImage } from './variants.js';
+
+export type { LineImage };
 
 export type CartItem = { variantId: string; quantity: number };
-
-export type LineImage = { objectKey: string; altText: string | null; width: number | null; height: number | null };
 
 export type PricedLine = {
   variantId: string;
@@ -49,6 +51,8 @@ export type PricedCart = {
   };
   freeDelivery: { promotionId: string } | null;
   warnings: PricingWarning[];
+  /** Free gifts this order has earned or could still earn. Empty unless asked for. */
+  giftOffers: GiftOffer[];
 };
 
 /** Merges duplicate variant lines so a client cannot split a line to dodge per-line rules. */
@@ -58,50 +62,6 @@ export function mergeItems(items: CartItem[]): CartItem[] {
   return [...merged].map(([variantId, quantity]) => ({ variantId, quantity }));
 }
 
-
-/** The options and cover photo a bag line shows, for these variants. */
-async function displayData(db: Db, rows: { variantId: string; productId: string }[]) {
-  const ids = rows.map((r) => r.variantId);
-  const productIds = [...new Set(rows.map((r) => r.productId))];
-  const [optionRows, imageRows] = await Promise.all([
-    db
-      .select({ variantId: variantOptionValues.variantId, name: productOptions.name, label: productOptionValues.label, order: productOptions.sortOrder })
-      .from(variantOptionValues)
-      .innerJoin(productOptionValues, eq(productOptionValues.id, variantOptionValues.optionValueId))
-      .innerJoin(productOptions, eq(productOptions.id, productOptionValues.optionId))
-      .where(inArray(variantOptionValues.variantId, ids))
-      .orderBy(asc(productOptions.sortOrder)),
-    db
-      .select({ productId: productMedia.productId, objectKey: productMedia.objectKey, altText: productMedia.altText, width: productMedia.width, height: productMedia.height })
-      .from(productMedia)
-      .where(inArray(productMedia.productId, productIds))
-      .orderBy(desc(productMedia.isCover), asc(productMedia.sortOrder), asc(productMedia.createdAt)),
-  ]);
-  const optionsByVariant = new Map<string, { name: string; label: string }[]>();
-  for (const o of optionRows) optionsByVariant.set(o.variantId, [...(optionsByVariant.get(o.variantId) ?? []), { name: o.name, label: o.label }]);
-  const imageByProduct = new Map<string, LineImage>();
-  for (const m of imageRows) if (!imageByProduct.has(m.productId)) imageByProduct.set(m.productId, { objectKey: m.objectKey, altText: m.altText, width: m.width, height: m.height });
-  return { optionsByVariant, imageByProduct };
-}
-
-/** The variant rows (price, stock, product) for live, published products, in the shape the pricing code reads. */
-const liveVariants = (db: Db, ids: string[]) =>
-  db
-    .select({
-      variantId: productVariants.id,
-      productId: productVariants.productId,
-      title: products.title,
-      slug: products.slug,
-      compareAt: productVariants.compareAtPriceMinor,
-      priceMinor: productVariants.priceMinor,
-      currency: productVariants.currency,
-      onHand: inventory.onHandQuantity,
-      reserved: inventory.reservedQuantity,
-    })
-    .from(productVariants)
-    .innerJoin(products, and(eq(products.id, productVariants.productId), eq(products.status, 'active'), or(isNull(products.publishedAt), lte(products.publishedAt, sql`now()`))))
-    .leftJoin(inventory, eq(inventory.variantId, productVariants.id))
-    .where(and(inArray(productVariants.id, ids), eq(productVariants.active, true)));
 
 export type UnavailableVariant = {
   variantId: string;
@@ -157,7 +117,7 @@ export function unavailableMessage(items: UnavailableVariant[]): string {
  */
 export async function priceCart(
   db: Db,
-  input: { items: CartItem[]; promotionCodes: string[]; zoneId?: string | undefined; customerId?: string | undefined; now?: Date },
+  input: { items: CartItem[]; promotionCodes: string[]; zoneId?: string | undefined; customerId?: string | undefined; now?: Date; withGiftOffers?: boolean },
 ): Promise<PricedCart> {
   const now = input.now ?? new Date();
   const items = mergeItems(input.items);
@@ -214,7 +174,7 @@ export async function priceCart(
       options,
       optionSummary: options.map((o) => o.label).join(' · '),
       compareAtPriceMinor: row.compareAt !== null && row.compareAt > row.priceMinor ? row.compareAt : null,
-      availableQuantity: Math.max((row.onHand ?? 0) - (row.reserved ?? 0), 0),
+      availableQuantity: availableOf(row),
       quantity: l.quantity,
       unitPriceMinor: l.unitPriceMinor,
       lineSubtotalMinor,
@@ -228,7 +188,7 @@ export async function priceCart(
   const warnings: PricingWarning[] = [];
   for (const item of items) {
     const row = byId.get(item.variantId)!;
-    const available = Math.max((row.onHand ?? 0) - (row.reserved ?? 0), 0);
+    const available = availableOf(row);
     if (available < item.quantity) {
       warnings.push({
         code: available === 0 ? 'OUT_OF_STOCK' : 'INSUFFICIENT_STOCK',
@@ -281,6 +241,18 @@ export async function priceCart(
   }
   const allLines = [...lines, ...gifts];
 
+  const giftOffers = input.withGiftOffers
+    ? await findGiftOffers(db, {
+        promotions: loaded.promotions,
+        signInOnly: loaded.signInOnly,
+        terms: loaded.terms,
+        lines: engineLines,
+        currency,
+        taken: allLines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
+        unlocked: new Set(gifts.map((g) => g.gift!.promotionId)),
+      })
+    : [];
+
   return {
     currency,
     lines: allLines,
@@ -289,5 +261,6 @@ export async function priceCart(
     promotions: { applied, rejectedCodes: [...loaded.rejections, ...engine.rejectedCodes] },
     freeDelivery: engine.freeDelivery,
     warnings,
+    giftOffers,
   };
 }

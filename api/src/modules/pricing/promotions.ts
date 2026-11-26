@@ -40,7 +40,6 @@ export type EnginePromotion = {
   configuration: unknown;
   scope: unknown;
   priority: number;
-  stackable: boolean;
   minimumSubtotalMinor: number | null;
   currency: string;
   createdAt: Date;
@@ -95,16 +94,46 @@ function eligibleIndexes(scope: unknown, lines: EngineLine[]): number[] | null {
   });
 }
 
+/** A discount on the items themselves that needs no code. Every eligible item gets it, so a minimum spend does not apply. */
+const isAutomaticDiscount = (promo: EnginePromotion) => promo.code === null && (promo.kind === 'percentage' || promo.kind === 'fixed_amount' || promo.kind === 'buy_x_get_y');
+
+/** How far these lines are from a promotion's rule; null when the stored rule cannot be read. */
+export function qualification(lines: EngineLine[], promo: EnginePromotion) {
+  const config = validated<RuleConfig>(CONFIG_SCHEMAS[promo.kind], promo.configuration);
+  const eligible = eligibleIndexes(promo.scope, lines);
+  if (!config || !eligible) return null;
+  const eligibleSubtotal = eligible.reduce((sum, i) => sum + lines[i]!.unitPriceMinor * lines[i]!.quantity, 0);
+  const minimumMinor = isAutomaticDiscount(promo) ? 0 : (promo.minimumSubtotalMinor ?? 0);
+  return { config, eligible, eligibleSubtotal, shortfallMinor: Math.max(minimumMinor - eligibleSubtotal, 0) };
+}
+
+/** One unit in the bag: its price, and the automatic discount it ended up with. */
+type Unit = { line: number; price: number; off: number; promotionId: string | null };
+
+/** `percent` of an amount in minor units, rounded down. */
+const share = (amountMinor: number, percent: number) => Number((BigInt(amountMinor) * BigInt(Math.round(percent * 100))) / 10000n);
+
+/** buy_x_get_y: in every group of (buy + get) units the `get` cheapest earn percentOff. Returns what comes off each rewarded unit. */
+function rewardUnits(units: Unit[], lines: EngineLine[], config: RuleConfig, priceOf: (u: Unit) => number): [Unit, number][] {
+  const sorted = [...units].sort((a, b) => priceOf(a) - priceOf(b) || lines[a.line]!.variantId.localeCompare(lines[b.line]!.variantId));
+  const rewarded = Math.floor(sorted.length / (config.buy + config.get)) * config.get;
+  return sorted.slice(0, rewarded).map((u) => [u, share(priceOf(u), config.percentOff)]);
+}
+
 /**
- * Deterministic promotion resolution.
+ * Deterministic promotion resolution, unit by unit.
  *
- * Order: priority desc, created_at asc, id asc. Line-discount promotions
- * (percentage, fixed_amount, buy_x_get_y) apply in that order; one after the
- * first applies only if it and every already-applied promotion are stackable.
- * A promotion that yields no discount does not block later ones. Free delivery
- * targets the delivery fee, not line amounts, so it always combines; the first
- * eligible one wins. A free gift also always combines and adds its item. Minimum spend is measured on the promotion's eligible
- * lines before any discount.
+ * 1. Automatic discounts (percentage, fixed_amount, buy_x_get_y without a code). Every unit takes the one that saves
+ *    it most. They never add up on a unit and never block each other. A percentage (and its cap) and a fixed amount
+ *    are worked out on each unit, so every eligible unit gets the discount however many are in the bag. buy_x_get_y
+ *    rewards its cheapest units; the units that earn the reward may still carry another discount.
+ * 2. At most one promo code, on top, worked out on what is left after the automatic discounts. A percentage (and its
+ *    cap) or fixed amount is taken once for the order and spread across the eligible lines.
+ *
+ * Free delivery targets the delivery fee, not line amounts; the first eligible one wins, automatic ones first. A free
+ * gift adds its item. A minimum spend counts only for codes, free delivery and gifts (automatic discounts ignore it)
+ * and is measured on all the lines in the promotion's scope, before any discount. Ties
+ * go by priority desc, created_at asc, id asc.
  */
 export function applyPromotions(input: {
   lines: EngineLine[];
@@ -113,7 +142,6 @@ export function applyPromotions(input: {
   zoneId?: string | undefined;
 }): EngineResult {
   const { lines } = input;
-  const remaining = lines.map((l) => l.unitPriceMinor * l.quantity);
   const result: EngineResult = {
     allocations: lines.map(() => []),
     applied: [],
@@ -122,7 +150,6 @@ export function applyPromotions(input: {
     rejectedCodes: [],
   };
 
-  const appliedPromos: EnginePromotion[] = [];
   const ordered = [...input.promotions]
     .filter((p) => p.currency === input.currency)
     .sort((a, b) => b.priority - a.priority || a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id));
@@ -131,84 +158,100 @@ export function applyPromotions(input: {
     if (p.code) result.rejectedCodes.push({ code: p.code, reason });
   };
 
-  for (const promo of ordered) {
-    const schema = CONFIG_SCHEMAS[promo.kind];
-    const config = validated<RuleConfig>(schema, promo.configuration);
-    const eligible = eligibleIndexes(promo.scope, lines);
-    if (!config || !eligible) {
+  /** The promotion's rule and the lines it covers, or null (with the reason recorded) when this order does not qualify. */
+  const qualify = (promo: EnginePromotion) => {
+    const found = qualification(lines, promo);
+    if (!found || found.eligible.length === 0) {
       reject(promo, 'NOT_APPLICABLE');
-      continue;
+      return null;
     }
-
-    const eligibleSubtotal = eligible.reduce((sum, i) => sum + lines[i]!.unitPriceMinor * lines[i]!.quantity, 0);
-    if (eligible.length === 0) {
-      reject(promo, 'NOT_APPLICABLE');
-      continue;
-    }
-    if (promo.minimumSubtotalMinor !== null && eligibleSubtotal < promo.minimumSubtotalMinor) {
+    if (found.shortfallMinor > 0) {
       reject(promo, 'MIN_SPEND_NOT_MET');
-      continue;
+      return null;
     }
+    return found;
+  };
 
-    if (promo.kind === 'free_delivery') {
-      const zoneIds: string[] = config.zoneIds ?? [];
-      const zoneOk = zoneIds.length === 0 || (input.zoneId !== undefined && zoneIds.includes(input.zoneId));
-      if (zoneOk && !result.freeDelivery) result.freeDelivery = { promotionId: promo.id };
-      else if (!zoneOk) reject(promo, 'NOT_APPLICABLE');
-      continue;
-    }
-
-    // A gift adds an item rather than taking money off lines, so like free delivery it combines with everything.
+  /** Free delivery and gifts take nothing off the lines. */
+  const grantExtra = (promo: EnginePromotion, config: RuleConfig) => {
     if (promo.kind === 'free_gift') {
       result.gifts.push({ promotionId: promo.id, name: promo.name, code: promo.code, variantId: config.variantId, quantity: config.quantity });
+      return;
+    }
+    const zoneIds: string[] = config.zoneIds ?? [];
+    const zoneOk = zoneIds.length === 0 || (input.zoneId !== undefined && zoneIds.includes(input.zoneId));
+    if (zoneOk && !result.freeDelivery) result.freeDelivery = { promotionId: promo.id };
+    else reject(promo, 'NOT_APPLICABLE');
+  };
+  const isExtra = (promo: EnginePromotion) => promo.kind === 'free_delivery' || promo.kind === 'free_gift';
+
+  const record = (promo: EnginePromotion, perLine: Map<number, number>) => {
+    let discount = 0;
+    for (const [i, amountMinor] of [...perLine].sort(([a], [b]) => a - b)) {
+      if (amountMinor <= 0) continue;
+      result.allocations[i]!.push({ promotionId: promo.id, amountMinor });
+      discount += amountMinor;
+    }
+    if (discount > 0) result.applied.push({ promotionId: promo.id, name: promo.name, kind: promo.kind, code: promo.code, discountMinor: discount });
+    else reject(promo, 'NOT_APPLICABLE');
+  };
+
+  const units: Unit[] = lines.flatMap((l, line) => Array.from({ length: l.quantity }, () => ({ line, price: l.unitPriceMinor, off: 0, promotionId: null })));
+  const unitsOn = (eligible: number[]) => {
+    const set = new Set(eligible);
+    return units.filter((u) => set.has(u.line));
+  };
+
+  const automatic = ordered.filter((p) => p.code === null);
+  for (const promo of automatic) {
+    const rule = qualify(promo);
+    if (!rule) continue;
+    const { config, eligible } = rule;
+    if (isExtra(promo)) {
+      grantExtra(promo, config);
       continue;
     }
-
-    const stacks = appliedPromos.length === 0 || (promo.stackable && appliedPromos.every((a) => a.stackable));
-    if (!stacks) {
-      reject(promo, 'NOT_APPLICABLE');
-      continue;
+    const offers: [Unit, number][] =
+      promo.kind === 'buy_x_get_y'
+        ? rewardUnits(unitsOn(eligible), lines, config, (u) => u.price)
+        : unitsOn(eligible).map((u) => [
+            u,
+            promo.kind === 'percentage' ? Math.min(share(u.price, config.percent), config.maxDiscountMinor ?? u.price) : Math.min(config.amountMinor, u.price),
+          ]);
+    // Only a bigger saving replaces what a unit has, so a tie stays with the promotion that came first.
+    for (const [unit, off] of offers) {
+      if (off > unit.off) Object.assign(unit, { off, promotionId: promo.id });
     }
-
-    const weights = eligible.map((i) => remaining[i]!);
-    const pool = weights.reduce((a, b) => a + b, 0);
-    let perLine: number[] = eligible.map(() => 0);
-
-    if (promo.kind === 'percentage') {
-      const bps = Math.round(config.percent * 100);
-      let total = Number((BigInt(pool) * BigInt(bps)) / 10000n);
-      if (config.maxDiscountMinor !== undefined) total = Math.min(total, config.maxDiscountMinor);
-      perLine = allocate(total, weights);
-    } else if (promo.kind === 'fixed_amount') {
-      perLine = allocate(Math.min(config.amountMinor, pool), weights);
-    } else {
-      // buy_x_get_y: in every group of (buy + get) eligible units the `get` cheapest earn percentOff.
-      const units = eligible
-        .flatMap((i) => Array.from({ length: lines[i]!.quantity }, () => i))
-        .sort((a, b) => lines[a]!.unitPriceMinor - lines[b]!.unitPriceMinor || lines[a]!.variantId.localeCompare(lines[b]!.variantId));
-      const rewarded = Math.floor(units.length / (config.buy + config.get)) * config.get;
-      const bps = Math.round(config.percentOff * 100);
-      const byLine = new Map<number, number>();
-      for (const i of units.slice(0, rewarded)) {
-        const off = Number((BigInt(lines[i]!.unitPriceMinor) * BigInt(bps)) / 10000n);
-        byLine.set(i, (byLine.get(i) ?? 0) + off);
-      }
-      perLine = eligible.map((i, k) => Math.min(byLine.get(i) ?? 0, weights[k]!));
-    }
-
-    const discount = perLine.reduce((a, b) => a + b, 0);
-    if (discount <= 0) {
-      reject(promo, 'NOT_APPLICABLE');
-      continue;
-    }
-    eligible.forEach((i, k) => {
-      if (perLine[k]! > 0) {
-        remaining[i] = remaining[i]! - perLine[k]!;
-        result.allocations[i]!.push({ promotionId: promo.id, amountMinor: perLine[k]! });
-      }
-    });
-    appliedPromos.push(promo);
-    result.applied.push({ promotionId: promo.id, name: promo.name, kind: promo.kind, code: promo.code, discountMinor: discount });
   }
+  for (const promo of automatic) {
+    const perLine = new Map<number, number>();
+    for (const u of units) if (u.promotionId === promo.id) perLine.set(u.line, (perLine.get(u.line) ?? 0) + u.off);
+    if (perLine.size > 0) record(promo, perLine);
+  }
+
+  // One code per order. The API accepts no more than one; any further one given here is turned down.
+  const [coded, ...extra] = ordered.filter((p) => p.code !== null);
+  for (const p of extra) reject(p, 'NOT_APPLICABLE');
+  const rule = coded ? qualify(coded) : null;
+  if (!coded || !rule) return result;
+  const { config, eligible } = rule;
+  if (isExtra(coded)) {
+    grantExtra(coded, config);
+    return result;
+  }
+
+  let perLine: Map<number, number>;
+  if (coded.kind === 'buy_x_get_y') {
+    perLine = new Map();
+    const paidFor = unitsOn(eligible).filter((u) => u.price > u.off);
+    for (const [u, off] of rewardUnits(paidFor, lines, config, (x) => x.price - x.off)) perLine.set(u.line, (perLine.get(u.line) ?? 0) + off);
+  } else {
+    const weights = eligible.map((i) => unitsOn([i]).reduce((sum, u) => sum + u.price - u.off, 0));
+    const pool = weights.reduce((a, b) => a + b, 0);
+    const total = coded.kind === 'percentage' ? Math.min(share(pool, config.percent), config.maxDiscountMinor ?? pool) : Math.min(config.amountMinor, pool);
+    const parts = allocate(total, weights);
+    perLine = new Map(eligible.map((i, k) => [i, parts[k]!]));
+  }
+  record(coded, perLine);
   return result;
 }

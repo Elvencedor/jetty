@@ -75,10 +75,10 @@ describe('product tile promotion chips', { skip: !TEST_DATABASE_URL && 'TEST_DAT
     assert.equal(await chip('bonnet'), null);
   });
 
-  it('hides the chip when one unit does not reach the minimum spend', async () => {
+  it('shows the chip on every item, whatever minimum spend an automatic discount has stored', async () => {
     await promo('Over 150k', 'percentage', { version: 1, percent: 10 }, { minimumSubtotalMinor: 15_000_000 });
     assert.equal(await chip('wig'), '10% off');
-    assert.equal(await chip('bonnet'), null);
+    assert.equal(await chip('bonnet'), '10% off');
   });
 
   it('ignores promotions that need a code, a window that is not open, or are not active', async () => {

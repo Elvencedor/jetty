@@ -24,7 +24,6 @@ export type PromotionInput = {
   startsAt?: Date | null | undefined;
   endsAt?: Date | null | undefined;
   priority?: number | undefined;
-  stackable?: boolean | undefined;
   totalUsageLimit?: number | null | undefined;
   perCustomerLimit?: number | null | undefined;
   firstOrderOnly?: boolean | undefined;
@@ -101,7 +100,6 @@ export async function createPromotion(db: Db, adminId: string, input: PromotionI
           startsAt: input.startsAt ?? null,
           endsAt: input.endsAt ?? null,
           priority: input.priority ?? 0,
-          stackable: input.stackable ?? false,
           totalUsageLimit: input.totalUsageLimit ?? null,
           perCustomerLimit: input.perCustomerLimit ?? null,
           firstOrderOnly: input.firstOrderOnly ?? false,
@@ -174,7 +172,6 @@ export async function updatePromotion(db: Db, id: string, patch: PromotionPatch,
           startsAt,
           endsAt,
           ...(patch.priority !== undefined ? { priority: patch.priority } : {}),
-          ...(patch.stackable !== undefined ? { stackable: patch.stackable } : {}),
           ...(patch.totalUsageLimit !== undefined ? { totalUsageLimit: patch.totalUsageLimit } : {}),
           ...(patch.perCustomerLimit !== undefined ? { perCustomerLimit: patch.perCustomerLimit } : {}),
           ...(patch.firstOrderOnly !== undefined ? { firstOrderOnly: patch.firstOrderOnly } : {}),
@@ -217,7 +214,7 @@ export async function listAdminPromotions(
     after = sql`and (p.created_at, p.id) < (${at}::timestamptz, ${id}::uuid)`;
   }
   const rows = (await db.execute(sql`
-    select p.id, p.name, p.kind, p.status, p.version, (${lifecycleSql}) as lifecycle, p.starts_at, p.ends_at, p.priority, p.stackable,
+    select p.id, p.name, p.kind, p.status, p.version, (${lifecycleSql}) as lifecycle, p.starts_at, p.ends_at, p.priority,
       p.total_usage_limit, p.per_customer_limit, p.usage_count, p.created_at, p.created_at::text as cur_at,
       (select count(*)::int from promotion_codes pc where pc.promotion_id = p.id) as code_count,
       (select count(*)::int from promotion_holds h where h.promotion_id = p.id) as holds
@@ -236,7 +233,6 @@ export async function listAdminPromotions(
       startsAt: iso(r.starts_at),
       endsAt: iso(r.ends_at),
       priority: r.priority as number,
-      stackable: r.stackable as boolean,
       type: (r.code_count as number) > 0 ? 'code' : 'automatic',
       version: r.version as number,
       usage: { redemptions: r.usage_count as number, openHolds: r.holds as number, limit: (r.total_usage_limit as number | null) ?? null },

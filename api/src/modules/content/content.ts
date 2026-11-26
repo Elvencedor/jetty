@@ -3,7 +3,6 @@ import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import { contentEntries, promotionCodes, promotions } from '../../db/schema/index.js';
 import { listProducts, type ProductCard } from '../catalog/listing.js';
-import { getSetting } from '../settings/settings.js';
 
 export const CONTENT_TYPES = ['announcement', 'banner', 'page', 'featured_products', 'story', 'tile', 'flash', 'home_layout'] as const;
 export type ContentType = (typeof CONTENT_TYPES)[number];
@@ -137,10 +136,9 @@ export async function getHome(db: Db) {
       return items.length ? { type: 'tiles', items } : null;
     },
     trust: async () => {
-      const policies = await getSetting(db, 'policies');
       const items = [
         { icon: 'shield-check', title: 'Secure pay', caption: 'Protected checkout' },
-        ...(policies.returnWindowDays > 0 ? [{ icon: 'rotate-ccw', title: `${policies.returnWindowDays}-day returns`, caption: 'Unworn, lace uncut' }] : []),
+        { icon: 'rotate-ccw', title: 'Return policy', caption: 'Unworn, lace uncut' },
         { icon: 'star', title: 'Real reviews', caption: 'Verified buyers only' },
       ];
       return { type: 'trust', items };
